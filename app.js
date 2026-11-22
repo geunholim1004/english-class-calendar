@@ -194,7 +194,7 @@ async function doLogin(){
     auth = {token, owner, repo, login: u.login || owner, privRepo: ($("ghPriv").value.trim() || PRIV_DEFAULT)};
     try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
     $("loginModal").classList.remove("on"); $("ghToken").value = "";
-    renderAcct(); await loadRemote(); loadPayments(); loadArchive(); loadRequests(); if (incoming) showReq();
+    renderAcct(); await loadRemote(); loadPayments(); loadArchive(); loadRequests(); loadFeedback(); if (incoming) showReq();
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 
@@ -211,6 +211,15 @@ ko: {
   rqWhatTeacherDate:(d,tm) => `이동 → ${d} ${tm} (선생님 사유 · 보너스 1회)`, rqSameDayBonus:" (선생님 사유 · 한국 시간 기준 당일 변경 → 보너스 1회)",
   nfTitle:"카톡 알림 메시지", nfCopy:"복사", nfShare:"공유", nfHint:"복사해서 선생님과의 단톡방에 붙여넣으세요. 계속 바꾸면 이 메시지에 이어서 모입니다.",
   hPend:"승인 대기 요청", pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ 승인", pendReject:"✕ 거절",
+  autoTag:" (자동)", fbHas:"피드백 있음", fbDue:"피드백 작성 대기", fbHead:"선생님 피드백", fbNone:"아직 선생님 피드백이 없어요.",
+  fbL:{topics:"오늘 배운 내용", expr:"핵심 표현·단어", good:"잘한 점·고칠 점", hw:"숙제·다음 준비"},
+  fbPh:{topics:"예: 반도체 고객 미팅 롤플레이", expr:"예: lead time, ramp-up, yield", good:"예: 발음 좋음 / 시제 주의", hw:"예: 이메일 3문장 써 오기"},
+  fbTitle:(d,l) => `${d} ${l} · 수업 피드백`, fbSave:"💾 피드백 저장", fbUpdate:"💾 피드백 수정", fbEmpty:"한 칸 이상 써 주세요.",
+  fbSaved:"저장했어요 ✓ 아래 메시지를 카카오톡으로 보내 주세요.", fbShareBtn:"💬 카카오톡으로 보내기", fbCopyMsg:"메시지 복사",
+  fbMsgHead:x => `[영어 수업 피드백] ${x}`, fbReplyL:"학생 답장", fbReplyPh:"질문이나 다음 수업에 하고 싶은 것", fbReplySave:"답장 저장 + 메시지 복사",
+  fbReplied:"답장을 저장했어요 ✓", fbReplyCopied:"답장 포함 메시지를 복사했어요. 카카오톡에 붙여 넣으세요.", fbReplied2:"답장함",
+  hFb:"수업 피드백", fbDueCnt:n => `✍ 작성 대기 ${n}`, fbNewCnt:n => `새 피드백 ${n}`, fbEmptyList:"끝난 수업이 생기면 여기에 피드백이 모입니다.",
+  fbHint:"수업이 끝나면 자동으로 '완료'가 되고, 선생님이 ✍ 표시된 수업을 눌러 피드백을 남깁니다.",
   hMyReq:"내 변경 요청", myNone:"보낸 요청이 없어요.", st_pending:"⏳ 승인 대기", st_approved:"✓ 승인됨", st_rejected:"✕ 거절됨", myCancel:"요청 취소",
   rqSaveFail:e => `요청 저장 실패 (${e})`, rqAlready:"이 수업에는 이미 승인 대기 중인 요청이 있어요.",
   rqMsg2:o => `[영어 수업 변경 요청]\n${o.target}\n요청: ${o.what}\n사유: ${o.why}\n요청자: ${o.who}\n\n웹에서 확인·승인해 주세요 👇\n${o.url}`,
@@ -401,6 +410,15 @@ en: {
   rqWhatTeacherDate:(d,tm) => `Move → ${d} ${tm} (teacher’s reason · 1 bonus class)`, rqSameDayBonus:" (teacher’s reason · same-day change in Korea time → 1 bonus class)",
   nfTitle:"KakaoTalk message", nfCopy:"Copy", nfShare:"Share", nfHint:"Copy it into the group chat with the teacher. Further changes keep adding to this message.",
   hPend:"Pending requests", pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ Approve", pendReject:"✕ Decline",
+  autoTag:" (auto)", fbHas:"Feedback written", fbDue:"Feedback to write", fbHead:"Teacher feedback", fbNone:"No feedback from the teacher yet.",
+  fbL:{topics:"Topics covered", expr:"Key expressions & words", good:"Strengths & to improve", hw:"Homework / next class"},
+  fbPh:{topics:"e.g. Role-play: customer meeting on memory chips", expr:"e.g. lead time, ramp-up, yield", good:"e.g. Clear pronunciation / watch past tense", hw:"e.g. Write a 3-sentence email"},
+  fbTitle:(d,l) => `${d} ${l} · Class feedback`, fbSave:"💾 Save feedback", fbUpdate:"💾 Update feedback", fbEmpty:"Please fill in at least one field.",
+  fbSaved:"Saved ✓ Send the message below on KakaoTalk.", fbShareBtn:"💬 Send via KakaoTalk", fbCopyMsg:"Copy message",
+  fbMsgHead:x => `[English class feedback] ${x}`, fbReplyL:"Student reply", fbReplyPh:"Questions or what you’d like next time", fbReplySave:"Save reply + copy message",
+  fbReplied:"Reply saved ✓", fbReplyCopied:"Copied the message with your reply. Paste it into KakaoTalk.", fbReplied2:"replied",
+  hFb:"Class feedback", fbDueCnt:n => `✍ ${n} to write`, fbNewCnt:n => `${n} new`, fbEmptyList:"Feedback appears here once classes are done.",
+  fbHint:"Classes turn ‘Done’ automatically when they end; the teacher taps a class marked ✍ to leave feedback.",
   hMyReq:"My change requests", myNone:"No requests yet.", st_pending:"⏳ Pending", st_approved:"✓ Approved", st_rejected:"✕ Declined", myCancel:"Cancel request",
   rqSaveFail:e => `Couldn’t save the request (${e})`, rqAlready:"There’s already a pending request for this class.",
   rqMsg2:o => `[English class – change request]\n${o.target}\nRequest: ${o.what}\nReason: ${o.why}\nFrom: ${o.who}\n\nPlease review and approve on the web 👇\n${o.url}`,
@@ -656,7 +674,7 @@ function klass(s){
 }
 const occupies = s => s.act === "plan" || s.act === "done" || ((s.act === "cancel" || s.act === "noshow") && s.cause === "me");
 function statusText(s){
-  if (s.act === "plan" || s.act === "done") return t("act")[s.act] + (s.edited ? t("edited") : "");
+  if (s.act === "plan" || s.act === "done") return t("act")[s.act] + (s.auto ? t("autoTag") : "") + (s.edited ? t("edited") : "");
   return t("status")(t("act")[s.act], t("cause")[s.cause] || "-");
 }
 
@@ -689,8 +707,12 @@ function buildSessions(P, C){
     if (penalty){ const bn = {id:"B:"+s.id, kind:"bonus", bno:++bonusNo, from:s, d:endSlot(), time:C.time}; S.push(bn); kids.push(bn); }
     if (kids.length) s.children = (s.children || []).concat(kids);
   }
+  // 수업 끝난 시각(한국 시간)이 지나면 '예정' → '완료(자동)'
+  const nk = kstParts(), nowKey = `${nk.year}-${nk.month}-${nk.day} ${nk.hour}:${nk.minute}`;
+  S.forEach(s => { if (s.act === "plan" && `${fmt(s.d)} ${endHM(s.time, C.dur)}` <= nowKey){ s.act = "done"; s.auto = true; } });
   return S;
 }
+function endHM(tm, dur){ const [a,b] = String(tm || "17:00").split(":").map(Number); const e = new Date(Date.UTC(2000,0,1,a,b + (+dur || 25))); return `${String(e.getUTCHours()).padStart(2,"0")}:${String(e.getUTCMinutes()).padStart(2,"0")}`; }
 const byTime = (a,b) => a.d - b.d || (a.time||"").localeCompare(b.time||"");
 
 /* ---------- 정적 문구 적용 ---------- */
@@ -701,6 +723,7 @@ function applyStatic(){
   document.querySelectorAll("[data-i18n-html]").forEach(el => el.innerHTML = t(el.dataset.i18nHtml));
   document.querySelectorAll("[data-i18n-ph]").forEach(el => el.placeholder = t(el.dataset.i18nPh));
   document.querySelectorAll("[data-i18n-title]").forEach(el => el.title = t(el.dataset.i18nTitle));
+  document.querySelectorAll("[data-i18n-fb]").forEach(el => { const k = el.dataset.i18nFb; el.textContent = t("fbL")[k]; const ta = $("fb_" + k); if (ta) ta.placeholder = t("fbPh")[k]; });
   document.querySelectorAll("[data-lang]").forEach(b => b.classList.toggle("on", b.dataset.lang === lang));
 }
 function setLang(l){
@@ -808,11 +831,15 @@ function render(){
           it.className = `it ${s.kind} ${kc}` + (selected === s.id ? " sel" : "");
           it.textContent = `${labelOf(s)} ${short}`;
           it.title = `${labelOf(s)} · ${statusText(s)}${s.meta&&s.meta.memo?" · "+s.meta.memo:""}`;
+          const fb = feedback[s.id];
+          if (s.act === "done" && fb){ it.textContent += " 📝"; it.title += " · " + t("fbHas"); }
+          else if (s.act === "done" && isSub() && fbDue(s)) { it.textContent += " ✍"; it.classList.add("fbdue"); it.title += " · " + t("fbDue"); }
           if (isMaster()) it.onclick = () => selectSession(selected === s.id ? null : s.id);
           else if (isSub() && s.act === "plan" && s.d >= C.asof && !pendingFor(s.id)) it.onclick = () => openReq(reqSid === s.id ? null : s.id);
+          else if (isSub() && s.act === "done") it.onclick = () => openFb(fbSid === s.id ? null : s.id);
           else it.style.cursor = "default";
           if (pendingFor(s.id)){ it.classList.add("pending"); it.textContent += " ⏳"; it.title += " · " + t("st_pending"); }
-          if (reqSid === s.id) it.classList.add("sel");
+          if (reqSid === s.id || fbSid === s.id) it.classList.add("sel");
           el.appendChild(it);
         });
       }
@@ -828,6 +855,9 @@ function render(){
   else { $("actions").className = "actions"; selected = null; }
   const rs = reqSid && isSub() && S.find(x => x.id === reqSid);
   if (rs){ renderReq(rs, C); positionPop($("reqPanel"), $("calcard").querySelector(".it.sel")); } else { $("reqPanel").className = "actions"; reqSid = null; }
+  const fs = fbSid && isSub() && S.find(x => x.id === fbSid);
+  if (fs){ renderFb(fs); positionPop($("fbPanel"), $("calcard").querySelector(".it.sel")); } else { $("fbPanel").className = "actions"; fbSid = null; }
+  renderFbCard(S);
   if (addDate && isMaster()){ renderAdd(C); positionPop($("addPanel"), document.querySelector(`.day[data-date="${addDate}"]`)); }
   else { $("addPanel").className = "actions"; addDate = null; }
 
@@ -932,8 +962,8 @@ function positionPop(p, it){
 }
 window.addEventListener("resize", () => { if (selected) positionPanel(); });
 document.addEventListener("mousedown", e => {
-  if (!selected && !addDate && !reqSid) return;
-  if (reqSid && !e.target.closest(".actions") && !e.target.closest(".it") && !e.target.closest(".lang")){ reqSid = null; render(); return; }
+  if (!selected && !addDate && !reqSid && !fbSid) return;
+  if ((reqSid || fbSid) && !e.target.closest(".actions") && !e.target.closest(".it") && !e.target.closest(".lang") && !e.target.closest(".modal") && !e.target.closest("#fbCard")){ reqSid = null; fbSid = null; render(); return; }
   if (e.target.closest(".actions") || e.target.closest(".it") || e.target.closest(".modal") || e.target.closest("[data-sel]") || e.target.closest(".lang") || e.target.closest(".day.addable") || e.target.closest("#addBtn")) return;
   addDate = null; selectSession(null);
 });
@@ -1015,7 +1045,7 @@ async function tryMasterLogin(id, pw){
   auth = {token, owner: c.owner, repo: c.repo, login: u.login || c.owner, privRepo: priv};
   try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
   $("loginModal").classList.remove("on"); $("subPw").value = "";
-  renderAcct(); await loadRemote(); loadPayments(); loadArchive(); loadRequests(); if (incoming) showReq();
+  renderAcct(); await loadRemote(); loadPayments(); loadArchive(); loadRequests(); loadFeedback(); if (incoming) showReq();
   return true;
 }
 // 아이디 로그인
@@ -1031,7 +1061,7 @@ async function doSubLogin(){
     let token; try { token = await unlockToken(u.box, pw); } catch(e) { throw new Error(t("subBadPw")); }
     becomeUser(u, token);
     $("loginModal").classList.remove("on"); $("subPw").value = "";
-    renderAcct(); await loadRemote(); loadRequests();
+    renderAcct(); await loadRemote(); loadRequests(); loadFeedback();
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 // 초대 링크로 등록 (#invite=아이디)
@@ -1051,7 +1081,7 @@ async function doRegister(){
     becomeUser(u, token);
     $("regModal").classList.remove("on");
     try { history.replaceState(null, "", location.pathname); } catch(e) {}
-    renderAcct(); await loadRemote(); loadRequests();
+    renderAcct(); await loadRemote(); loadRequests(); loadFeedback();
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 function checkInvite(){
@@ -1435,6 +1465,116 @@ function renderMyRequests(){
 }
 
 
+
+/* ---------- 수업 피드백 (선생님 작성 → 학생 답장) : english-class-share/feedback.json ---------- */
+let feedback = {}, fbSid = null, fbSha = null;
+const FB_KEYS = ["topics","expr","good","hw"];
+function cleanFb(f){
+  if (!f || typeof f !== "object") return null;
+  const o = {}; FB_KEYS.concat(["reply"]).forEach(k => o[k] = String(f[k] || "").slice(0, 2000));
+  o.by = String(f.by || "").slice(0, 40); o.name = String(f.name || "").slice(0, 40);
+  o.at = String(f.at || "").slice(0, 20); o.replyAt = String(f.replyAt || "").slice(0, 20);
+  return o;
+}
+const fbDue = s => s.act === "done" && !feedback[s.id];
+async function fetchFeedback(){
+  if (!isEditor()) return {items: {}, sha: null};
+  const g = await ghGet(SHARE_REPO, "feedback.json"); const raw = (g.data && g.data.items) || {}, items = {};
+  Object.keys(raw).forEach(k => { if (/^[\w:]{1,40}$/.test(k)){ const f = cleanFb(raw[k]); if (f) items[k] = f; } });
+  return {items, sha: g.sha};
+}
+async function loadFeedback(){ if (!isEditor()) return; try { feedback = (await fetchFeedback()).items; } catch(e) {} render(); }
+async function mutateFeedback(fn, message, retry){
+  const {items, sha} = await fetchFeedback(); fn(items);
+  const body = {message, content: b64enc(JSON.stringify({items}, null, 1)), branch: BRANCH}; if (sha) body.sha = sha;
+  const r = await fetch(`https://api.github.com/repos/${ownerOf()}/${SHARE_REPO}/contents/feedback.json`, {method:"PUT", headers:{...apiHeaders(), "Content-Type":"application/json"}, body: JSON.stringify(body)});
+  if ((r.status === 409 || r.status === 422) && !retry) return mutateFeedback(fn, message, true);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  feedback = items;
+}
+function fbText(s, f){
+  const L = t("fbL"), parts = [t("fbMsgHead")(`${kdate(s.d)} ${s.time} ${labelOf(s)}`)];
+  FB_KEYS.forEach(k => { if (f[k]) parts.push(`${L[k]}: ${f[k]}`); });
+  parts.push(`— ${f.name || f.by}`);
+  if (f.reply) parts.push("", `${t("fbReplyL")}: ${f.reply}`);
+  parts.push("", teacherLink());
+  return parts.join("\n");
+}
+function fbHtml(f){
+  const L = t("fbL");
+  return FB_KEYS.filter(k => f[k]).map(k => `<div class="fbline"><b>${L[k]}</b> ${esc(f[k]).replace(/\n/g,"<br>")}</div>`).join("")
+    + `<div class="hint">${esc(f.name || f.by)} · ${esc(f.at)}</div>`;
+}
+// 선생님: 지난 수업 → 피드백 작성 창
+function openFb(id){
+  fbSid = id; reqSid = null;
+  const f = id && feedback[id] || {};
+  FB_KEYS.forEach(k => $("fb_" + k).value = f[k] || "");
+  $("fbMsg").textContent = ""; $("fbShareRow").style.display = "none";
+  render();
+}
+function renderFb(sel){
+  const f = feedback[sel.id];
+  $("fbTitle").innerHTML = `<b>${t("fbTitle")(kdate(sel.d) + " " + sel.time, labelOf(sel))}</b>`;
+  $("fbReplyView").innerHTML = f && f.reply ? `<div class="fbreply"><b>${t("fbReplyL")}</b> ${esc(f.reply).replace(/\n/g,"<br>")}<div class="hint">${esc(f.replyAt)}</div></div>` : "";
+  $("fbSave").textContent = f ? t("fbUpdate") : t("fbSave");
+}
+$("fbSave").onclick = async () => {
+  if (!isSub() || !fbSid) return;
+  const C = cfg(), s = buildSessions(sundays(C.start, C.months), C).find(x => x.id === fbSid); if (!s) return;
+  const v = {}; FB_KEYS.forEach(k => v[k] = $("fb_" + k).value.trim());
+  if (!v.topics && !v.expr && !v.good && !v.hw){ $("fbMsg").className = "hint bad"; $("fbMsg").textContent = t("fbEmpty"); return; }
+  $("fbSave").disabled = true; $("fbMsg").className = "hint"; $("fbMsg").textContent = t("rqdSaving");
+  try {
+    await mutateFeedback(items => { const old = items[fbSid] || {}; items[fbSid] = Object.assign({}, old, v, {by: auth.login, name: auth.name, at: nowStamp()}); }, `Feedback ${fmt(s.d)} ${labelOf(s)} by ${auth.login}`);
+    $("fbText").value = fbText(s, feedback[fbSid]); $("fbShareRow").style.display = "";
+    $("fbShare").style.display = navigator.share ? "" : "none";
+    $("fbMsg").textContent = t("fbSaved"); render();
+  } catch(e){ $("fbMsg").className = "hint bad"; $("fbMsg").textContent = t("rqSaveFail")(e.message); }
+  $("fbSave").disabled = false;
+};
+$("fbShare").onclick = async () => { try { await navigator.share({text: $("fbText").value}); } catch(e) {} };
+$("fbCopy").onclick = () => copy($("fbText").value, t("copied"));
+$("xFb").onclick = $("fbClose").onclick = () => { fbSid = null; render(); };
+// 마스터: 수업 패널 안에 피드백 보기 + 답장
+function renderFbBox(sel){
+  const box = $("fbBox"); if (!box) return;
+  if (!isMaster() || sel.act !== "done"){ box.innerHTML = ""; box.style.display = "none"; return; }
+  box.style.display = ""; const f = feedback[sel.id];
+  box.innerHTML = `<h4>📝 ${t("fbHead")}</h4>` + (f ? fbHtml(f) + `
+    <label>${t("fbReplyL")}</label><textarea id="fbReplyIn" rows="2" placeholder="${t("fbReplyPh")}">${esc(f.reply || "")}</textarea>
+    <div class="btns"><button class="sm" id="fbReplySave">${t("fbReplySave")}</button><button class="ghost sm" id="fbMCopy">${t("fbCopyMsg")}</button></div><div class="hint" id="fbReplyMsg"></div>`
+    : `<div class="hint">${t("fbNone")}</div>`);
+  if (!f) return;
+  $("fbReplySave").onclick = async () => {
+    const txt = $("fbReplyIn").value.trim(), out = $("fbReplyMsg"); out.className = "hint"; out.textContent = t("rqdSaving");
+    try { await mutateFeedback(items => { if (items[sel.id]){ items[sel.id].reply = txt; items[sel.id].replyAt = nowStamp(); } }, `Reply to feedback ${fmt(sel.d)}`);
+      out.textContent = t("fbReplied"); copy(fbText(sel, feedback[sel.id]), t("fbReplyCopied")); }
+    catch(e){ out.className = "hint bad"; out.textContent = t("rqSaveFail")(e.message); }
+  };
+  $("fbMCopy").onclick = () => copy(fbText(sel, f), t("copied"));
+}
+// 피드백 카드 (선생님: 작성 대기 + 최근 / 마스터: 최근 피드백)
+function renderFbCard(S){
+  const card = $("fbCard"); if (!card) return;
+  if (!isEditor()){ card.style.display = "none"; return; }
+  card.style.display = "";
+  const done = S.filter(s => s.act === "done").sort(byTime).reverse();
+  const due = isSub() ? done.filter(s => !feedback[s.id]) : [];
+  const have = done.filter(s => feedback[s.id]).slice(0, 6);
+  const newCnt = isMaster() ? have.filter(s => feedback[s.id].at > (localStorage.getItem("eng-class-fb-seen") || "")).length : 0;
+  $("fbCount").textContent = isSub() ? (due.length ? t("fbDueCnt")(due.length) : "") : (newCnt ? t("fbNewCnt")(newCnt) : "");
+  const row = (s, f) => `<div class="pendrow fbrow" data-fbs="${esc(s.id)}"><div><b>${kdate(s.d)} ${labelOf(s)}</b>${f ? ` · ${esc(f.topics || f.expr || "").slice(0, 60)}` : ""}</div>
+    ${f ? `<div class="hint">${f.hw ? `${t("fbL").hw}: ${esc(f.hw).slice(0,60)} · ` : ""}${esc(f.name || f.by)} · ${esc(f.at)}${f.reply ? " · 💬 " + t("fbReplied2") : ""}</div>`
+        : `<div class="hint"><b class="st-pending">✍ ${t("fbDue")}</b></div>`}</div>`;
+  $("fbList").innerHTML = (due.slice(0, 4).map(s => row(s, null)).join("") + have.map(s => row(s, feedback[s.id])).join("")) || `<div class="empty">${t("fbEmptyList")}</div>`;
+  $("fbList").querySelectorAll("[data-fbs]").forEach(r => r.onclick = () => {
+    const id = r.dataset.fbs;
+    if (isSub()) openFb(id); else { try { localStorage.setItem("eng-class-fb-seen", nowStamp()); } catch(e) {} selectSession(id); }
+    const it = [...document.querySelectorAll("#calcard .it.sel")][0]; if (it) it.scrollIntoView({behavior:"smooth", block:"center"});
+  });
+}
+
 /* ---------- 수업 추가 ---------- */
 function openAdd(k){
   selected = null; addDate = k; addPaid = "paid";
@@ -1482,6 +1622,7 @@ function renderPanel(sel, C){
   $("datesTitle").textContent = a === "edit" ? t("datesEdit") : t("datesMove");
   if (a === "edit" && !$("toDate").value) $("toDate").value = fmt(sel.d);
   updatePreview(sel, C);
+  renderFbBox(sel);
 }
 function outcomeHtml(act, cause, how, sameDay){
   const pv = t("pv");
@@ -1873,7 +2014,7 @@ $("loginBtn").onclick = () => { const tokMode = /^#master$/.test(location.hash);
   $("loginTabs").style.display = tokMode ? "" : "none";
   document.querySelector(`#loginTabs [data-v="${tokMode ? "master" : "sub"}"]`).click(); const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
 $("doLogin").onclick = doLogin;
-$("logoutBtn").onclick = () => { state = {}; log = []; extras = []; requests = []; try { ["eng-class-state-v4","eng-class-log-v4","eng-class-extras-v1"].forEach(k => localStorage.removeItem(k)); } catch(e) {} archive = null; auth = null; payments = []; payLoaded = false; renderPayments(); try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
+$("logoutBtn").onclick = () => { state = {}; log = []; extras = []; requests = []; feedback = {}; fbSid = null; try { ["eng-class-state-v4","eng-class-log-v4","eng-class-extras-v1"].forEach(k => localStorage.removeItem(k)); } catch(e) {} archive = null; auth = null; payments = []; payLoaded = false; renderPayments(); try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
 $("linkBtn").onclick = () => copy(teacherLink(), t("linkCopied")(teacherLink()));
 async function copy(text, ok){
   try { await navigator.clipboard.writeText(text); $("toast").textContent = ok; }
@@ -1915,4 +2056,4 @@ applyStatic();
 renderAcct();
 render();
 if (/^#master$/.test(location.hash) && !isEditor()) setTimeout(() => $("loginBtn").click(), 300);
-loadRemote().then(() => { loadPayments(); loadArchive(); checkReq(); checkInvite(); checkRegReq(); checkPendingReg(); loadRequests(); });
+loadRemote().then(() => { loadFeedback(); loadPayments(); loadArchive(); checkReq(); checkInvite(); checkRegReq(); checkPendingReg(); loadRequests(); });

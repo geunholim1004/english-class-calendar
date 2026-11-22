@@ -246,6 +246,11 @@ select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8p
 body.viewer #openSettings .l::after{content:" 👁"}
 input:disabled{opacity:.75;background:#f3f2ee}
 @media(max-width:640px){.top{flex-direction:column}.acct{align-items:flex-start}.acctrow{justify-content:flex-start}}
+.fbbox{border-top:1px dashed var(--line,#dde3e1);margin-top:12px;padding-top:10px}.fbbox h4{margin:0 0 6px}
+.fbline{margin:4px 0;font-size:14px}.fbline b{display:block;font-size:12px;color:#5b6b68}
+.fbreply{background:#eef5f3;border-radius:10px;padding:8px 10px;margin:8px 0;font-size:14px}
+.it.fbdue{outline:1.5px dashed #c47a1c;outline-offset:1px}.fbrow{cursor:pointer}.fbrow:hover{background:#f6f9f8}
+#fbPanel textarea,.fbbox textarea{width:100%;font:inherit;font-size:14px}
 </style>
 </head>
 <body>
@@ -302,6 +307,11 @@ input:disabled{opacity:.75;background:#f3f2ee}
       <div class="card pendcard masteronly" id="pendCard" style="display:none">
         <h2><span data-i18n="hPend"></span> <span id="pendCount" class="logcount"></span></h2>
         <div id="pendList"></div>
+      </div>
+      <div class="card fbcard" id="fbCard" style="display:none">
+        <h2><span data-i18n="hFb"></span> <span id="fbCount" class="logcount"></span></h2>
+        <div id="fbList"></div>
+        <div class="hint" data-i18n="fbHint" style="margin-top:6px"></div>
       </div>
       <div class="card subonly myreqcard">
         <h2 data-i18n="hMyReq"></h2>
@@ -379,6 +389,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
             <button id="applyBtn" data-i18n="apply"></button>
             <button class="ghost" id="closeAct" data-i18n="close"></button>
           </div>
+          <div class="fbbox" id="fbBox" style="display:none"></div>
         </div>
         <div class="actions" id="reqPanel">
           <div class="head"><div class="t" id="reqTitle"></div><button class="x" id="xReq">×</button></div>
@@ -401,6 +412,18 @@ input:disabled{opacity:.75;background:#f3f2ee}
             <div class="btns"><button id="reqCopy" data-i18n="rqCopy"></button></div><div class="hint" data-i18n="rqOutHint"></div></div>
         </div>
 
+        <div class="actions" id="fbPanel">
+          <div class="head"><div class="t" id="fbTitle"></div><button class="x" id="xFb">×</button></div>
+          <label data-i18n-fb="topics"></label><textarea id="fb_topics" rows="1"></textarea>
+          <label data-i18n-fb="expr"></label><textarea id="fb_expr" rows="2"></textarea>
+          <label data-i18n-fb="good"></label><textarea id="fb_good" rows="2"></textarea>
+          <label data-i18n-fb="hw"></label><textarea id="fb_hw" rows="1"></textarea>
+          <div id="fbReplyView"></div>
+          <div class="btns"><button id="fbSave"></button><button class="ghost" id="fbClose" data-i18n="close"></button></div>
+          <div class="hint" id="fbMsg"></div>
+          <div id="fbShareRow" style="display:none"><textarea id="fbText" readonly rows="6"></textarea>
+            <div class="btns"><button id="fbShare" data-i18n="fbShareBtn"></button><button class="ghost" id="fbCopy" data-i18n="fbCopyMsg"></button></div></div>
+        </div>
         <div class="actions" id="addPanel">
           <div class="head"><div class="t" id="addTitle"></div><button class="x" id="xAdd">×</button></div>
           <div class="grid3"><div><label data-i18n="lToTime"></label><input id="addTime" type="time" value="17:00"></div></div>
