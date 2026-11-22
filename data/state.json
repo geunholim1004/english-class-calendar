@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-11-22T04:03:48.397Z",
+ "updatedAt": "2026-11-22T04:03:54.758Z",
  "settings": {
   "start": "2026-11-22",
   "months": "3",
@@ -34,6 +34,11 @@
    "at": "2026-11-22 13:03",
    "ko": "2027.02.28(일) 보강(#1): 예정 → 예정",
    "en": "Sun, Feb 28, 2027 Makeup(#1): Scheduled → Scheduled"
+  },
+  {
+   "at": "2026-11-22 13:03",
+   "ko": "2027.03.07(일) 보너스1: 예정 → 예정",
+   "en": "Sun, Mar 7, 2027 Bonus 1: Scheduled → Scheduled"
   }
  ]
 }
