@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-11-22T05:42:04.095Z",
+ "updatedAt": "2026-11-22T05:42:15.038Z",
  "settings": {
   "start": "2026-11-22",
   "months": "3",
@@ -18,13 +18,6 @@
     "date": "2026-11-25",
     "time": "21:00"
    }
-  },
-  "R1": {
-   "act": "hold",
-   "cause": "mutual",
-   "agreed": "2027-03-07",
-   "notice": -105,
-   "late": true
   }
  },
  "log": [
@@ -34,6 +27,13 @@
    "sid": "R1",
    "ko": "2026.11.22(일) #1: 예정 → Hold · 사전 합의 사유 · 연락 2027-03-07 (-105일 전 ⚠기준 미달)",
    "en": "Sun, Nov 22, 2026 #1: Scheduled → Hold · by mutual agreement · Contacted 2027-03-07 (-105 days before, ⚠ below notice rule)"
+  },
+  {
+   "id": "Lmwretqodqws",
+   "at": "2026-11-22 14:42",
+   "sid": "R1",
+   "ko": "2026.11.22(일) #1: Hold · 사전 합의 사유 → 예정",
+   "en": "Sun, Nov 22, 2026 #1: Hold · by mutual agreement → Scheduled"
   }
  ],
  "extras": [
