@@ -166,6 +166,7 @@ button.sm{font-size:12px;padding:4px 10px}
 .sync{font-size:11.5px;color:var(--muted);min-height:16px}
 .sync.bad,.hint.bad{color:var(--tc)}
 body.viewer .calHintEl{display:none}
+body.viewer .fx, body.viewer .usdcol{display:none}   /* 선생님 화면: 환율 줄·수업별 USD 열 숨김 */
 body.viewer #openSettings .l::after{content:" 👁"}
 input:disabled{opacity:.75;background:#f3f2ee}
 @media(max-width:640px){.top{flex-direction:column}.acct{align-items:flex-start}.acctrow{justify-content:flex-start}}
@@ -289,7 +290,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
       <div class="card section">
         <h2 data-i18n="hList"></h2>
         <table>
-          <thead><tr><th data-i18n="thDate"></th><th data-i18n="thType"></th><th data-i18n="thStatus"></th><th data-i18n="thNotes"></th><th class="r">USD</th></tr></thead>
+          <thead><tr><th data-i18n="thDate"></th><th data-i18n="thType"></th><th data-i18n="thStatus"></th><th data-i18n="thNotes"></th><th class="r usdcol">USD</th></tr></thead>
           <tbody id="list"></tbody>
         </table>
       </div>

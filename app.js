@@ -527,8 +527,8 @@ function render(){
     const cc = s.act==="done" ? "c-done" : s.act==="plan" ? "" : s.cause ? "c-"+s.cause : "";
     return `<tr><td>${kdate(s.d)} ${s===alertItem?"🔔":""}<br><span class="hint">${tEnd(s.time)}</span></td>
       <td><span class="tag ${s.kind}">${labelOf(s)}</span></td>
-      <td class="${cc}">${statusText(s)}</td><td>${notes.join("<br>")}</td><td class="r mono">${fee}</td></tr>`;
-  }).join("") + `<tr><th colspan="4">${t("listFoot")(prepaid, bonusCount, movedCount)}</th><th class="r mono">${usd(prepaidUsd)}</th></tr>`;
+      <td class="${cc}">${statusText(s)}</td><td>${notes.join("<br>")}</td><td class="r mono usdcol">${fee}</td></tr>`;
+  }).join("") + `<tr><th colspan="4">${t("listFoot")(prepaid, bonusCount, movedCount)}</th><th class="r mono usdcol">${usd(prepaidUsd)}</th></tr>`;
 
   // 근거
   const cnt = f => S.filter(f).length;
