@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-11-22T04:12:03.757Z",
+ "updatedAt": "2026-11-22T04:21:43.014Z",
  "settings": {
   "start": "2026-11-22",
   "months": "3",
@@ -110,6 +110,20 @@
    "at": "2026-11-22 13:12",
    "ko": "2026.12.13(일) #4: 이동 · 사전 합의 사유 → 예정 · 기존 보강(#4) 2026.11.25(수) 해제 · 사유: test",
    "en": "Sun, Dec 13, 2026 #4: Moved · by mutual agreement → Scheduled · removed Makeup(#4) Wed, Nov 25, 2026 · Reason: test"
+  },
+  {
+   "at": "2026-11-22 13:21",
+   "ko": "2027.02.28(일) 17:00 추가1 추가 (유료) · 사유: 2월을 맞추고 싶어서",
+   "en": "Sun, Feb 28, 2027 17:00 Extra 1 added (paid) · Reason: 2월을 맞추고 싶어서"
+  }
+ ],
+ "extras": [
+  {
+   "id": "Xmwrby69g",
+   "date": "2027-02-28",
+   "time": "17:00",
+   "paid": true,
+   "memo": "2월을 맞추고 싶어서"
   }
  ]
 }
