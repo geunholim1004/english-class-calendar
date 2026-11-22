@@ -852,7 +852,7 @@ function render(){
     if (s.kind === "moved") notes.push(t("nMakeup")(sdate(s.from.d), labelOf(s.from)));
     if (s.meta && s.meta.memo) notes.push(t("nReason")(s.meta.memo));
     if (s.meta && s.meta.agreed) notes.push(t("nContact")(s.meta.agreed, s.meta.notice, s.meta.late));
-    if (s.kind === "extra") notes.unshift(t("nExtra")(s.paid));
+    if (s.kind === "extra" && !s.paid) notes.unshift(t("nExtra")(false));   // 유료 추가 수업은 정규 수업처럼 표시
     const fee = (s.kind === "reg" || (s.kind === "extra" && s.paid)) ? usd(C.price) : (s.kind === "bonus" || s.kind === "extra") ? "$0.00" : t("inPrepaid");
     const cc = s.act==="done" ? "c-done" : s.act==="plan" ? "" : s.cause ? "c-"+s.cause : "";
     return `<tr><td>${kdate(s.d)} ${s===alertItem?"🔔":""}<br><span class="hint">${tEnd(s.time)}</span></td>
@@ -886,7 +886,7 @@ function render(){
   // 카톡 메시지
   // 변경 내역 = 상태가 바뀐 수업(이동·취소·Hold·No-show·수정) + 새로 추가한 수업
   const xMemo = id => (extras.find(x => x.id === id) || {}).memo;
-  const changed = S.filter(s => !["plan","done"].includes(s.act) || s.edited || s.kind === "extra").sort((a,b)=>a.origD-b.origD)
+  const changed = S.filter(s => !["plan","done"].includes(s.act) || s.edited || (s.kind === "extra" && !s.paid)).sort((a,b)=>a.origD-b.origD)
     .map(s => {
       if (s.kind === "extra" && ["plan","done"].includes(s.act))
         return `· ${sdate(s.d)} ${s.time} ${labelOf(s)} ${t("nExtra")(s.paid)}${xMemo(s.id)?` (${xMemo(s.id)})`:""}`;
