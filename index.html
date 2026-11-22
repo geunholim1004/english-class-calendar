@@ -196,6 +196,10 @@ button.danger{color:var(--tc);border-color:#f1c7c2}
 .notify [data-nl].on{background:var(--ink);color:#fff;border-color:var(--ink)}
 #nfText{width:100%;min-height:150px;margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:8px;font:12.5px/1.45 "Noto Sans KR",sans-serif;color:var(--ink);background:#fcfcfa}
 @media(max-width:640px){.notify{left:12px;right:12px;bottom:12px;width:auto}}
+.lockcard{display:none;max-width:520px;margin:40px auto;text-align:center}
+.lockcard .btns{justify-content:center}
+body.locked .lockcard{display:block}
+body.locked .grid{display:none}
 .subonly{display:none}
 body.subm .subonly{display:block}
 .pendcard{border-color:#efcfb6;background:#fffaf5;margin-bottom:14px}
@@ -256,6 +260,11 @@ input:disabled{opacity:.75;background:#f3f2ee}
       <div id="syncStatus" class="sync"></div>
     </div></div>
 
+  <div class="card lockcard" id="lockCard">
+    <h2 data-i18n="lockTitle"></h2>
+    <p class="hint" data-i18n="lockBody"></p>
+    <div class="btns"><button id="lockLogin" data-i18n="lockLogin"></button><button class="ghost" id="lockReg" data-i18n="lockReg"></button></div>
+  </div>
   <div class="grid">
     <div class="leftcol">
       <div class="card holdcard">
@@ -569,6 +578,9 @@ input:disabled{opacity:.75;background:#f3f2ee}
     <input id="asof" type="date">
     <div class="btns"><button data-close data-i18n="sDone"></button></div>
     <div class="hint" data-i18n="sHint"></div>
+    <div class="masteronly subbox">
+      <h4 data-i18n="hRepos"></h4><div class="hint" id="repoStatus"></div>
+    </div>
     <div class="masteronly subbox">
       <h4 data-i18n="hUsers"></h4>
       <div class="hint" id="uTokState"></div>

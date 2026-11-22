@@ -32,7 +32,7 @@ function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); localSt
 
 /* ---------- 권한 & GitHub 동기화 (Roles & GitHub sync) ---------- */
 // 저장소 위치: GitHub Pages 주소(owner.github.io/repo)에서 자동으로 읽고, 없으면 기본값
-const DEFAULT_OWNER = "geunholim1004", DEFAULT_REPO = "english-class-calendar", DATA_PATH = "data/state.json", BRANCH = "main";
+const DEFAULT_OWNER = "geunholim1004", DEFAULT_REPO = "english-class-calendar", LEGACY_DATA = "data/state.json", BRANCH = "main";
 const AUTHKEY = "eng-class-gh-auth";
 function repoCoords(){
   const h = location.hostname, seg = location.pathname.split("/").filter(Boolean);
@@ -57,40 +57,83 @@ function applySnapshot(d){
 const b64enc = s => btoa(unescape(encodeURIComponent(s)));
 const b64dec = s => decodeURIComponent(escape(atob(s.replace(/\n/g,""))));
 function apiHeaders(){ const h = {"Accept":"application/vnd.github+json"}; if (isEditor()) h.Authorization = "Bearer " + auth.token; return h; }
+/* ---------- 저장소 구조 ----------
+   english-class-calendar (공개): 사이트 코드만 — 마스터만 쓰기
+   english-class-private  (비공개): 전체 데이터·납부·영수증·보관 로그 — 마스터만
+   english-class-share    (비공개): 선생님용 달력(금액 제외)·변경 요청 — 마스터 + 사용자
+   english-class-access   (공개): 로그인용 암호화 정보 — 마스터 + 사용자            */
+const SHARE_REPO = "english-class-share", ACCESS_REPO = "english-class-access";
+let shareSha = null;
+const ownerOf = () => (auth && auth.owner) || repoCoords().owner;
+async function ghGet(repo, path, token){
+  const headers = token ? {Accept:"application/vnd.github+json", Authorization:"Bearer " + token} : apiHeaders();
+  const r = await fetch(`https://api.github.com/repos/${ownerOf()}/${repo}/contents/${path}?ref=${BRANCH}&t=${Date.now()}`, {headers, cache:"no-store"});
+  if (r.status === 404) return {data: null, sha: null};
+  if (!r.ok) throw new Error(`${repo} HTTP ${r.status}`);
+  const j = await r.json(); return {data: JSON.parse(b64dec(j.content)), sha: j.sha};
+}
+async function ghPut(repo, path, obj, message, sha, token, retry){
+  const headers = token ? {Accept:"application/vnd.github+json", Authorization:"Bearer " + token} : apiHeaders();
+  const body = {message, content: b64enc(JSON.stringify(obj, null, 1)), branch: BRANCH}; if (sha) body.sha = sha;
+  const r = await fetch(`https://api.github.com/repos/${ownerOf()}/${repo}/contents/${path}`, {method:"PUT", headers:{...headers, "Content-Type":"application/json"}, body: JSON.stringify(body)});
+  if ((r.status === 409 || r.status === 422) && !retry){ const g = await ghGet(repo, path, token); return ghPut(repo, path, obj, message, g.sha, token, true); }
+  if (!r.ok) throw new Error(`${repo} HTTP ${r.status}`);
+  return (await r.json()).content.sha;
+}
+async function ghDelete(repo, path, message){
+  const g = await fetch(`https://api.github.com/repos/${ownerOf()}/${repo}/contents/${path}?ref=${BRANCH}&t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
+  if (!g.ok) return;
+  const {sha} = await g.json();
+  await fetch(`https://api.github.com/repos/${ownerOf()}/${repo}/contents/${path}`, {method:"DELETE", headers:{...apiHeaders(), "Content-Type":"application/json"}, body: JSON.stringify({message, sha, branch: BRANCH})});
+}
+// 선생님용 사본: 금액(가격·환율) 빼고 저장
+const MONEY_KEYS = ["price","rate","rateDate"];
+function shareView(snap){ const settings = {...snap.settings}; MONEY_KEYS.forEach(k => delete settings[k]); return {...snap, settings}; }
+function lockView(on){ document.body.classList.toggle("locked", on); }
 async function loadRemote(){
-  const {owner, repo} = isEditor() ? auth : repoCoords();
-  loadingRemote = true; setSync(t("syncLoading"));
+  if (!isEditor()){ lockView(true); setSync(""); render(); return; }       // 로그인 안 한 사람: 아무 데이터도 불러오지 않음
+  lockView(false); loadingRemote = true; setSync(t("syncLoading"));
   try {
-    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${DATA_PATH}?ref=${BRANCH}&t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
-    if (!r.ok) throw new Error("api " + r.status);
-    const j = await r.json(); remoteSha = j.sha;
-    applySnapshot(JSON.parse(b64dec(j.content)));
-  } catch(e) {
-    // API 한도 초과 등 → Pages에 올라간 정적 파일로 대체
-    try { const r2 = await fetch(`${DATA_PATH}?t=${Date.now()}`, {cache:"no-store"}); if (!r2.ok) throw 0; applySnapshot(await r2.json()); }
-    catch(e2) { setSync(t("syncOffline")); loadingRemote = false; render(); return; }
-  }
+    if (isMaster()){
+      const g = await ghGet(privRepo(), "state.json"); remoteSha = g.sha;
+      if (!g.data){
+        const old = await ghGet(auth.repo, LEGACY_DATA);                 // 예전 공개 저장소 데이터 → 옮기기
+        if (old.data){ applySnapshot(old.data); loadingRemote = false; render(); await migrateFromPublic(); render(); return; }
+      }
+      applySnapshot(g.data);
+      shareSha = (await ghGet(SHARE_REPO, "schedule.json")).sha;
+    } else {
+      applySnapshot((await ghGet(SHARE_REPO, "schedule.json")).data);
+    }
+  } catch(e) { loadingRemote = false; setSync(t("syncStoreFail")(e.message), true); render(); return; }
   loadingRemote = false;
   setSync(lastUpdated ? t("syncLoaded")(fmtStamp(lastUpdated)) : "");
   render();
 }
+async function migrateFromPublic(){
+  setSync(t("syncMigrating"));
+  try {
+    const u = await ghGet(auth.repo, "data/users.json");
+    if (u.data && !(await ghGet(ACCESS_REPO, "users.json")).data) await ghPut(ACCESS_REPO, "users.json", u.data, "Move users from the public site repo", null);
+    const q = await ghGet(auth.repo, "data/requests.json");
+    if (q.data && !(await ghGet(SHARE_REPO, "requests.json")).data) await ghPut(SHARE_REPO, "requests.json", q.data, "Move requests from the public site repo", null);
+    if (!(await saveRemote())) throw new Error("save");
+    for (const p of ["data/state.json","data/users.json","data/requests.json","data/sub.json"]) await ghDelete(auth.repo, p, "Remove data from the public site repo (moved to private repos)");
+    setSync(t("syncMigrated"));
+  } catch(e) { setSync(t("syncStoreFail")(e.message), true); }
+}
 function fmtStamp(iso){ const p = kstParts(new Date(iso)); return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`; }
 function queueRemoteSave(){ if (!isMaster() || loadingRemote) return; clearTimeout(saveTimer); setSync(t("syncPending")); saveTimer = setTimeout(saveRemote, 1200); }
-async function saveRemote(retry){
-  const {owner, repo, token} = auth;
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${DATA_PATH}`;
+async function saveRemote(){
   setSync(t("syncSaving"));
   try {
-    if (!remoteSha || retry){ const g = await fetch(`${url}?ref=${BRANCH}&t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"}); if (g.ok) remoteSha = (await g.json()).sha; }
-    const snap = snapshot();
-    const body = {message:`Update class data (${fmtStamp(snap.updatedAt)})`, content: b64enc(JSON.stringify(snap, null, 1)), branch: BRANCH};
-    if (remoteSha) body.sha = remoteSha;
-    const r = await fetch(url, {method:"PUT", headers:{...apiHeaders(), "Content-Type":"application/json"}, body: JSON.stringify(body)});
-    if ((r.status === 409 || r.status === 422) && !retry) return saveRemote(true);
-    if (!r.ok) throw new Error(r.status);
-    remoteSha = (await r.json()).content.sha; lastUpdated = snap.updatedAt;
+    const snap = snapshot(), msg = `Update class data (${fmtStamp(snap.updatedAt)})`;
+    remoteSha = await ghPut(privRepo(), "state.json", snap, msg, remoteSha);
+    shareSha = await ghPut(SHARE_REPO, "schedule.json", shareView(snap), msg, shareSha);
+    lastUpdated = snap.updatedAt;
     setSync(t("syncSaved")(fmtStamp(snap.updatedAt)));
-  } catch(e) { setSync(t("syncFail")(e.message), true); }
+    return true;
+  } catch(e) { setSync(t("syncFail")(e.message), true); return false; }
 }
 function setSync(msg, bad){ const el = $("syncStatus"); if (!el) return; el.textContent = msg; el.classList.toggle("bad", !!bad); }
 function teacherLink(){ const {owner, repo} = isMaster() ? auth : repoCoords(); return `https://${owner}.github.io/${repo}/`; }
@@ -129,6 +172,12 @@ async function doLogin(){
 /* ---------- 언어 사전 (Language dictionary) ---------- */
 const L = {
 ko: {
+  syncStoreFail:e => `저장소를 읽거나 쓸 수 없어요 (${e}). 설정에서 저장소 연결 상태를 확인하세요.`, syncMigrating:"공개 저장소의 데이터를 비공개 저장소로 옮기는 중…", syncMigrated:"데이터를 비공개 저장소로 옮겼어요 ✓",
+  uTokNeeds:r => `선생님용 토큰에 ${r} 쓰기 권한이 없어요. Repository access에 추가하고 Contents: Read and write로 하세요.`,
+  uTokTooWide:r => `이 토큰은 ${r}에도 쓸 수 있어요. 선생님용은 english-class-share와 english-class-access만 선택해서 새로 만드세요.`,
+  hRepos:"저장소 연결 상태", repoMissing:"✗ 표시된 저장소를 만들거나 마스터 토큰의 Repository access에 추가하세요.",
+  lockTitle:"🔒 로그인이 필요합니다", lockBody:"등록된 사용자만 수업 달력을 볼 수 있어요. 아이디가 없으면 등록을 요청하세요.", lockLogin:"로그인", lockReg:"등록 요청",
+
   rqWhatTeacherDate:(d,tm) => `이동 → ${d} ${tm} (선생님 사유 · 보너스 1회)`, rqSameDayBonus:" (선생님 사유 · 한국 시간 기준 당일 변경 → 보너스 1회)",
   nfTitle:"카톡 알림 메시지", nfCopy:"복사", nfShare:"공유", nfHint:"복사해서 선생님과의 단톡방에 붙여넣으세요. 계속 바꾸면 이 메시지에 이어서 모입니다.",
   hPend:"승인 대기 요청", pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ 승인", pendReject:"✕ 거절",
@@ -301,6 +350,12 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   fxCross:"2026.11 원화·엔화·위안화 = CBU의 USD/UZS ÷ 각 통화/UZS (원화는 CBU 소수점 둘째 자리 반올림 때문에 ±1원 정도 오차).",
 },
 en: {
+  syncStoreFail:e => `Can’t read or write the repositories (${e}). Check the repository status in Settings.`, syncMigrating:"Moving data from the public repo to the private repos…", syncMigrated:"Data moved to the private repos ✓",
+  uTokNeeds:r => `The teacher token can’t write to ${r}. Add it under Repository access with Contents: Read and write.`,
+  uTokTooWide:r => `This token can also write to ${r}. Create a new one with only english-class-share and english-class-access selected.`,
+  hRepos:"Repository status", repoMissing:"Create the repos marked ✗ or add them to the master token’s repository access.",
+  lockTitle:"🔒 Please log in", lockBody:"Only registered users can see the class calendar. If you have no ID, request access.", lockLogin:"Log in", lockReg:"Request access",
+
   rqWhatTeacherDate:(d,tm) => `Move → ${d} ${tm} (teacher’s reason · 1 bonus class)`, rqSameDayBonus:" (teacher’s reason · same-day change in Korea time → 1 bonus class)",
   nfTitle:"KakaoTalk message", nfCopy:"Copy", nfShare:"Share", nfHint:"Copy it into the group chat with the teacher. Further changes keep adding to this message.",
   hPend:"Pending requests", pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ Approve", pendReject:"✕ Decline",
@@ -830,7 +885,7 @@ document.addEventListener("mousedown", e => {
 /* ---------- 사용자(보조 마스터) 관리: 아이디 발급 → 카톡 초대 → 본인 등록 ---------- */
 // data/users.json 에는 사용자별로 '선생님용 토큰'을 각자의 비밀번호(처음엔 초대 코드)로 암호화한 값만 저장합니다.
 // (PBKDF2-SHA256 25만 회 + AES-GCM) — 토큰 원문이나 비밀번호는 어디에도 저장되지 않습니다.
-const USERS_PATH = "data/users.json", TTOKKEY = "eng-class-teacher-token";
+const TTOKKEY = "eng-class-teacher-token";
 const bytes2b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const b642bytes = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 async function deriveKey(pw, salt, iter){
@@ -849,24 +904,12 @@ async function unlockToken(box, pw){
 function inviteCode(){ const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; return Array.from(crypto.getRandomValues(new Uint8Array(8)), n => A[n % A.length]).join(""); }
 const normId = s => String(s || "").trim().toLowerCase();
 async function fetchUsers(){
-  const c = repoCoords();
   try {
-    const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${USERS_PATH}?ref=${BRANCH}&t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
-    if (r.status === 404) return {users: [], sha: null};
-    if (!r.ok) throw 0;
-    const j = await r.json(); return {users: (JSON.parse(b64dec(j.content)).users || []).filter(u => u && /^[a-z0-9._-]{2,20}$/.test(u.id || "")), sha: j.sha};
-  } catch(e) {
-    const r2 = await fetch(`${USERS_PATH}?t=${Date.now()}`, {cache:"no-store"});
-    return {users: r2.ok ? ((await r2.json()).users || []) : [], sha: null};
-  }
+    const g = await ghGet(ACCESS_REPO, "users.json");
+    return {users: ((g.data && g.data.users) || []).filter(u => u && /^[a-z0-9._-]{2,20}$/.test(u.id || "")), sha: g.sha};
+  } catch(e) { return {users: [], sha: null}; }
 }
-async function saveUsers(users, sha, token, message){
-  const c = repoCoords();
-  const body = {message, content: b64enc(JSON.stringify({users}, null, 1)), branch: BRANCH}; if (sha) body.sha = sha;
-  const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${USERS_PATH}`, {method:"PUT",
-    headers:{Accept:"application/vnd.github+json", Authorization:"Bearer " + token, "Content-Type":"application/json"}, body: JSON.stringify(body)});
-  if (!r.ok) throw new Error("HTTP " + r.status);
-}
+async function saveUsers(users, sha, token, message){ await ghPut(ACCESS_REPO, "users.json", {users}, message, sha, token); }
 function becomeUser(u, token){
   const c = repoCoords();
   auth = {token, owner: c.owner, repo: c.repo, role: "sub", login: u.id, name: u.name};
@@ -915,6 +958,16 @@ function checkInvite(){
 }
 // 마스터: 사용자 목록 · 초대 · 다시 초대 · 삭제
 let teacherToken = ""; try { teacherToken = localStorage.getItem(TTOKKEY) || ""; } catch(e) {}
+async function renderRepoStatus(){
+  if (!isMaster()) return;
+  const el = $("repoStatus"); el.textContent = t("loginChecking");
+  const rows = [];
+  for (const repo of [auth.repo, privRepo(), SHARE_REPO, ACCESS_REPO]){
+    let ok = false; try { const r = await fetch(`https://api.github.com/repos/${auth.owner}/${repo}`, {headers: apiHeaders()}); const j = r.ok ? await r.json() : null; ok = !!(j && j.permissions && j.permissions.push); } catch(e) {}
+    rows.push(`${ok ? "✓" : "✗"} ${esc(repo)}`);
+  }
+  el.innerHTML = rows.join(" · ") + (rows.some(r => r.startsWith("✗")) ? `<br><span class="bad">${t("repoMissing")}</span>` : "");
+}
 async function renderUsers(){
   if (!isMaster()) return;
   $("uTokState").textContent = teacherToken ? t("uTokSet") : t("uTokUnset");
@@ -930,11 +983,11 @@ async function renderUsers(){
 async function setTeacherToken(){
   const tok = $("uToken").value.trim(), out = $("uMsg"); out.className = "hint"; out.textContent = t("loginChecking");
   try {
-    const r = await fetch(`https://api.github.com/repos/${auth.owner}/${auth.repo}`, {headers:{Accept:"application/vnd.github+json", Authorization:"Bearer " + tok}});
-    const j = r.ok ? await r.json() : null;
-    if (!j || !(j.permissions && j.permissions.push)) throw new Error(t("loginNoPush"));
-    const pr = await fetch(`https://api.github.com/repos/${auth.owner}/${privRepo()}`, {headers:{Accept:"application/vnd.github+json", Authorization:"Bearer " + tok}});
-    if (pr.ok) throw new Error(t("subTooWide")(privRepo()));
+    const H = {Accept:"application/vnd.github+json", Authorization:"Bearer " + tok};
+    const info = async repo => { const r = await fetch(`https://api.github.com/repos/${auth.owner}/${repo}`, {headers: H}); return r.ok ? await r.json() : null; };
+    for (const repo of [SHARE_REPO, ACCESS_REPO]){ const j = await info(repo); if (!j || !(j.permissions && j.permissions.push)) throw new Error(t("uTokNeeds")(repo)); }
+    const site = await info(auth.repo); if (site && site.permissions && site.permissions.push) throw new Error(t("uTokTooWide")(auth.repo));
+    if (await info(privRepo())) throw new Error(t("uTokTooWide")(privRepo()));
     teacherToken = tok; try { localStorage.setItem(TTOKKEY, tok); } catch(e) {}
     $("uToken").value = ""; out.textContent = ""; renderUsers();
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
@@ -1048,6 +1101,8 @@ async function checkPendingReg(){
   openModal("regModal");
 }
 window.addEventListener("hashchange", checkRegReq);
+$("lockLogin").onclick = () => $("loginBtn").click();
+$("lockReg").onclick = () => { $("rrOut").style.display = "none"; $("rrMsg").textContent = ""; openModal("regReqModal"); };
 
 /* ---------- 선생님 변경 요청 → 마스터 승인 ---------- */
 let reqSid = null, rq = {act:null, cause:null, how:"end"};
@@ -1154,28 +1209,19 @@ $("reqReject").onclick = () => {
 };
 window.addEventListener("hashchange", checkReq);
 /* ---------- 승인 대기 요청 (data/requests.json): 등록 사용자가 저장 → 마스터가 웹에서 승인 ---------- */
-const REQS_PATH = "data/requests.json";
 let requests = [];
 const pendingFor = sid => requests.find(r => r.id === sid && r.status === "pending");
 async function fetchRequests(){
-  const c = repoCoords();
-  try {
-    const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${REQS_PATH}?ref=${BRANCH}&t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
-    if (r.status === 404) return {list: [], sha: null};
-    if (!r.ok) throw 0;
-    const j = await r.json(); return {list: (JSON.parse(b64dec(j.content)).requests || []).map(cleanReq).filter(Boolean), sha: j.sha};
-  } catch(e) {
-    const r2 = await fetch(`${REQS_PATH}?t=${Date.now()}`, {cache:"no-store"});
-    return {list: r2.ok ? ((await r2.json()).requests || []).map(cleanReq).filter(Boolean) : [], sha: null};
-  }
+  if (!isEditor()) return {list: [], sha: null};
+  const g = await ghGet(SHARE_REPO, "requests.json");
+  return {list: ((g.data && g.data.requests) || []).map(cleanReq).filter(Boolean), sha: g.sha};
 }
-async function loadRequests(){ requests = (await fetchRequests()).list; render(); renderPending(); }
+async function loadRequests(){ if (!isEditor()) return; try { requests = (await fetchRequests()).list; } catch(e) {} render(); renderPending(); }
 async function mutateRequests(fn, message, retry){
   const {list, sha} = await fetchRequests();
   fn(list);
-  const c = repoCoords();
   const body = {message, content: b64enc(JSON.stringify({requests: list}, null, 1)), branch: BRANCH}; if (sha) body.sha = sha;
-  const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${REQS_PATH}`, {method:"PUT", headers:{...apiHeaders(), "Content-Type":"application/json"}, body: JSON.stringify(body)});
+  const r = await fetch(`https://api.github.com/repos/${ownerOf()}/${SHARE_REPO}/contents/requests.json`, {method:"PUT", headers:{...apiHeaders(), "Content-Type":"application/json"}, body: JSON.stringify(body)});
   if ((r.status === 409 || r.status === 422) && !retry) return mutateRequests(fn, message, true);
   if (!r.ok) throw new Error("HTTP " + r.status);
   requests = list;
@@ -1627,7 +1673,7 @@ document.addEventListener("keydown", e => {
   const open = document.querySelectorAll(".modal.on");
   if (open.length) open.forEach(m => m.classList.remove("on")); else if (selected) selectSession(null);
 });
-$("openSettings").onclick = () => { openModal("settingsModal"); renderUsers(); };
+$("openSettings").onclick = () => { openModal("settingsModal"); renderUsers(); renderRepoStatus(); };
 
 /* ---------- 환율 추세 차트 ---------- */
 let fxCur = "KRW";
@@ -1692,7 +1738,7 @@ function drawFx(){
 ["start","months","time","dur","price","alertN","minNotice","rate","rateDate","asof"].forEach(id => $(id).addEventListener("input", () => { render(); if (id !== "asof") queueRemoteSave(); }));
 $("loginBtn").onclick = () => { document.querySelector('#loginTabs [data-v="sub"]').click(); const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
 $("doLogin").onclick = doLogin;
-$("logoutBtn").onclick = () => { archive = null; auth = null; payments = []; payLoaded = false; renderPayments(); try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
+$("logoutBtn").onclick = () => { state = {}; log = []; extras = []; requests = []; try { ["eng-class-state-v4","eng-class-log-v4","eng-class-extras-v1"].forEach(k => localStorage.removeItem(k)); } catch(e) {} archive = null; auth = null; payments = []; payLoaded = false; renderPayments(); try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
 $("linkBtn").onclick = () => copy(teacherLink(), t("linkCopied")(teacherLink()));
 async function copy(text, ok){
   try { await navigator.clipboard.writeText(text); $("toast").textContent = ok; }
