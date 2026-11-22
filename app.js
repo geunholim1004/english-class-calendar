@@ -197,6 +197,11 @@ ko: {
   hReg:"사용자 등록", regCode:"초대 코드 (카톡으로 받은 8자리)", regPw1:"사용할 비밀번호 (8자 이상)", regPw2:"비밀번호 확인", regBtn:"등록하고 시작",
   regPwRule:"비밀번호는 8자 이상, 두 번 똑같이 입력하세요.", regNoInvite:"이 아이디로 대기 중인 초대가 없어요. Edward에게 다시 초대를 요청하세요.", regBadCode:"초대 코드가 맞지 않아요.",
   regHint:"등록하면 이 기기에서 바로 로그인됩니다. 다른 기기에서는 아이디와 비밀번호로 로그인하세요.",
+  hMid:"마스터 아이디 로그인 (다른 기기용)", midPw1:"비밀번호 (12자 이상)", midPw2:"비밀번호 확인", midSave:"저장", midDel:"삭제",
+  midHelp:"다른 휴대폰·PC에서는 로그인 → 아이디 로그인 탭에 이 아이디와 비밀번호를 넣으면 마스터로 들어옵니다. 마스터 토큰은 이 비밀번호로 암호화(PBKDF2 60만 회 + AES-GCM)되어 저장되며, 원문과 비밀번호는 어디에도 저장되지 않습니다. 남이 추측하기 어려운 긴 비밀번호를 쓰세요.",
+  midSet:(id, at) => `설정됨: 아이디 ${id} · ${at}`, midUnset:"아직 없음 — 아이디와 비밀번호를 정하면 다른 기기에서 토큰 없이 로그인할 수 있어요.",
+  midPwRule:"비밀번호는 12자 이상이고, 두 칸이 같아야 해요.", midIdRule:"아이디는 영문 소문자·숫자·.-_ 2~20자로 정하세요.", midIdTaken:"이미 선생님(사용자) 아이디로 쓰이고 있어요. 다른 아이디를 정하세요.",
+  midSaved:"저장했어요 ✓ 다른 기기에서 이 아이디로 로그인해 보세요.", midDelAsk:"마스터 아이디 로그인을 삭제할까요? (토큰 로그인은 그대로 됩니다)", midDeleted:"삭제했어요.", midBadTok:"이 아이디로 열린 토큰이 비공개 저장소에 접근할 수 없어요. 마스터 토큰이 만료·재발급됐다면 토큰으로 로그인한 뒤 설정에서 다시 저장하세요.",
   hUsers:"사용자 관리 (보조 마스터)", uTokL:"선생님용 GitHub 토큰", uTokSave:"토큰 저장", uTokChange:"토큰 바꾸기", uTokSet:"선생님용 토큰: 설정됨 (이 기기)", uTokUnset:"선생님용 토큰: 아직 없음",
   uTokHelp:'<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">토큰을 하나 더</a> 만드세요: Only select repositories → <b>english-class-share, english-class-access 두 개만</b> → Contents: Read and write. 초대할 때 이 토큰이 사용자별 비밀번호로 잠겨 저장됩니다.',
   uNewId:"아이디 (영문 소문자·숫자)", uNewName:"이름", uInviteBtn:"＋ 초대 만들기", uNone:"등록된 사용자가 없어요.",
@@ -378,6 +383,11 @@ en: {
   hReg:"Register", regCode:"Invite code (8 characters, from KakaoTalk)", regPw1:"Choose a password (8+ characters)", regPw2:"Confirm password", regBtn:"Register & start",
   regPwRule:"Use 8+ characters and type the same password twice.", regNoInvite:"There’s no pending invite for this ID. Ask Edward to invite you again.", regBadCode:"Wrong invite code.",
   regHint:"After registering you’re logged in on this device. On other devices, log in with your ID and password.",
+  hMid:"Master ID login (for other devices)", midPw1:"Password (12+ characters)", midPw2:"Confirm password", midSave:"Save", midDel:"Delete",
+  midHelp:"On another phone or PC, use Log in → ID login with this ID and password to enter as master. The master token is encrypted with this password (PBKDF2 600k + AES-GCM); neither the token nor the password is stored in plain form anywhere. Use a long password that is hard to guess.",
+  midSet:(id, at) => `Set: ID ${id} · ${at}`, midUnset:"Not set — choose an ID and password to log in on other devices without the token.",
+  midPwRule:"The password must be 12+ characters and both fields must match.", midIdRule:"Use 2–20 lowercase letters, digits or . - _ for the ID.", midIdTaken:"That ID is already used by a teacher (user). Choose another.",
+  midSaved:"Saved ✓ Try logging in with this ID on another device.", midDelAsk:"Delete the master ID login? (Token login keeps working.)", midDeleted:"Deleted.", midBadTok:"The token unlocked by this ID can’t reach the private repo. If the master token expired or was regenerated, log in with the token and save the ID again in Settings.",
   hUsers:"Users (sub-masters)", uTokL:"GitHub token for teachers", uTokSave:"Save token", uTokChange:"Change token", uTokSet:"Teacher token: set (this device)", uTokUnset:"Teacher token: not set",
   uTokHelp:'Create <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">one more token</a>: Only select repositories → <b>only english-class-share and english-class-access</b> → Contents: Read and write. Each invite stores it locked with that user’s own password.',
   uNewId:"ID (lowercase letters / digits)", uNewName:"Name", uInviteBtn:"+ Create invite", uNone:"No users yet.",
@@ -898,8 +908,8 @@ async function deriveKey(pw, salt, iter){
   const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations: iter, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
 }
-async function lockToken(token, pw){
-  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)), iter = 250000;
+async function lockToken(token, pw, iter = 250000){
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, await deriveKey(pw, salt, iter), new TextEncoder().encode(token));
   return {iter, salt: bytes2b64(salt), iv: bytes2b64(iv), ct: bytes2b64(ct)};
 }
@@ -921,11 +931,59 @@ function becomeUser(u, token){
   auth = {token, owner: c.owner, repo: c.repo, role: "sub", login: u.id, name: u.name};
   try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
 }
+// 마스터 아이디 로그인: english-class-access/master.json 에 마스터 토큰을 마스터 비밀번호로 암호화해 저장
+async function fetchMasterBox(){
+  try { const g = await ghGet(ACCESS_REPO, "master.json"); const d = g.data || {};
+    return {m: (d.id && d.box && /^[a-z0-9._-]{2,20}$/.test(d.id)) ? d : null, sha: g.sha};
+  } catch(e) { return {m: null, sha: null}; }
+}
+async function renderMasterId(){
+  if (!isMaster()) return;
+  const {m} = await fetchMasterBox();
+  $("midState").textContent = m ? t("midSet")(m.id, fmtStamp(m.at)) : t("midUnset");
+  $("midId").value = m ? m.id : ""; $("midDel").style.display = m ? "" : "none";
+}
+async function saveMasterId(){
+  const out = $("midMsg"), id = normId($("midId").value), p1 = $("midPw1").value, p2 = $("midPw2").value;
+  out.className = "hint bad";
+  if (!/^[a-z0-9._-]{2,20}$/.test(id)){ out.textContent = t("midIdRule"); return; }
+  if (p1.length < 12 || p1 !== p2){ out.textContent = t("midPwRule"); return; }
+  out.className = "hint"; out.textContent = t("loginChecking");
+  try {
+    const {users} = await fetchUsers(); if (users.some(u => u.id === id)) throw new Error(t("midIdTaken"));
+    const {sha} = await fetchMasterBox();
+    const box = await lockToken(auth.token, p1, 600000);
+    await ghPut(ACCESS_REPO, "master.json", {id, box, owner: auth.owner, repo: auth.repo, privRepo: privRepo(), at: new Date().toISOString()}, "Master ID login updated", sha);
+    $("midPw1").value = $("midPw2").value = ""; out.textContent = t("midSaved"); renderMasterId();
+  } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
+}
+async function deleteMasterId(){
+  if (!confirm(t("midDelAsk"))) return;
+  const out = $("midMsg");
+  try { const {sha} = await fetchMasterBox(); if (sha) await ghDelete(ACCESS_REPO, "master.json", "Master ID login removed", sha); out.className = "hint"; out.textContent = t("midDeleted"); renderMasterId(); }
+  catch(e) { out.className = "hint bad"; out.textContent = e.message; }
+}
+async function tryMasterLogin(id, pw){
+  const {m} = await fetchMasterBox();
+  if (!m || m.id !== id) return false;
+  let token; try { token = await unlockToken(m.box, pw); } catch(e) { throw new Error(t("subBadPw")); }
+  const c = repoCoords(), priv = m.privRepo || PRIV_DEFAULT;
+  // 진짜 마스터 토큰인지 확인 (비공개 저장소를 읽을 수 있어야 함)
+  const r = await fetch(`https://api.github.com/repos/${c.owner}/${priv}`, {headers:{Accept:"application/vnd.github+json", Authorization:"Bearer " + token}});
+  if (!r.ok) throw new Error(t("midBadTok"));
+  const u = await fetch("https://api.github.com/user", {headers:{Authorization:"Bearer " + token}}).then(x => x.ok ? x.json() : {}).catch(() => ({}));
+  auth = {token, owner: c.owner, repo: c.repo, login: u.login || c.owner, privRepo: priv};
+  try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
+  $("loginModal").classList.remove("on"); $("subPw").value = "";
+  renderAcct(); await loadRemote(); loadPayments(); loadArchive(); loadRequests(); if (incoming) showReq();
+  return true;
+}
 // 아이디 로그인
 async function doSubLogin(){
   const out = $("loginMsg"), id = normId($("subId").value), pw = $("subPw").value;
   out.className = "hint"; out.textContent = t("loginChecking");
   try {
+    if (await tryMasterLogin(id, pw)) return;
     const {users} = await fetchUsers();
     const u = users.find(x => x.id === id);
     if (!u) throw new Error(t("uNoId"));
@@ -1703,7 +1761,8 @@ document.addEventListener("keydown", e => {
   const open = document.querySelectorAll(".modal.on");
   if (open.length) open.forEach(m => m.classList.remove("on")); else if (selected) selectSession(null);
 });
-$("openSettings").onclick = () => { openModal("settingsModal"); renderUsers(); renderRepoStatus(); };
+$("openSettings").onclick = () => { openModal("settingsModal"); renderUsers(); renderRepoStatus(); renderMasterId(); };
+$("midSave").onclick = saveMasterId; $("midDel").onclick = deleteMasterId;
 
 /* ---------- 환율 추세 차트 ---------- */
 let fxCur = "KRW";
