@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-11-22T04:09:07.365Z",
+ "updatedAt": "2026-11-22T04:09:31.710Z",
  "settings": {
   "start": "2026-11-22",
   "months": "3",
@@ -12,7 +12,12 @@
   "rate": "12004.48",
   "rateDate": "2026-11-21"
  },
- "state": {},
+ "state": {
+  "R1": {
+   "act": "move",
+   "cause": "teacher"
+  }
+ },
  "log": [
   {
    "at": "2026-11-22 13:02",
@@ -48,6 +53,11 @@
    "at": "2026-11-22 13:09",
    "ko": "2026.11.22(일) #1: 이동 · 선생님 사유 → 예정 · 기존 보강(#1) 2027.02.28(일), 보너스1 2027.03.07(일) 해제 · 사유: test",
    "en": "Sun, Nov 22, 2026 #1: Moved · by teacher → Scheduled · removed Makeup(#1) Sun, Feb 28, 2027, Bonus 1 Sun, Mar 7, 2027 · Reason: test"
+  },
+  {
+   "at": "2026-11-22 13:09",
+   "ko": "2026.11.22(일) #1: 예정 → 이동 · 선생님 사유 · 생성: 보강(#1) 2027.02.28(일), 보너스1 2027.03.07(일)",
+   "en": "Sun, Nov 22, 2026 #1: Scheduled → Moved · by teacher · created: Makeup(#1) Sun, Feb 28, 2027, Bonus 1 Sun, Mar 7, 2027"
   }
  ]
 }
