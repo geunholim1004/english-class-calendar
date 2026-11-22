@@ -172,6 +172,23 @@ body.viewer .kpis{grid-template-columns:repeat(3,1fr)}
 .calhead h2{margin:0}
 .calbtns{display:flex;gap:6px}
 body.viewer .masteronly{display:none}
+/* 변경 기록 접기/펼치기 */
+#logDetails summary{list-style:none;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+#logDetails summary::-webkit-details-marker{display:none}
+#logDetails summary h2{margin:0}
+#logDetails[open] summary{margin-bottom:12px}
+#logDetails .chev{color:var(--muted);transition:transform .15s}
+#logDetails[open] .chev{transform:rotate(180deg)}
+.logcount{font-size:12px;font-weight:500;color:var(--muted)}
+/* 휴대폰: 보류 → 달력/요약 → 카톡 → 변경 기록(맨 아래, 접힌 상태) */
+@media(max-width:860px){
+  .grid{display:flex;flex-direction:column;gap:0}
+  .leftcol{display:contents}
+  .holdcard{order:2;margin-top:18px}
+  .rightcol{order:1}
+  .kakaocard{order:3}
+  .logcard{order:4}
+}
 .paystate{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .paidtag{font-size:13px;font-weight:700;color:var(--accent)}
 .paytable td{vertical-align:top}
@@ -209,13 +226,13 @@ input:disabled{opacity:.75;background:#f3f2ee}
     </div></div>
 
   <div class="grid">
-    <div>
-      <div class="card">
+    <div class="leftcol">
+      <div class="card holdcard">
         <h2 data-i18n="hHolds"></h2>
         <div class="holds" id="holds"></div>
       </div>
 
-      <div class="card section money">
+      <div class="card section money kakaocard">
         <h2 data-i18n="hKakao"></h2>
         <textarea id="msg" readonly></textarea>
         <div class="btns"><button id="copyMsg" data-i18n="copyMsg"></button></div>
@@ -223,15 +240,20 @@ input:disabled{opacity:.75;background:#f3f2ee}
         <div class="hint" data-i18n="kakaoHint"></div>
       </div>
 
-      <div class="card section">
-        <h2 data-i18n="hLog"></h2>
-        <div class="log" id="log"></div>
-        <div class="btns"><button class="ghost" id="copyLog" data-i18n="copyLog"></button></div>
-        <div class="hint" data-i18n="logHint"></div>
+      <div class="card section logcard">
+        <details id="logDetails" open>
+          <summary><h2><span data-i18n="hLog"></span> <span class="logcount" id="logCount"></span></h2><span class="chev">▾</span></summary>
+          <div class="log" id="log"></div>
+          <div class="btns">
+            <button class="ghost sm" id="dlCsv" data-i18n="dlCsv"></button>
+            <button class="ghost sm" id="dlTxt" data-i18n="dlTxt"></button>
+            <button class="ghost sm" id="copyLog" data-i18n="copyLog"></button>
+          </div>
+          <div class="hint" data-i18n="logHint"></div>
+        </details>
       </div>
     </div>
-
-    <div>
+    <div class="rightcol">
       <div class="banner" id="banner"></div>
 
       <div class="kpis">

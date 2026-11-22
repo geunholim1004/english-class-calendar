@@ -101,6 +101,8 @@ async function doLogin(){
 /* ---------- 언어 사전 (Language dictionary) ---------- */
 const L = {
 ko: {
+  dlCsv:"⬇ 엑셀(CSV)", dlTxt:"⬇ 텍스트(TXT)", csvHead:["시각","내용"], logFileTitle:"영어 수업 변경 기록", logCountTxt:n => `${n}건`,
+
   hPay:"수업료 납부 기록", payAdd:"＋ 납부 기록", payNone:"아직 납부 기록이 없어요.", payLoading:"불러오는 중…",
   payNoRepo:r => `비공개 저장소 '${r}'에 접근할 수 없어요. 저장소를 만들고(Private) 토큰의 Repository access에 추가했는지 확인하세요.`,
   pthDate:"납부일", pthPeriod:"기간", pthCls:"횟수", pthRcpt:"영수증", pthMemo:"메모",
@@ -217,6 +219,8 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   fxCross:"2026.11 원화·엔화·위안화 = CBU의 USD/UZS ÷ 각 통화/UZS (원화는 CBU 소수점 둘째 자리 반올림 때문에 ±1원 정도 오차).",
 },
 en: {
+  dlCsv:"⬇ Excel (CSV)", dlTxt:"⬇ Text (TXT)", csvHead:["Time","Entry"], logFileTitle:"English class change log", logCountTxt:n => `${n}`,
+
   hPay:"Fee payments", payAdd:"+ Record payment", payNone:"No payments recorded yet.", payLoading:"Loading…",
   payNoRepo:r => `Can’t access the private repository '${r}'. Create it (Private) and add it to the token’s repository access.`,
   pthDate:"Paid on", pthPeriod:"Period", pthCls:"Classes", pthRcpt:"Receipt", pthMemo:"Memo",
@@ -610,6 +614,7 @@ function render(){
     + `<div class="hint">${t("nextHint")(holds.length)}</div>`;
 
   // 기록
+  $("logCount").textContent = log.length ? "(" + t("logCountTxt")(log.length) + ")" : "";
   $("log").innerHTML = log.length ? log.slice().reverse().map(l => `<div><time>${l.at}</time>${l[lang] || l.ko || l.text || ""}</div>`).join("")
     : `<div class="empty">${t("noLog")}</div>`;
 
@@ -1026,6 +1031,25 @@ async function copy(text, ok){
   catch(e){ $("toast").textContent = t("copyFail"); }
 }
 $("copyMsg").addEventListener("click", () => copy($("msg").value, t("copied")));
+// 변경 기록 내려받기
+function logRows(){ return log.slice().reverse().map(l => [l.at, l[lang] || l.ko || l.text || ""]); }
+function download(name, text, type){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const fileStamp = () => todayStr().replace(/-/g,"");
+$("dlCsv").onclick = () => {
+  const esc = v => `"${String(v).replace(/"/g,'""')}"`;
+  const csv = [t("csvHead"), ...logRows()].map(r => r.map(esc).join(",")).join("\r\n");
+  download(`english-class-log-${fileStamp()}.csv`, "\ufeff" + csv, "text/csv;charset=utf-8");   // BOM: 엑셀 한글 깨짐 방지
+};
+$("dlTxt").onclick = () => {
+  const txt = `${t("logFileTitle")} (${nowStamp()})\n${"=".repeat(40)}\n` + logRows().map(([a,b]) => `${a}\n  ${b}`).join("\n\n");
+  download(`english-class-log-${fileStamp()}.txt`, txt, "text/plain;charset=utf-8");
+};
+// 휴대폰에서는 처음에 접힌 상태
+if (window.innerWidth <= 860) $("logDetails").open = false;
 $("copyLog").addEventListener("click", () => copy(log.map(l => `${l.at}  ${l[lang] || l.ko || l.text || ""}`).join("\n") || t("noLogTxt"), t("logCopied")));
 applyStatic();
 renderAcct();
