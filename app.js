@@ -217,6 +217,9 @@ ko: {
 
   calHintV:"보기 전용입니다. 수정·이동 요청은 등록된 사용자가 로그인해야 할 수 있어요.",
   rcStudent:"학생 사유", rqReason:"사유", rqNotePh:"자세한 내용 (선택)", rqSend:"📨 변경 요청 보내기", rqCopy:"요청 복사",
+  rqdSend:"✔ 이대로 보내기", rqdBack:"수정하기", rqdShare:"💬 카카오톡으로 보내기", rqdSaving:"저장 중…", rqdCopied:"복사했어요. 카카오톡에 붙여 넣어 Edward에게 보내 주세요.",
+  rqdAskTitle:"이 내용으로 변경 요청을 보낼까요?", rqdAskHint:"보내면 승인 대기로 저장되고, Edward가 승인해야 달력에 반영됩니다.",
+  rqdDoneTitle:"요청을 보냈어요 ✓", rqdDoneHint:"승인 대기로 저장됐어요. 아래 내용을 카카오톡으로 Edward에게 보내 알려 주세요.",
   rqOutHint:"요청이 승인 대기로 저장됐어요. 이 내용을 카카오톡으로 Edward에게 보내 알려 주세요.",
   rqReasons:["선생님 개인 사정","선생님 출장·이동","건강 문제","인터넷·기술 문제","학생 요청","공휴일·명절","기타"],
   rqTitle:(d,x) => `${d} · ${x} 변경 요청`, rqPick:"수정 또는 이동을 고르세요.", rqNeedCause:"사유가 누구에게 있는지 고르세요.", rqNeedDate:"새 날짜를 고르세요.",
@@ -395,6 +398,9 @@ en: {
 
   calHintV:"View only. Registered users can log in to request edits or moves.",
   rcStudent:"Student’s reason", rqReason:"Reason", rqNotePh:"Details (optional)", rqSend:"📨 Send change request", rqCopy:"Copy request",
+  rqdSend:"✔ Send as is", rqdBack:"Edit", rqdShare:"💬 Send via KakaoTalk", rqdSaving:"Saving…", rqdCopied:"Copied. Paste it into KakaoTalk to let Edward know.",
+  rqdAskTitle:"Send this change request?", rqdAskHint:"It will be saved as pending and applied to the calendar once Edward approves it.",
+  rqdDoneTitle:"Request sent ✓", rqdDoneHint:"Saved as pending. Send the message below to Edward on KakaoTalk to let him know.",
   rqOutHint:"Your request is saved as pending. Send this to Edward on KakaoTalk to let him know.",
   rqReasons:["Teacher – personal reasons","Teacher – travel","Health","Internet / technical problem","Student’s request","Public holiday","Other"],
   rqTitle:(d,x) => `${d} · request a change to ${x}`, rqPick:"Choose Edit or Move.", rqNeedCause:"Choose whose reason it is.", rqNeedDate:"Pick a new date.",
@@ -1160,7 +1166,9 @@ function renderReq(sel, C){
 }));
 ["reqDate","reqTime"].forEach(id => $(id).addEventListener("input", () => render()));
 $("xReq").onclick = $("reqClose").onclick = () => { reqSid = null; render(); };
-$("reqSend").onclick = async () => {
+let rqDraft = null;
+// 1) 변경 요청 보내기 → 확인 창 (아직 저장 안 함)
+$("reqSend").onclick = () => {
   if (!isSub()) return;
   const C = cfg(), sel = buildSessions(sundays(C.start, C.months), C).find(x => x.id === reqSid);
   if (!sel || !rq.act) return;
@@ -1171,18 +1179,29 @@ $("reqSend").onclick = async () => {
   const r = {rid: "Q" + Date.now().toString(36), id: sel.id, d: fmt(sel.d), act: rq.act, cause: rq.cause || undefined,
     how: rq.act === "move" ? rq.how : undefined,
     to: needDate ? $("reqDate").value : undefined, toTime: needDate ? ($("reqTime").value || C.time) : undefined,
-    reason, at: nowStamp(), by: auth.login, name: auth.name, status: "pending"};
-  $("reqSend").disabled = true;
+    reason, by: auth.login, name: auth.name, status: "pending"};
+  const text = t("rqMsg2")({target: `${kdate(sel.d)} ${sel.time} ${labelOf(sel)}`, what: reqWhat(Object.assign({at: nowStamp()}, r), C), why: reason, who: `${r.name} (${r.by})`, url: teacherLink()});
+  rqDraft = {r, text};
+  $("rqdTitle").textContent = t("rqdAskTitle"); $("rqdHint").textContent = t("rqdAskHint");
+  $("rqdText").value = text; $("rqdAsk").style.display = ""; $("rqdDone").style.display = "none";
+  $("rqdMsg").className = "hint"; $("rqdMsg").textContent = ""; $("rqdSend").disabled = false;
+  openModal("rqdModal");
+};
+// 2) 확인 → 저장 → 요청 창 닫기 → 완료 표시 + 카톡 공유
+$("rqdSend").onclick = async () => {
+  if (!rqDraft || !isSub()) return;
+  const r = Object.assign({}, rqDraft.r, {at: nowStamp()});
+  $("rqdSend").disabled = true; $("rqdMsg").className = "hint"; $("rqdMsg").textContent = t("rqdSaving");
   try {
     await mutateRequests(list => { if (list.some(x => x.id === r.id && x.status === "pending")) throw new Error(t("rqAlready")); list.push(r); }, `Request from ${r.by}: ${r.d} ${r.act}`);
-  } catch(e){ $("reqSend").disabled = false; $("reqPreview").className = "preview bad"; $("reqPreview").textContent = t("rqSaveFail")(e.message); return; }
-  $("reqSend").disabled = false;
-  const text = t("rqMsg2")({target: `${kdate(sel.d)} ${sel.time} ${labelOf(sel)}`, what: reqWhat(r, C), why: reason, who: `${r.name} (${r.by})`, url: teacherLink()});
-  $("reqText").value = text; $("reqOut").classList.add("on"); render(); renderPending();
-  positionPop($("reqPanel"), $("calcard").querySelector(".it.sel"));
-  if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){ try { await navigator.share({text}); } catch(e) {} }
+  } catch(e){ $("rqdSend").disabled = false; $("rqdMsg").className = "hint bad"; $("rqdMsg").textContent = t("rqSaveFail")(e.message); return; }
+  rqDraft = null; reqSid = null; render(); renderPending();
+  $("rqdTitle").textContent = t("rqdDoneTitle"); $("rqdHint").textContent = t("rqdDoneHint");
+  $("rqdAsk").style.display = "none"; $("rqdDone").style.display = ""; $("rqdMsg").textContent = "";
+  $("rqdShare").style.display = navigator.share ? "" : "none";
 };
-$("reqCopy").onclick = () => copy($("reqText").value, t("copied"));
+$("rqdShare").onclick = async () => { try { await navigator.share({text: $("rqdText").value}); } catch(e) {} };
+$("rqdCopy").onclick = () => { copy($("rqdText").value, t("copied")); $("rqdMsg").className = "hint"; $("rqdMsg").textContent = t("rqdCopied"); };
 
 // 마스터: 요청 링크(#req=...)를 열면 승인 창
 let incoming = null;

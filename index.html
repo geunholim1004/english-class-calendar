@@ -484,6 +484,18 @@ input:disabled{opacity:.75;background:#f3f2ee}
   </div>
 </div>
 
+<!-- 선생님: 요청 확인 → 저장 완료 -->
+<div class="modal" id="rqdModal">
+  <div class="sheet narrow">
+    <header><h2 id="rqdTitle"></h2><button class="x" data-close>×</button></header>
+    <div class="hint" id="rqdHint"></div>
+    <textarea id="rqdText" readonly rows="8" style="width:100%;margin:8px 0;font:inherit;font-size:14px;line-height:1.5"></textarea>
+    <div class="btns" id="rqdAsk"><button id="rqdSend" data-i18n="rqdSend"></button><button class="ghost" data-close data-i18n="rqdBack"></button></div>
+    <div class="btns" id="rqdDone"><button id="rqdShare" data-i18n="rqdShare"></button><button class="ghost" id="rqdCopy" data-i18n="rqCopy"></button><button class="ghost" data-close data-i18n="close"></button></div>
+    <div class="hint" id="rqdMsg"></div>
+  </div>
+</div>
+
 <!-- 선생님 요청 승인 -->
 <div class="modal" id="reqModal">
   <div class="sheet narrow">
