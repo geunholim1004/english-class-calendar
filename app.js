@@ -1,10 +1,12 @@
 const $ = id => document.getElementById(id);
 const KEY = "eng-class-state-v4", LOGKEY = "eng-class-log-v4", LANGKEY = "eng-class-lang";
-let state = {}, log = [], selected = null, lang = "ko";
+let state = {}, log = [], extras = [], selected = null, lang = "ko", addDate = null, addPaid = "paid", calExpanded = false;
+try { extras = JSON.parse(localStorage.getItem("eng-class-extras-v1") || "[]"); } catch(e) {}
+try { calExpanded = localStorage.getItem("eng-class-cal6") === "1"; } catch(e) {}
 try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e) {}
 try { log = JSON.parse(localStorage.getItem(LOGKEY) || "[]"); } catch(e) {}
 try { lang = localStorage.getItem(LANGKEY) || "ko"; } catch(e) {}
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); localStorage.setItem(LOGKEY, JSON.stringify(log)); } catch(e) {} queueRemoteSave(); }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); localStorage.setItem(LOGKEY, JSON.stringify(log)); localStorage.setItem("eng-class-extras-v1", JSON.stringify(extras)); } catch(e) {} queueRemoteSave(); }
 
 /* ---------- 권한 & GitHub 동기화 (Roles & GitHub sync) ---------- */
 // 저장소 위치: GitHub Pages 주소(owner.github.io/repo)에서 자동으로 읽고, 없으면 기본값
@@ -21,11 +23,11 @@ const isMaster = () => !!(auth && auth.token);
 let remoteSha = null, lastUpdated = null, syncStatus = "", saveTimer = null, loadingRemote = false;
 const SETTING_IDS = ["start","months","time","dur","price","alertN","minNotice","rate","rateDate"];
 function snapshot(){ const settings = {}; SETTING_IDS.forEach(id => settings[id] = $(id).value);
-  return {version:1, updatedAt:new Date().toISOString(), settings, state, log}; }
+  return {version:1, updatedAt:new Date().toISOString(), settings, state, log, extras}; }
 function applySnapshot(d){
   if (!d) return;
   if (d.settings) SETTING_IDS.forEach(id => { if (d.settings[id] !== undefined) $(id).value = d.settings[id]; });
-  state = d.state || {}; log = d.log || []; lastUpdated = d.updatedAt || null;
+  state = d.state || {}; log = d.log || []; extras = d.extras || []; lastUpdated = d.updatedAt || null;
   try { localStorage.setItem(KEY, JSON.stringify(state)); localStorage.setItem(LOGKEY, JSON.stringify(log)); } catch(e) {}
 }
 const b64enc = s => btoa(unescape(encodeURIComponent(s)));
@@ -99,6 +101,14 @@ async function doLogin(){
 /* ---------- 언어 사전 (Language dictionary) ---------- */
 const L = {
 ko: {
+  addBtn:"＋ 수업 추가", expand:"6개월 펼치기 ▾", collapse:"접기 ▴", addTitle:d => `${d} · 수업 추가`, addKind:"수업료",
+  addPaid:"유료 (선불에 추가)", addFree:"무료", addMemoPh:"예: 시험 대비 추가 수업", addApply:"추가",
+  addPv:(paid,price) => paid ? `선불 수업이 1회 늘고 수업료에 ${price}가 더해집니다.` : "무료 수업으로 추가됩니다 (선불 횟수·금액 변화 없음).",
+  addPvV:"수업이 1회 추가됩니다.",
+  extraL:n => `추가${n}`, aDelX:"🗑 추가 수업 삭제", nExtra:p => p ? "추가 수업 (선불에 포함)" : "추가 수업 (무료)",
+  logAdd:(d,tm,x,p) => `${d} ${tm} ${x} 추가 (${p ? "유료" : "무료"})`, logDel:(d,x) => `${d} ${x} 삭제`,
+  basisExtra:(p,f) => `②+ 추가 수업 ${p+f}회 (유료 ${p} · 무료 ${f}) — 유료분은 선불 수업 수에 포함`, lg9:"추가 수업",
+
   roleMaster:u => `마스터 · ${u}`, roleViewer:"보기 전용 (선생님)", login:"마스터 로그인", logout:"로그아웃", teacherLinkBtn:"선생님 링크 복사",
   linkCopied:u => `선생님 링크를 복사했어요: ${u}`,
   syncLoading:"불러오는 중…", syncLoaded:d => `마지막 업데이트 ${d}`, syncPending:"변경 사항 저장 대기…", syncSaving:"GitHub에 저장 중…",
@@ -121,7 +131,7 @@ ko: {
   hCause:"사유는 누구에게 있나요?", cMe:"나 (학생)", cTeacher:"선생님", cMutual:"사전 합의",
   hHow:"어디로 옮길까요?", howEnd:"마지막 수업 다음으로 자동", howDate:"날짜 지정",
   lAgreed:"합의(연락)한 날", lTo:"새 날짜", lToTime:"새 시각", lMemo:"사유 입력", memoPh:"예: 선생님 출장, 가족 행사, 인터넷 장애 …",
-  apply:"적용", calHint:"달력의 수업을 클릭하면 완료·수정·이동·Hold·취소·No-show를 고를 수 있어요.",
+  apply:"적용", calHint:"수업을 누르면 완료·수정·이동·Hold·취소·No-show, 빈 날짜를 누르면 그날 수업 추가.",
   hBasis:"계산 근거", hList:"수업 목록", thDate:"날짜", thType:"구분", thStatus:"상태", thNotes:"비고 / 사유", hNext:"다음 선불 기간 미리 계산",
   hSettings:"나의 수업 설정", sStart:"시작일", sMonths:"선불 기간(개월)", sTime:"수업 시각", sDur:"수업 길이(분)", sPrice:"1 Class 가격 (USD)",
   sAlert:"알림: 남은 수업 몇 회", sNotice:"이동·Hold 사전 합의 기준 (수업 며칠 전까지)", sRateDate:"환율 고시일",
@@ -176,7 +186,7 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   copied:"복사됐어요. 카카오톡에 붙여넣으세요.", logCopied:"기록을 복사했어요.", copyFail:"자동 복사가 막혀 있어요. 텍스트를 직접 선택해 복사하세요.", noLogTxt:"(기록 없음)",
   origBonus:(d,x) => ` · ${d} ${x} 선생님 사유 보너스`, origMakeup:(d,x) => ` · ${d} ${x}의 보강`, nowIs:s => `현재: ${s}`,
   datesEdit:"새 날짜·시각 (같은 수업을 그대로 옮김)", datesMove:"연락한 날과 새 날짜",
-  pv:{ undo:(d,x) => `원래 수업 ${d} ${x}을(를) 되살리고, 거기서 생긴 보강·보너스를 모두 지웁니다.`, already:"이미 예정 상태예요. 바꿀 것이 없습니다.", pick:"위에서 할 일을 고르세요.", done:"이 수업을 완료로 표시합니다.", plan:"예정 상태로 되돌리고, 이 수업에서 생긴 보강·보너스를 해제합니다.",
+  pv:{ delX:"이 추가 수업을 지웁니다. 유료였다면 선불 횟수와 금액도 원래대로 돌아갑니다.", undo:(d,x) => `원래 수업 ${d} ${x}을(를) 되살리고, 거기서 생긴 보강·보너스를 모두 지웁니다.`, already:"이미 예정 상태예요. 바꿀 것이 없습니다.", pick:"위에서 할 일을 고르세요.", done:"이 수업을 완료로 표시합니다.", plan:"예정 상태로 되돌리고, 이 수업에서 생긴 보강·보너스를 해제합니다.",
     edit:"같은 수업의 날짜·시각만 바꿉니다. 선불 차감이나 보너스는 없습니다.", cause:"사유가 누구에게 있는지 고르세요.",
     teacher:`<b>선생님 사유 규칙:</b> 이 수업은 마지막 수업 다음 일요일로 자동 이동(보강)되고, 그다음 주에 <b>보너스 수업 1회($0)</b>가 새로 생깁니다. 사유가 기록에 남습니다.`,
     consumed:a => `내 사유 ${a}: 선불 1회가 차감되고 보강은 없습니다. 기록에 남습니다.`,
@@ -195,6 +205,14 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   fxCross:"2026.11 원화·엔화·위안화 = CBU의 USD/UZS ÷ 각 통화/UZS (원화는 CBU 소수점 둘째 자리 반올림 때문에 ±1원 정도 오차).",
 },
 en: {
+  addBtn:"+ Add class", expand:"Show 6 months ▾", collapse:"Collapse ▴", addTitle:d => `${d} · add a class`, addKind:"Fee",
+  addPaid:"Paid (added to prepaid)", addFree:"Free", addMemoPh:"e.g. extra class before a test", addApply:"Add",
+  addPv:(paid,price) => paid ? `Adds 1 prepaid class and ${price} to the fee.` : "Added as a free class (no change to prepaid count or amount).",
+  addPvV:"Adds 1 class.",
+  extraL:n => `Extra ${n}`, aDelX:"🗑 Delete this extra class", nExtra:p => p ? "Extra class (in prepaid)" : "Extra class (free)",
+  logAdd:(d,tm,x,p) => `${d} ${tm} ${x} added (${p ? "paid" : "free"})`, logDel:(d,x) => `${d} ${x} deleted`,
+  basisExtra:(p,f) => `②+ Extra classes: ${p+f} (${p} paid · ${f} free) — paid ones count as prepaid classes`, lg9:"Extra class",
+
   roleMaster:u => `Master · ${u}`, roleViewer:"View only (teacher)", login:"Master login", logout:"Log out", teacherLinkBtn:"Copy teacher link",
   linkCopied:u => `Teacher link copied: ${u}`,
   syncLoading:"Loading…", syncLoaded:d => `Last updated ${d}`, syncPending:"Waiting to save…", syncSaving:"Saving to GitHub…",
@@ -217,7 +235,7 @@ en: {
   hCause:"Whose reason is it?", cMe:"Me (student)", cTeacher:"Teacher", cMutual:"Agreed in advance",
   hHow:"Move it where?", howEnd:"Auto: after the last class", howDate:"Pick a date",
   lAgreed:"Date we agreed", lTo:"New date", lToTime:"New time", lMemo:"Reason", memoPh:"e.g. teacher travelling, family event, internet outage …",
-  apply:"Apply", calHint:"Click a class on the calendar to mark it done, edit, move, hold, cancel or no-show.",
+  apply:"Apply", calHint:"Click a class to mark it done, edit, move, hold, cancel or no-show; click an empty day to add a class there.",
   hBasis:"How it’s calculated", hList:"Class list", thDate:"Date", thType:"Type", thStatus:"Status", thNotes:"Notes / reason", hNext:"Next prepaid period (estimate)",
   hSettings:"My class settings", sStart:"Start date", sMonths:"Prepaid period (months)", sTime:"Class time", sDur:"Length (min)", sPrice:"Price per class (USD)",
   sAlert:"Alert when this many classes are left", sNotice:"Notice needed to move / hold (days before class)", sRateDate:"Rate date",
@@ -272,7 +290,7 @@ ${o.nn} × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   copied:"Copied. Paste it into KakaoTalk.", logCopied:"Log copied.", copyFail:"Copying is blocked here. Select the text and copy it manually.", noLogTxt:"(no entries)",
   origBonus:(d,x) => ` · bonus for teacher’s cancellation of ${x} on ${d}`, origMakeup:(d,x) => ` · makeup for ${x} on ${d}`, nowIs:s => `Now: ${s}`,
   datesEdit:"New date & time (same class, just rescheduled)", datesMove:"Contact date & new date",
-  pv:{ undo:(d,x) => `Restores the original class ${x} on ${d} and removes the makeup and bonus created from it.`, already:"Already scheduled — nothing to change.", pick:"Choose what to do above.", done:"Marks this class as done.", plan:"Resets to scheduled and removes any makeup or bonus created from this class.",
+  pv:{ delX:"Deletes this extra class. If it was paid, the prepaid count and amount go back too.", undo:(d,x) => `Restores the original class ${x} on ${d} and removes the makeup and bonus created from it.`, already:"Already scheduled — nothing to change.", pick:"Choose what to do above.", done:"Marks this class as done.", plan:"Resets to scheduled and removes any makeup or bonus created from this class.",
     edit:"Changes only this class’s date and time. Nothing is used from prepaid and no bonus is added.", cause:"Choose whose reason it is.",
     teacher:`<b>Teacher’s-reason rule:</b> this class moves automatically to the Sunday after the last class (makeup), and a new <b>bonus class ($0)</b> is added the week after. The reason is logged.`,
     consumed:a => `${a} for my own reason: 1 prepaid class is used, no makeup. It’s logged.`,
@@ -348,6 +366,7 @@ function sundays(start, months){
 function labelOf(s){
   if (s.kind === "reg") return `#${s.no}`;
   if (s.kind === "bonus") return t("bonusL")(s.bno);
+  if (s.kind === "extra") return t("extraL")(s.xno);
   return t("makeupL")(labelOf(s.from));
 }
 function klass(s){
@@ -366,6 +385,7 @@ function statusText(s){
 
 function buildSessions(P, C){
   const S = P.list.map((d,i) => ({id:"R"+(i+1), d, kind:"reg", no:i+1, time:C.time}));
+  extras.slice().sort((a,b) => a.date.localeCompare(b.date)).forEach((x,i) => S.push({id:x.id, d:parse(x.date), kind:"extra", xno:i+1, paid:x.paid, time:x.time || C.time}));
   let bonusNo = 0;
   const endSlot = () => nextSundayAfter(S.reduce((m,x) => x.d > m ? x.d : m, P.start));
   for (let i=0; i<S.length; i++){
@@ -415,7 +435,8 @@ function render(){
   const C = cfg();
   const P = sundays(C.start, C.months);
   const S = buildSessions(P, C);
-  const prepaid = P.list.length;
+  const paidX = extras.filter(x => x.paid).length, freeX = extras.length - paidX;
+  const prepaid = P.list.length + paidX;
   const prepaidUsd = prepaid*C.price, prepaidUzs = prepaidUsd*C.rate;
 
   const timeline = S.filter(occupies).sort(byTime);
@@ -462,9 +483,13 @@ function render(){
   const byDay = {};
   S.forEach(s => (byDay[fmt(s.d)] ||= []).push(s));
   Object.values(byDay).forEach(a => a.sort(byTime));
-  const calEnd = S.reduce((m,x) => x.d > m ? x.d : m, lastSession);
+  let calEnd = S.reduce((m,x) => x.d > m ? x.d : m, lastSession);
+  if (addDate && parse(addDate) > calEnd) calEnd = parse(addDate);
   let m = new Date(Date.UTC(P.start.getUTCFullYear(), P.start.getUTCMonth(), 1));
-  const lastM = new Date(Date.UTC(calEnd.getUTCFullYear(), calEnd.getUTCMonth(), 1));
+  let lastM = new Date(Date.UTC(calEnd.getUTCFullYear(), calEnd.getUTCMonth(), 1));
+  const sixM = new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth()+5, 1));
+  if (calExpanded && sixM > lastM) lastM = sixM;
+  $("expandBtn").textContent = calExpanded ? t("collapse") : t("expand");
   const act = t("act");
   while (m <= lastM){
     const box = document.createElement("div"); box.className = "month";
@@ -479,7 +504,9 @@ function render(){
       const el = document.createElement("div");
       el.className = "day " + (d >= P.start && d <= calEnd ? "in" : "out");
       if (k === fmt(C.asof)) el.classList.add("today");
-      el.textContent = dd;
+      el.textContent = dd; el.dataset.date = k;
+      if (isMaster() && d >= P.start){ el.classList.add("addable"); el.onclick = e => { if (!e.target.closest(".it")) openAdd(k); }; }
+      if (addDate === k) el.classList.add("addsel");
       if (list){
         el.classList.add("has");
         if (alertItem && list.includes(alertItem)) el.classList.add("alert");
@@ -506,6 +533,8 @@ function render(){
   const sel = selected && S.find(s => s.id === selected);
   if (sel){ renderPanel(sel, C); positionPanel(); }
   else { $("actions").className = "actions"; selected = null; }
+  if (addDate && isMaster()){ renderAdd(C); positionPop($("addPanel"), document.querySelector(`.day[data-date="${addDate}"]`)); }
+  else { $("addPanel").className = "actions"; addDate = null; }
 
   // 보류 목록
   $("holds").innerHTML = holds.length ? holds.map(h => `<div><span>${kdate(h.d)} ${labelOf(h)}<br><span class="hint">${t("cause")[h.cause]} · ${h.meta.memo||t("noReason")}</span></span>
@@ -528,7 +557,8 @@ function render(){
     if (s.kind === "moved") notes.push(t("nMakeup")(sdate(s.from.d), labelOf(s.from)));
     if (s.meta && s.meta.memo) notes.push(t("nReason")(s.meta.memo));
     if (s.meta && s.meta.agreed) notes.push(t("nContact")(s.meta.agreed, s.meta.notice, s.meta.late));
-    const fee = s.kind === "reg" ? usd(C.price) : s.kind === "bonus" ? "$0.00" : t("inPrepaid");
+    if (s.kind === "extra") notes.unshift(t("nExtra")(s.paid));
+    const fee = (s.kind === "reg" || (s.kind === "extra" && s.paid)) ? usd(C.price) : (s.kind === "bonus" || s.kind === "extra") ? "$0.00" : t("inPrepaid");
     const cc = s.act==="done" ? "c-done" : s.act==="plan" ? "" : s.cause ? "c-"+s.cause : "";
     return `<tr><td>${kdate(s.d)} ${s===alertItem?"🔔":""}<br><span class="hint">${tEnd(s.time)}</span></td>
       <td><span class="tag ${s.kind}">${labelOf(s)}</span></td>
@@ -542,7 +572,8 @@ function render(){
     price:usd(C.price), usd:usd(prepaidUsd), rate:uzs2(C.rate), rateDate:C.rateDate, uzs:uzs2(prepaidUzs),
     consumed:cnt(s => klass(s)==="consumed"), teacher:cnt(s => klass(s)==="teacher"), bonus:bonusCount,
     relocated:cnt(s => klass(s)==="relocated"), holds:holds.length, last:kdate(lastSession), N:C.N, alert:alertItem?kdate(alertItem.d):"–"
-  }).map((x,i) => `<div${i===2?' class="money"':""}>${isMaster() ? x : x.replace(/ \(\$0\)/, "")}</div>`).join("");
+  }).map((x,i) => `<div${i===2?' class="money"':""}>${isMaster() ? x : x.replace(/ \(\$0\)/, "")}</div>`)
+    .map((x,i,arr) => (i === 1 && extras.length) ? x + `<div>${t("basisExtra")(paidX, freeX)}</div>` : x).join("");
   $("nextBasis").innerHTML = t("next")({a:kdate(NP.start), b:kdate(NP.end), months:C.months, n:nCount, list:NP.list.map(sdate).join(", "),
     price:usd(C.price), usd:usd(nUsd), rate:uzs2(C.rate), uzs:uzs2(nUzs)}).map((x,i) => `<div${i===2?' class="money"':""}>${x}</div>`).join("")
     + `<div class="hint">${t("nextHint")(holds.length)}</div>`;
@@ -563,7 +594,7 @@ function render(){
 let pick = {act:null, cause:null, how:"end"};
 function selectSession(id, a){
   if (id && !isMaster()) return;
-  selected = id;
+  selected = id; if (id) addDate = null;
   const m = id && state[id] || {};
   pick = {act: a || null, cause: m.cause || null, how: m.how || "end"};
   $("agreed").value = todayStr(); $("toDate").value = ""; $("toTime").value = $("time").value || "17:00";
@@ -571,8 +602,9 @@ function selectSession(id, a){
   render();
 }
 function setSeg(id, v){ $(id).querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === v)); }
-function positionPanel(){
-  const p = $("actions"), card = $("calcard"), it = card.querySelector(".it.sel");
+function positionPanel(){ positionPop($("actions"), $("calcard").querySelector(".it.sel")); }
+function positionPop(p, it){
+  const card = $("calcard");
   const wasOpen = p.classList.contains("on");
   p.className = "actions on";
   if (!it || window.innerWidth <= 640){ return; }
@@ -593,16 +625,45 @@ function positionPanel(){
 }
 window.addEventListener("resize", () => { if (selected) positionPanel(); });
 document.addEventListener("mousedown", e => {
-  if (!selected) return;
-  if (e.target.closest("#actions") || e.target.closest(".it") || e.target.closest(".modal") || e.target.closest("[data-sel]") || e.target.closest(".lang")) return;
-  selectSession(null);
+  if (!selected && !addDate) return;
+  if (e.target.closest(".actions") || e.target.closest(".it") || e.target.closest(".modal") || e.target.closest("[data-sel]") || e.target.closest(".lang") || e.target.closest(".day.addable") || e.target.closest("#addBtn")) return;
+  addDate = null; selectSession(null);
 });
+
+/* ---------- 수업 추가 ---------- */
+function openAdd(k){
+  selected = null; addDate = k; addPaid = "paid";
+  $("addTime").value = $("time").value || "17:00"; $("addMemo").value = "";
+  render();
+}
+function renderAdd(C){
+  $("addTitle").innerHTML = `<b>${t("addTitle")(kdate(parse(addDate)))}</b>`;
+  setSeg("segPaid", addPaid);
+  $("addPreview").textContent = t("addPv")(addPaid === "paid", usd(C.price));
+}
+$("segPaid").querySelectorAll("button").forEach(b => b.onclick = () => { addPaid = b.dataset.v; render(); });
+$("xAdd").onclick = $("addClose").onclick = () => { addDate = null; render(); };
+$("addBtn").onclick = () => {
+  const C = cfg(), S = buildSessions(sundays(C.start, C.months), C);
+  const last = S.filter(occupies).reduce((m,x) => x.d > m ? x.d : m, C.start);
+  openAdd(fmt(nextSundayAfter(last)));
+};
+$("expandBtn").onclick = () => { calExpanded = !calExpanded; try { localStorage.setItem("eng-class-cal6", calExpanded ? "1" : "0"); } catch(e) {} render(); };
+$("addApply").onclick = () => {
+  if (!addDate) return;
+  const x = {id:"X"+Date.now().toString(36), date:addDate, time:$("addTime").value || $("time").value || "17:00", paid: addPaid === "paid", memo: $("addMemo").value.trim() || undefined};
+  extras.push(x);
+  const C = cfg(), sx = buildSessions(sundays(C.start, C.months), C).find(s => s.id === x.id);
+  const entry = bothLangs(() => t("logAdd")(kdate(sx.d), sx.time, labelOf(sx), x.paid) + (x.memo ? " · " + t("nReason")(x.memo) : ""));
+  log.push({at: nowStamp(), ...entry});
+  addDate = null; save(); render();
+};
 function renderPanel(sel, C){
   const origin = sel.kind === "bonus" ? t("origBonus")(kdate(sel.from.d), labelOf(sel.from))
     : sel.kind === "moved" ? t("origMakeup")(kdate(sel.from.d), labelOf(sel.from)) : "";
   $("actTitle").innerHTML = `<b>${kdate(sel.d)} ${sel.time}</b> · ${labelOf(sel)}${origin}<br><span class="hint">${t("nowIs")(statusText(sel))}</span>`;
   const a = pick.act;
-  $("segAct").querySelector("[data-v=plan]").textContent = sel.kind === "reg" ? t("aPlan") : t("aUndo");
+  $("segAct").querySelector("[data-v=plan]").textContent = sel.kind === "reg" ? t("aPlan") : sel.kind === "extra" ? t("aDelX") : t("aUndo");
   setSeg("segAct", a); setSeg("quickAct", a); setSeg("segCause", pick.cause); setSeg("segHow", pick.how);
   const needCause = ["move","hold","cancel","noshow"].includes(a);
   $("fldCause").classList.toggle("on", needCause);
@@ -625,6 +686,7 @@ function updatePreview(sel, C){
   let x = "";
   if (!a) x = pv.pick;
   else if (a === "done") x = pv.done;
+  else if (a === "plan" && sel.kind === "extra") x = pv.delX;
   else if (a === "plan" && sel.kind !== "reg") x = pv.undo(kdate(sel.from.origD || sel.from.d), labelOf(sel.from));
   else if (a === "plan" && sel.act === "plan" && !state[sel.id]) x = pv.already;
   else if (a === "plan") x = pv.plan;
@@ -657,6 +719,12 @@ $("applyBtn").onclick = () => {
   const C = cfg(), P = sundays(C.start, C.months);
   if (a === "plan"){
     const cur = buildSessions(P, C).find(x => x.id === selected);
+    if (cur && cur.kind === "extra"){                                // 추가 수업 삭제
+      const entry = bothLangs(() => t("logDel")(kdate(cur.d), labelOf(cur)));
+      extras = extras.filter(x => x.id !== cur.id);
+      ["", "M:", "B:"].forEach(p => delete state[p + cur.id]);
+      log.push({at: nowStamp(), ...entry}); selected = null; save(); render(); return;
+    }
     if (cur && cur.kind !== "reg") selected = cur.from.id;          // 보강·보너스 → 원래 수업을 되돌림
   }
   const before = buildSessions(P, C).find(x => x.id === selected);

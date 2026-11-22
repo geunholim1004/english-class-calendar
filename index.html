@@ -167,7 +167,18 @@ button.sm{font-size:12px;padding:4px 10px}
 .sync.bad,.hint.bad{color:var(--tc)}
 body.viewer .calHintEl{display:none}
 body.viewer .fx, body.viewer .usdcol, body.viewer .money{display:none}   /* 선생님 화면: 금액·환율 숨김 */
-body.viewer .kpis{grid-template-columns:repeat(3,1fr)}   /* 선생님 화면: 환율 줄·수업별 USD 열 숨김 */
+body.viewer .kpis{grid-template-columns:repeat(3,1fr)}
+.calhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.calhead h2{margin:0}
+.calbtns{display:flex;gap:6px}
+body.viewer .masteronly{display:none}
+.day.addable{cursor:pointer}
+.day.addable:hover{background:#f1f7f5;box-shadow:inset 0 0 0 1px #c7e3d9}
+.day.addable:not(.has):hover::before{content:"+";position:absolute;right:6px;bottom:3px;color:var(--accent);font-weight:700}
+.day.addsel{box-shadow:inset 0 0 0 2px var(--accent)}
+.it.extra.plan{background:#d7f0ee;color:#0e7c86}
+.it.extra.done{background:#0e7c86;color:#fff}
+.tag.extra{background:#d7f0ee;color:#0e7c86}   /* 선생님 화면: 환율 줄·수업별 USD 열 숨김 */
 body.viewer #openSettings .l::after{content:" 👁"}
 input:disabled{opacity:.75;background:#f3f2ee}
 @media(max-width:640px){.top{flex-direction:column}.acct{align-items:flex-start}.acctrow{justify-content:flex-start}}
@@ -220,7 +231,8 @@ input:disabled{opacity:.75;background:#f3f2ee}
       </div>
 
       <div class="card calcard" id="calcard">
-        <h2 id="calTitle">수업 달력</h2>
+        <div class="calhead"><h2 id="calTitle"></h2>
+          <div class="calbtns"><button class="masteronly sm" id="addBtn" data-i18n="addBtn"></button><button class="ghost sm" id="expandBtn"></button></div></div>
         <div class="months" id="months-wrap"></div>
         <div class="legend">
           <span style="--c:var(--accent-soft)" data-i18n="lg1"></span>
@@ -231,6 +243,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
           <span style="--c:var(--tc-soft)" data-i18n="lg6"></span>
           <span style="--c:var(--my-soft)" data-i18n="lg7"></span>
           <span style="--c:var(--warn)" data-i18n="lg8"></span>
+          <span style="--c:#d7f0ee" data-i18n="lg9"></span>
         </div>
 
         <div class="actions" id="actions">
@@ -279,6 +292,15 @@ input:disabled{opacity:.75;background:#f3f2ee}
             <button id="applyBtn" data-i18n="apply"></button>
             <button class="ghost" id="closeAct" data-i18n="close"></button>
           </div>
+        </div>
+        <div class="actions" id="addPanel">
+          <div class="head"><div class="t" id="addTitle"></div><button class="x" id="xAdd">×</button></div>
+          <div class="grid3"><div><label data-i18n="lToTime"></label><input id="addTime" type="time" value="17:00"></div></div>
+          <h4 data-i18n="addKind"></h4>
+          <div class="seg" id="segPaid"><button data-v="paid" data-i18n="addPaid"></button><button data-v="free" data-i18n="addFree"></button></div>
+          <label data-i18n="lMemo"></label><input id="addMemo" data-i18n-ph="addMemoPh">
+          <div class="preview" id="addPreview"></div>
+          <div class="btns"><button id="addApply" data-i18n="addApply"></button><button class="ghost" id="addClose" data-i18n="close"></button></div>
         </div>
         <div class="hint calHintEl" data-i18n="calHint"></div>
       </div>
