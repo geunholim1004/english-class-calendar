@@ -606,7 +606,7 @@ function sundays(start, months){
 function labelOf(s){
   if (s.kind === "reg") return `#${s.no}`;
   if (s.kind === "bonus") return t("bonusL")(s.bno);
-  if (s.kind === "extra") return t("extraL")(s.xno);
+  if (s.kind === "extra") return `#${s.no}`;   // 추가 수업도 정규 수업 번호에 이어서 (#15, #16 …)
   return t("makeupL")(labelOf(s.from));
 }
 function klass(s){
@@ -626,7 +626,7 @@ function statusText(s){
 
 function buildSessions(P, C){
   const S = P.list.map((d,i) => ({id:"R"+(i+1), d, kind:"reg", no:i+1, time:C.time}));
-  extras.filter(x => x && DATE_RE.test(x.date || "") && /^X\w+$/.test(x.id || "")).sort((a,b) => a.date.localeCompare(b.date)).forEach((x,i) => S.push({id:x.id, d:parse(x.date), kind:"extra", xno:i+1, paid:x.paid, time:safeTime(x.time, C.time)}));
+  extras.filter(x => x && DATE_RE.test(x.date || "") && /^X\w+$/.test(x.id || "")).sort((a,b) => a.date.localeCompare(b.date)).forEach((x,i) => S.push({id:x.id, d:parse(x.date), kind:"extra", xno:i+1, no:P.list.length+i+1, paid:x.paid, time:safeTime(x.time, C.time)}));
   let bonusNo = 0;
   const endSlot = () => nextSundayAfter(S.reduce((m,x) => x.d > m ? x.d : m, P.start));
   for (let i=0; i<S.length; i++){
