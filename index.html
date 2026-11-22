@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>영어 수업 달력 & 수업료 계산기 (USD→UZS)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f5f1; --card:#ffffff; --ink:#1d2125; --muted:#6b7177; --line:#e4e1d8;
+  --accent:#1f6f5c; --accent-soft:#e3f1ec; --warn:#b4541a; --warn-soft:#fbeee4;
+  --tc:#c0392b; --tc-soft:#fbe7e5; --bonus:#6a4fc2; --bonus-soft:#eeeafb;
+  --move:#1a6fa8; --move-soft:#e3eff8; --hold:#a37b00; --hold-soft:#fbf3d6;
+  --my:#7a7f85; --my-soft:#eef0f1; --today:#2d5bd7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans KR",system-ui,sans-serif;font-size:15px;line-height:1.55}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 18px 60px}
+h1{font-size:24px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 22px}
+.grid{display:grid;grid-template-columns:300px 1fr;gap:18px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card h2{font-size:15px;margin:0 0 12px}
+label{display:block;font-size:12.5px;color:var(--muted);margin:10px 0 4px}
+input,select,textarea.memo{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fcfcfa}
+input:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+input:disabled{opacity:.5}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+a{color:var(--accent)}
+.mono{font-family:"JetBrains Mono",monospace}
+
+.banner{border-radius:12px;padding:14px 16px;margin-bottom:14px;display:none}
+.banner.on{display:block}
+.banner.warn{background:var(--warn-soft);border:1px solid #efcfb6}
+.banner.ok{background:var(--accent-soft);border:1px solid #c7e3d9}
+.banner b.h{display:block;margin-bottom:4px}
+.fx{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid rgba(31,111,92,.15);font-size:12px;color:var(--muted)}
+.fx button{font-size:12px;padding:2px 9px;border-radius:99px;background:rgba(255,255,255,.75);border:1px solid rgba(31,111,92,.25);color:var(--ink)}
+.fx button b{font-family:"JetBrains Mono",monospace;font-weight:500}
+.fx button:hover{background:#fff;border-color:var(--accent)}
+
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:19px;font-weight:700;margin-top:2px}
+.kpi .v small{font-size:12px;font-weight:500;color:var(--muted)}
+.kpi.click{cursor:pointer;transition:border-color .15s}
+.kpi.click:hover{border-color:var(--accent)}
+.kpi.click .l::after{content:" ⚙";color:var(--accent)}
+
+.months{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+@media(max-width:640px){.months{grid-template-columns:1fr}}
+.month h3{font-size:14px;margin:0 0 8px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.dow{font-size:11px;color:var(--muted);text-align:center;padding:2px 0}
+.dow.sun{color:#c0392b}
+.day{min-height:48px;border-radius:7px;font-size:12px;padding:3px 4px;color:#9a9ea3;position:relative}
+.day.in{color:var(--ink)}
+.day.out{opacity:.45}
+.day.has{background:#fbfaf6}
+.day.alert{outline:2px solid var(--warn);outline-offset:-2px}
+.day.today::after{content:"";position:absolute;right:5px;top:6px;width:6px;height:6px;border-radius:50%;background:var(--today)}
+.it{display:block;font-size:10.5px;font-weight:600;border-radius:4px;padding:1px 4px;margin-top:2px;cursor:pointer;border:1px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it.plan{background:var(--accent-soft);color:var(--accent)}
+.it.done{background:var(--accent);color:#fff}
+.it.bonus.plan{background:var(--bonus-soft);color:var(--bonus)}
+.it.bonus.done{background:var(--bonus);color:#fff}
+.it.moved.plan{background:var(--move-soft);color:var(--move)}
+.it.moved.done{background:var(--move);color:#fff}
+.it.teacher{background:var(--tc-soft);color:var(--tc);text-decoration:line-through}
+.it.consumed{background:var(--my-soft);color:var(--my);text-decoration:line-through}
+.it.relocated{background:#fff;color:var(--move);border:1px dashed #a9cbe3;text-decoration:line-through}
+.it.hold{background:var(--hold-soft);color:var(--hold);border:1px dashed #e5cf7c}
+.it.sel{box-shadow:0 0 0 2px var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin:10px 0 0}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c)}
+
+.calcard{position:relative}
+.actions{position:absolute;z-index:40;width:390px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#fff;
+  box-shadow:0 14px 40px rgba(20,24,28,.18),0 2px 6px rgba(20,24,28,.08);display:none}
+.actions.on{display:block;animation:pop .14s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(4px) scale(.98)}to{opacity:1;transform:none}}
+.actions::before{content:"";position:absolute;width:12px;height:12px;background:#fff;border-left:1px solid var(--line);border-bottom:1px solid var(--line);top:var(--ay,22px)}
+.actions.right::before{left:-7px;transform:rotate(45deg)}
+.actions.left::before{right:-7px;transform:rotate(225deg)}
+.actions.below::before{display:none}
+.actions .head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.actions .t{font-size:13.5px;margin-bottom:4px}
+.actions .x{margin-top:-4px}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.quick button{padding:9px 6px;font-weight:500}
+.quick button.on{outline:2px solid var(--ink);outline-offset:1px}
+@media(max-width:640px){
+  .actions{position:fixed;left:0!important;right:0;bottom:0;top:auto!important;width:auto;max-height:82vh;overflow:auto;border-radius:16px 16px 0 0}
+  .actions::before{display:none}
+}
+.actions h4{font-size:12.5px;color:var(--muted);font-weight:500;margin:12px 0 6px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(max-width:640px){.grid3{grid-template-columns:1fr}}
+.grid3 label{margin-top:0}
+.preview{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:13px;background:#fff;border:1px solid var(--line)}
+.preview.teacher{border-color:#f1c7c2;background:var(--tc-soft)}
+.preview.bad{border-color:#efcfb6;background:var(--warn-soft)}
+.fld{display:none}.fld.on{display:block}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:500}
+td.r,th.r{text-align:right}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;font-weight:500;white-space:nowrap}
+.tag.reg{background:var(--accent-soft);color:var(--accent)}
+.tag.bonus{background:var(--bonus-soft);color:var(--bonus)}
+.tag.moved{background:var(--move-soft);color:var(--move)}
+.c-teacher{color:var(--tc)} .c-me{color:var(--my)} .c-mutual{color:var(--move)} .c-done{color:var(--accent)} .c-hold{color:var(--hold)}
+.basis{background:#fbfaf6;border:1px dashed var(--line);border-radius:10px;padding:12px 14px;font-size:13.5px}
+.basis div{margin:3px 0}
+button{font:inherit;font-size:13px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:7px 10px;cursor:pointer}
+button.ghost{background:#fff;color:var(--accent)}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+textarea#msg{width:100%;min-height:170px;border:1px solid var(--line);border-radius:8px;padding:10px;font:13px/1.5 "Noto Sans KR",sans-serif;background:#fcfcfa}
+.toast{font-size:12.5px;color:var(--accent);min-height:18px;margin-top:6px}
+.section{margin-top:18px}
+.log{font-size:13px;max-height:320px;overflow:auto}
+.log div{padding:6px 0;border-bottom:1px solid var(--line)}
+.log time{display:block;color:var(--muted);font-size:11.5px}
+.empty{color:var(--muted);font-size:13px}
+.holds div{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+
+/* 모달 */
+.modal{position:fixed;inset:0;background:rgba(20,24,28,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 14px;z-index:50;overflow:auto}
+.modal.on{display:flex}
+.sheet{background:#fff;border-radius:16px;max-width:720px;width:100%;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.sheet.narrow{max-width:460px}
+.sheet header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.sheet header h2{font-size:17px;margin:0}
+.x{background:none;border:none;color:var(--muted);font-size:22px;padding:0 4px;line-height:1}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 6px}
+.tabs button{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:99px;padding:5px 12px}
+.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+svg text{font-family:"Noto Sans KR",sans-serif}
+.chartwrap{position:relative}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:4px 8px;border-radius:6px;white-space:nowrap;display:none}
+.fxtable{font-size:12.5px;margin-top:10px;max-height:200px;overflow:auto}
+.fxtable td,.fxtable th{padding:4px 6px}
+
+:root{color-scheme:light}
+input,textarea{color:var(--ink)}
+textarea#msg{color:var(--ink);background:#fcfcfa}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:0}
+.lang{display:inline-flex;border:1px solid var(--line);border-radius:99px;background:#fff;padding:3px;flex:none;margin-top:2px}
+.lang button{background:none;border:none;color:var(--muted);border-radius:99px;padding:5px 12px;font-size:13px}
+.lang button.on{background:var(--ink);color:#fff}
+.acct{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.acctrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.badge{font-size:12px;padding:3px 10px;border-radius:99px;font-weight:500}
+.badge.master{background:var(--ink);color:#fff}
+.badge.viewer{background:var(--move-soft);color:var(--move)}
+button.sm{font-size:12px;padding:4px 10px}
+.sync{font-size:11.5px;color:var(--muted);min-height:16px}
+.sync.bad,.hint.bad{color:var(--tc)}
+body.viewer .calHintEl{display:none}
+body.viewer #openSettings .l::after{content:" 👁"}
+input:disabled{opacity:.75;background:#f3f2ee}
+@media(max-width:640px){.top{flex-direction:column}.acct{align-items:flex-start}.acctrow{justify-content:flex-start}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div><h1 data-i18n="title"></h1><p class="sub" data-i18n="sub"></p></div>
+    <div class="acct">
+      <div class="lang" role="group" aria-label="Language"><button data-lang="ko">한국어</button><button data-lang="en">English</button></div>
+      <div class="acctrow"><span id="roleBadge" class="badge"></span>
+        <button class="ghost sm" id="loginBtn" data-i18n="login"></button>
+        <button class="ghost sm" id="linkBtn" data-i18n="teacherLinkBtn"></button>
+        <button class="ghost sm" id="logoutBtn" data-i18n="logout"></button></div>
+      <div id="syncStatus" class="sync"></div>
+    </div></div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2 data-i18n="hHolds"></h2>
+        <div class="holds" id="holds"></div>
+      </div>
+
+      <div class="card section">
+        <h2 data-i18n="hKakao"></h2>
+        <textarea id="msg" readonly></textarea>
+        <div class="btns"><button id="copyMsg" data-i18n="copyMsg"></button></div>
+        <div class="toast" id="toast"></div>
+        <div class="hint" data-i18n="kakaoHint"></div>
+      </div>
+
+      <div class="card section">
+        <h2 data-i18n="hLog"></h2>
+        <div class="log" id="log"></div>
+        <div class="btns"><button class="ghost" id="copyLog" data-i18n="copyLog"></button></div>
+        <div class="hint" data-i18n="logHint"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="banner" id="banner"></div>
+
+      <div class="kpis">
+        <div class="kpi click" id="openSettings" data-i18n-title="openSettings"><div class="l" data-i18n="kPrepaid"></div><div class="v" id="kCount">–</div></div>
+        <div class="kpi"><div class="l" data-i18n="kUsdL"></div><div class="v" id="kUsd">–</div></div>
+        <div class="kpi"><div class="l" data-i18n="kUzsL"></div><div class="v" id="kUzs">–</div></div>
+        <div class="kpi"><div class="l" data-i18n="kMiscL"></div><div class="v" id="kMisc">–</div></div>
+        <div class="kpi"><div class="l" data-i18n="kLeftL"></div><div class="v" id="kLeft">–</div></div>
+      </div>
+
+      <div class="card calcard" id="calcard">
+        <h2 id="calTitle">수업 달력</h2>
+        <div class="months" id="months-wrap"></div>
+        <div class="legend">
+          <span style="--c:var(--accent-soft)" data-i18n="lg1"></span>
+          <span style="--c:var(--accent)" data-i18n="lg2"></span>
+          <span style="--c:var(--bonus-soft)" data-i18n="lg3"></span>
+          <span style="--c:var(--move-soft)" data-i18n="lg4"></span>
+          <span style="--c:var(--hold-soft)" data-i18n="lg5"></span>
+          <span style="--c:var(--tc-soft)" data-i18n="lg6"></span>
+          <span style="--c:var(--my-soft)" data-i18n="lg7"></span>
+          <span style="--c:var(--warn)" data-i18n="lg8"></span>
+        </div>
+
+        <div class="actions" id="actions">
+          <div class="head"><div class="t" id="actTitle"></div><button class="x" id="xAct" data-i18n-title="close">×</button></div>
+          <div class="quick" id="quickAct">
+            <button data-v="done" data-i18n="qDone"></button>
+            <button class="ghost" data-v="edit" data-i18n="qEdit"></button>
+            <button class="ghost" data-v="move" data-i18n="qMove"></button>
+          </div>
+          <h4 data-i18n="hOther"></h4>
+          <div class="seg" id="segAct">
+            <button data-v="hold">Hold</button>
+            <button data-v="cancel" data-i18n="aCancel"></button>
+            <button data-v="noshow">No-show</button>
+            <button data-v="plan" data-i18n="aPlan"></button>
+          </div>
+          <div class="fld" id="fldCause">
+            <h4 data-i18n="hCause"></h4>
+            <div class="seg" id="segCause">
+              <button data-v="me" data-i18n="cMe"></button>
+              <button data-v="teacher" data-i18n="cTeacher"></button>
+              <button data-v="mutual" data-i18n="cMutual"></button>
+            </div>
+          </div>
+          <div class="fld" id="fldMoveHow">
+            <h4 data-i18n="hHow"></h4>
+            <div class="seg" id="segHow">
+              <button data-v="end" data-i18n="howEnd"></button>
+              <button data-v="date" data-i18n="howDate"></button>
+            </div>
+          </div>
+          <div class="fld" id="fldDates">
+            <h4 id="datesTitle">날짜·시각</h4>
+            <div class="grid3">
+              <div id="wrapAgreed"><label data-i18n="lAgreed"></label><input id="agreed" type="date"></div>
+              <div id="wrapTo"><label data-i18n="lTo"></label><input id="toDate" type="date"></div>
+              <div id="wrapToTime"><label data-i18n="lToTime"></label><input id="toTime" type="time" value="17:00"></div>
+            </div>
+          </div>
+          <div class="fld on">
+            <label data-i18n="lMemo"></label>
+            <input id="memo" data-i18n-ph="memoPh">
+          </div>
+          <div class="preview" id="preview"></div>
+          <div class="btns">
+            <button id="applyBtn" data-i18n="apply"></button>
+            <button class="ghost" id="closeAct" data-i18n="close"></button>
+          </div>
+        </div>
+        <div class="hint calHintEl" data-i18n="calHint"></div>
+      </div>
+
+      <div class="card section">
+        <h2 data-i18n="hBasis"></h2>
+        <div class="basis" id="basis"></div>
+      </div>
+
+      <div class="card section">
+        <h2 data-i18n="hList"></h2>
+        <table>
+          <thead><tr><th data-i18n="thDate"></th><th data-i18n="thType"></th><th data-i18n="thStatus"></th><th data-i18n="thNotes"></th><th class="r">USD</th></tr></thead>
+          <tbody id="list"></tbody>
+        </table>
+      </div>
+
+      <div class="card section">
+        <h2 data-i18n="hNext"></h2>
+        <div class="basis" id="nextBasis"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 마스터 로그인 -->
+<div class="modal" id="loginModal">
+  <div class="sheet narrow">
+    <header><h2 data-i18n="hLogin"></h2><button class="x" data-close>×</button></header>
+    <div class="row2">
+      <div><label data-i18n="ghOwner"></label><input id="ghOwner"></div>
+      <div><label data-i18n="ghRepo"></label><input id="ghRepo"></div>
+    </div>
+    <label data-i18n="ghToken"></label><input id="ghToken" type="password" autocomplete="off" placeholder="github_pat_…">
+    <div class="hint" data-i18n-html="tokenHelp"></div>
+    <div class="btns"><button id="doLogin" data-i18n="doLogin"></button></div>
+    <div class="hint" id="loginMsg"></div>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div class="modal" id="settingsModal">
+  <div class="sheet narrow">
+    <header><h2 data-i18n="hSettings"></h2><button class="x" data-close>×</button></header>
+    <div class="row2">
+      <div><label data-i18n="sStart"></label><input id="start" type="date" value="2026-11-22"></div>
+      <div><label data-i18n="sMonths"></label><input id="months" type="number" min="1" max="12" value="3"></div>
+    </div>
+    <div class="row2">
+      <div><label data-i18n="sTime"></label><input id="time" type="time" value="17:00"></div>
+      <div><label data-i18n="sDur"></label><input id="dur" type="number" value="25"></div>
+    </div>
+    <div class="row2">
+      <div><label data-i18n="sPrice"></label><input id="price" type="number" step="0.01" value="6"></div>
+      <div><label data-i18n="sAlert"></label><input id="alertN" type="number" min="1" value="2"></div>
+    </div>
+    <label data-i18n="sNotice"></label>
+    <input id="minNotice" type="number" min="0" value="1">
+    <div class="row2">
+      <div><label>1 USD = ? UZS (CBU)</label><input id="rate" type="number" step="0.01" value="12004.48"></div>
+      <div><label data-i18n="sRateDate"></label><input id="rateDate" type="date" value="2026-11-21"></div>
+    </div>
+    <div class="hint" data-i18n-html="cbuHint"></div>
+    <label data-i18n="sAsof"></label>
+    <input id="asof" type="date">
+    <div class="btns"><button data-close data-i18n="sDone"></button></div>
+    <div class="hint" data-i18n="sHint"></div>
+  </div>
+</div>
+
+<!-- 환율 추세 모달 -->
+<div class="modal" id="fxModal">
+  <div class="sheet">
+    <header><h2 id="fxTitle">환율 추세</h2><button class="x" data-close>×</button></header>
+    <div class="tabs" id="fxTabs"></div>
+    <div class="chartwrap"><svg id="fxChart" viewBox="0 0 680 300" width="100%"></svg><div class="tip" id="fxTip"></div></div>
+    <div class="fxtable" id="fxTable"></div>
+    <div class="hint" id="fxNote"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
