@@ -115,7 +115,7 @@ ko: {
   openSettings:"수업 설정 열기",
   kPrepaid:"선불 수업", kUsdL:"선불액", kUzsL:"선불액 (UZS)", kMiscL:"보너스 / 이동 / 보류", kLeftL:"남은 수업",
   lg1:"정규 예정", lg2:"완료", lg3:"보너스", lg4:"이동된 수업", lg5:"보류", lg6:"선생님 사유", lg7:"내 사유 취소·No-show(차감)", lg8:"정산 알림일",
-  close:"닫기", qDone:"✓ 완료", qEdit:"✎ 수정", qMove:"→ 이동", hOther:"다른 처리", aCancel:"취소", aPlan:"예정으로 되돌리기",
+  aUndo:"↩ 이동 취소 (원래 날짜로)", close:"닫기", qDone:"✓ 완료", qEdit:"✎ 수정", qMove:"→ 이동", hOther:"다른 처리", aCancel:"취소", aPlan:"예정으로 되돌리기",
   hCause:"사유는 누구에게 있나요?", cMe:"나 (학생)", cTeacher:"선생님", cMutual:"사전 합의",
   hHow:"어디로 옮길까요?", howEnd:"마지막 수업 다음으로 자동", howDate:"날짜 지정",
   lAgreed:"합의(연락)한 날", lTo:"새 날짜", lToTime:"새 시각", lMemo:"사유 입력", memoPh:"예: 선생님 출장, 가족 행사, 인터넷 장애 …",
@@ -173,7 +173,7 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   copied:"복사됐어요. 카카오톡에 붙여넣으세요.", logCopied:"기록을 복사했어요.", copyFail:"자동 복사가 막혀 있어요. 텍스트를 직접 선택해 복사하세요.", noLogTxt:"(기록 없음)",
   origBonus:(d,x) => ` · ${d} ${x} 선생님 사유 보너스`, origMakeup:(d,x) => ` · ${d} ${x}의 보강`, nowIs:s => `현재: ${s}`,
   datesEdit:"새 날짜·시각 (같은 수업을 그대로 옮김)", datesMove:"연락한 날과 새 날짜",
-  pv:{ pick:"위에서 할 일을 고르세요.", done:"이 수업을 완료로 표시합니다.", plan:"예정 상태로 되돌리고, 이 수업에서 생긴 보강·보너스를 해제합니다.",
+  pv:{ undo:(d,x) => `원래 수업 ${d} ${x}을(를) 되살리고, 거기서 생긴 보강·보너스를 모두 지웁니다.`, already:"이미 예정 상태예요. 바꿀 것이 없습니다.", pick:"위에서 할 일을 고르세요.", done:"이 수업을 완료로 표시합니다.", plan:"예정 상태로 되돌리고, 이 수업에서 생긴 보강·보너스를 해제합니다.",
     edit:"같은 수업의 날짜·시각만 바꿉니다. 선불 차감이나 보너스는 없습니다.", cause:"사유가 누구에게 있는지 고르세요.",
     teacher:`<b>선생님 사유 규칙:</b> 이 수업은 마지막 수업 다음 일요일로 자동 이동(보강)되고, 그다음 주에 <b>보너스 수업 1회($0)</b>가 새로 생깁니다. 사유가 기록에 남습니다.`,
     consumed:a => `내 사유 ${a}: 선불 1회가 차감되고 보강은 없습니다. 기록에 남습니다.`,
@@ -209,7 +209,7 @@ en: {
   openSettings:"Open class settings",
   kPrepaid:"Prepaid classes", kUsdL:"Prepaid", kUzsL:"Prepaid (UZS)", kMiscL:"Bonus / Moved / Hold", kLeftL:"Remaining",
   lg1:"Scheduled", lg2:"Done", lg3:"Bonus", lg4:"Moved class", lg5:"On hold", lg6:"Teacher’s reason", lg7:"My cancel / no-show (used)", lg8:"Payment alert day",
-  close:"Close", qDone:"✓ Done", qEdit:"✎ Edit", qMove:"→ Move", hOther:"Other", aCancel:"Cancel", aPlan:"Reset to scheduled",
+  aUndo:"↩ Undo move (back to original)", close:"Close", qDone:"✓ Done", qEdit:"✎ Edit", qMove:"→ Move", hOther:"Other", aCancel:"Cancel", aPlan:"Reset to scheduled",
   hCause:"Whose reason is it?", cMe:"Me (student)", cTeacher:"Teacher", cMutual:"Agreed in advance",
   hHow:"Move it where?", howEnd:"Auto: after the last class", howDate:"Pick a date",
   lAgreed:"Date we agreed", lTo:"New date", lToTime:"New time", lMemo:"Reason", memoPh:"e.g. teacher travelling, family event, internet outage …",
@@ -267,7 +267,7 @@ ${o.nn} × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   copied:"Copied. Paste it into KakaoTalk.", logCopied:"Log copied.", copyFail:"Copying is blocked here. Select the text and copy it manually.", noLogTxt:"(no entries)",
   origBonus:(d,x) => ` · bonus for teacher’s cancellation of ${x} on ${d}`, origMakeup:(d,x) => ` · makeup for ${x} on ${d}`, nowIs:s => `Now: ${s}`,
   datesEdit:"New date & time (same class, just rescheduled)", datesMove:"Contact date & new date",
-  pv:{ pick:"Choose what to do above.", done:"Marks this class as done.", plan:"Resets to scheduled and removes any makeup or bonus created from this class.",
+  pv:{ undo:(d,x) => `Restores the original class ${x} on ${d} and removes the makeup and bonus created from it.`, already:"Already scheduled — nothing to change.", pick:"Choose what to do above.", done:"Marks this class as done.", plan:"Resets to scheduled and removes any makeup or bonus created from this class.",
     edit:"Changes only this class’s date and time. Nothing is used from prepaid and no bonus is added.", cause:"Choose whose reason it is.",
     teacher:`<b>Teacher’s-reason rule:</b> this class moves automatically to the Sunday after the last class (makeup), and a new <b>bonus class ($0)</b> is added the week after. The reason is logged.`,
     consumed:a => `${a} for my own reason: 1 prepaid class is used, no makeup. It’s logged.`,
@@ -597,6 +597,7 @@ function renderPanel(sel, C){
     : sel.kind === "moved" ? t("origMakeup")(kdate(sel.from.d), labelOf(sel.from)) : "";
   $("actTitle").innerHTML = `<b>${kdate(sel.d)} ${sel.time}</b> · ${labelOf(sel)}${origin}<br><span class="hint">${t("nowIs")(statusText(sel))}</span>`;
   const a = pick.act;
+  $("segAct").querySelector("[data-v=plan]").textContent = sel.kind === "reg" ? t("aPlan") : t("aUndo");
   setSeg("segAct", a); setSeg("quickAct", a); setSeg("segCause", pick.cause); setSeg("segHow", pick.how);
   const needCause = ["move","hold","cancel","noshow"].includes(a);
   $("fldCause").classList.toggle("on", needCause);
@@ -619,6 +620,8 @@ function updatePreview(sel, C){
   let x = "";
   if (!a) x = pv.pick;
   else if (a === "done") x = pv.done;
+  else if (a === "plan" && sel.kind !== "reg") x = pv.undo(kdate(sel.from.origD || sel.from.d), labelOf(sel.from));
+  else if (a === "plan" && sel.act === "plan" && !state[sel.id]) x = pv.already;
   else if (a === "plan") x = pv.plan;
   else if (a === "edit") x = pv.edit;
   else if (!c) x = pv.cause;
@@ -647,7 +650,14 @@ function bothLangs(fn){ const keep = lang; const out = {}; for (const l of ["ko"
 $("applyBtn").onclick = () => {
   const a = pick.act; if (!a || !selected) return;
   const C = cfg(), P = sundays(C.start, C.months);
+  if (a === "plan"){
+    const cur = buildSessions(P, C).find(x => x.id === selected);
+    if (cur && cur.kind !== "reg") selected = cur.from.id;          // 보강·보너스 → 원래 수업을 되돌림
+  }
   const before = buildSessions(P, C).find(x => x.id === selected);
+  if (a === "plan" && before.act === "plan" && !(state[selected] && state[selected].memo)){
+    if (!before.edited){ $("preview").className = "preview"; $("preview").textContent = t("pv").already; return; }
+  }
   const needCause = ["move","hold","cancel","noshow"].includes(a);
   if (needCause && !pick.cause){ updatePreview(before, C); return; }
   if ((a === "edit" || (a === "move" && pick.how === "date" && pick.cause !== "teacher")) && !$("toDate").value){
@@ -671,6 +681,7 @@ $("applyBtn").onclick = () => {
     }
   }
   if (meta) state[selected] = meta; else delete state[selected];
+  if (a === "plan"){ delete state["M:"+selected]; delete state["B:"+selected]; }   // 지워진 보강·보너스의 남은 상태 정리
 
   const entry = bothLangs(() => {
     const b4 = buildSessions(P, C);  // after-state (state already updated)
