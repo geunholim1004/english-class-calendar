@@ -180,6 +180,12 @@ body.viewer .masteronly{display:none}
 #logDetails .chev{color:var(--muted);transition:transform .15s}
 #logDetails[open] .chev{transform:rotate(180deg)}
 .logcount{font-size:12px;font-weight:500;color:var(--muted)}
+.logrow{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.log .logrow > div{padding:0;border:0}
+.logdel{background:none;border:none;color:var(--muted);font-size:16px;line-height:1;padding:2px 4px;opacity:.5}
+.logrow:hover .logdel{opacity:1}
+.logdel:hover{color:var(--tc)}
+button.danger{color:var(--tc);border-color:#f1c7c2}
 /* 휴대폰: 보류 → 달력/요약 → 카톡 → 변경 기록(맨 아래, 접힌 상태) */
 @media(max-width:860px){
   .grid{display:flex;flex-direction:column;gap:0}
@@ -249,7 +255,12 @@ input:disabled{opacity:.75;background:#f3f2ee}
             <button class="ghost sm" id="dlTxt" data-i18n="dlTxt"></button>
             <button class="ghost sm" id="copyLog" data-i18n="copyLog"></button>
           </div>
+          <div class="btns masteronly">
+            <button class="ghost sm" id="dlArch" data-i18n="dlArch"></button>
+            <button class="ghost sm danger" id="logClear"></button>
+          </div>
           <div class="hint" data-i18n="logHint"></div>
+          <div class="hint masteronly" data-i18n="logHintM"></div>
         </details>
       </div>
     </div>

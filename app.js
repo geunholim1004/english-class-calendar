@@ -93,7 +93,7 @@ async function doLogin(){
     auth = {token, owner, repo, login: u.login || owner, privRepo: ($("ghPriv").value.trim() || PRIV_DEFAULT)};
     try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
     $("loginModal").classList.remove("on"); $("ghToken").value = "";
-    renderAcct(); await loadRemote(); loadPayments();
+    renderAcct(); await loadRemote(); loadPayments(); loadArchive();
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 
@@ -101,6 +101,10 @@ async function doLogin(){
 /* ---------- 언어 사전 (Language dictionary) ---------- */
 const L = {
 ko: {
+  logDel:"기록에서 지우기", logClear:"🗑 전체 지우기", logClearQ:"정말 전체 지울까요? 한 번 더", dlArch:"⬇ 보관 로그(CSV)",
+  archHead:["시각","내용","상태"], archKept:"보관", archDeleted:d => `화면에서 삭제 (${d})`,
+  logHintM:"지운 기록도 비공개 저장소의 보관 로그(log-archive.json)에 남습니다. 1년이 지난 기록은 수업별 마지막 변경 1건만 남기고 자동 정리됩니다.",
+
   dlCsv:"⬇ 엑셀(CSV)", dlTxt:"⬇ 텍스트(TXT)", csvHead:["시각","내용"], logFileTitle:"영어 수업 변경 기록", logCountTxt:n => `${n}건`,
 
   hPay:"수업료 납부 기록", payAdd:"＋ 납부 기록", payNone:"아직 납부 기록이 없어요.", payLoading:"불러오는 중…",
@@ -219,6 +223,10 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   fxCross:"2026.11 원화·엔화·위안화 = CBU의 USD/UZS ÷ 각 통화/UZS (원화는 CBU 소수점 둘째 자리 반올림 때문에 ±1원 정도 오차).",
 },
 en: {
+  logDel:"Remove from log", logClear:"🗑 Clear all", logClearQ:"Clear everything? Tap again", dlArch:"⬇ Archive log (CSV)",
+  archHead:["Time","Entry","Status"], archKept:"kept", archDeleted:d => `removed from view (${d})`,
+  logHintM:"Removed entries stay in the archive log (log-archive.json) in the private repo. Entries older than 1 year are trimmed to the last change per class.",
+
   dlCsv:"⬇ Excel (CSV)", dlTxt:"⬇ Text (TXT)", csvHead:["Time","Entry"], logFileTitle:"English class change log", logCountTxt:n => `${n}`,
 
   hPay:"Fee payments", payAdd:"+ Record payment", payNone:"No payments recorded yet.", payLoading:"Loading…",
@@ -615,8 +623,13 @@ function render(){
 
   // 기록
   $("logCount").textContent = log.length ? "(" + t("logCountTxt")(log.length) + ")" : "";
-  $("log").innerHTML = log.length ? log.slice().reverse().map(l => `<div><time>${l.at}</time>${l[lang] || l.ko || l.text || ""}</div>`).join("")
+  $("log").innerHTML = log.length ? log.slice().reverse().map(l => `<div class="logrow"><div><time>${l.at}</time>${l[lang] || l.ko || l.text || ""}</div>${isMaster() ? `<button class="logdel" data-id="${logId(l)}" title="${t("logDel")}">×</button>` : ""}</div>`).join("")
     : `<div class="empty">${t("noLog")}</div>`;
+
+  $("log").querySelectorAll(".logdel").forEach(btn => btn.onclick = () => removeLogs([btn.dataset.id]));
+  $("logClear").textContent = clearArm ? t("logClearQ") : t("logClear");
+  $("logClear").disabled = !log.length;
+  $("dlArch").disabled = archive === null;
 
   // 카톡 메시지
   const changed = S.filter(s => !["plan","done"].includes(s.act) || s.edited).sort((a,b)=>a.origD-b.origD)
@@ -691,7 +704,7 @@ $("addApply").onclick = () => {
   extras.push(x);
   const C = cfg(), sx = buildSessions(sundays(C.start, C.months), C).find(s => s.id === x.id);
   const entry = bothLangs(() => t("logAdd")(kdate(sx.d), sx.time, labelOf(sx), x.paid) + (x.memo ? " · " + t("nReason")(x.memo) : ""));
-  log.push({at: nowStamp(), ...entry});
+  addLog(entry, x.id);
   addDate = null; save(); render();
 };
 function renderPanel(sel, C){
@@ -759,7 +772,7 @@ $("applyBtn").onclick = () => {
       const entry = bothLangs(() => t("logDel")(kdate(cur.d), labelOf(cur)));
       extras = extras.filter(x => x.id !== cur.id);
       ["", "M:", "B:"].forEach(p => delete state[p + cur.id]);
-      log.push({at: nowStamp(), ...entry}); selected = null; save(); render(); return;
+      addLog(entry, cur.id); selected = null; save(); render(); return;
     }
     if (cur && cur.kind !== "reg") selected = cur.from.id;          // 보강·보너스 → 원래 수업을 되돌림
   }
@@ -807,10 +820,65 @@ $("applyBtn").onclick = () => {
     if (memo) x += " · " + t("nReason")(memo);
     return x;
   });
-  log.push({at: nowStamp(), ...entry});
+  addLog(entry, selected);
   save();
   selected = null; render();
 };
+
+/* ---------- 변경 기록: 삭제 · 보관 로그 · 1년 정리 ---------- */
+let archive = null, archSha = null, archTimer = null, clearArm = false;
+function hashStr(str){ let x = 0; for (const c of str) x = (x*31 + c.codePointAt(0)) | 0; return (x >>> 0).toString(36); }
+function logId(l){ if (!l.id) l.id = "L" + hashStr(l.at + (l.ko || l.text || "")); return l.id; }
+function addLog(entry, sid){ log.push({id: "L" + Date.now().toString(36) + Math.random().toString(36).slice(2,5), at: nowStamp(), sid, ...entry}); queueArchive(); }
+function logKey(l){                       // 같은 수업의 기록끼리 묶는 키
+  if (l.sid) return l.sid;
+  const m = (l.ko || l.text || "").match(/^(\d{4}\.\d{2}\.\d{2}\([^)]*\)\s+[^:\s]+)/);
+  return m ? m[1] : "misc";
+}
+const atTime = l => new Date(String(l.at).replace(" ", "T")).getTime();
+function compactYear(list){              // 1년 지난 기록은 수업(키)별 마지막 변경만 남김
+  const cutoff = Date.now() - 365*864e5, latest = {};
+  list.forEach(l => { if (atTime(l) < cutoff){ const k = logKey(l); if (!latest[k] || atTime(latest[k]) <= atTime(l)) latest[k] = l; } });
+  return list.filter(l => atTime(l) >= cutoff || latest[logKey(l)] === l);
+}
+function mergeArchive(){
+  const byId = new Map(archive.map(a => [a.id, a]));
+  log.forEach(l => { logId(l); if (!byId.has(l.id)){ const c = {...l}; archive.push(c); byId.set(l.id, c); } });
+  archive.sort((a,b) => String(a.at).localeCompare(String(b.at)));
+  archive = compactYear(archive);
+}
+async function loadArchive(){
+  if (!isMaster()) return;
+  try {
+    const r = await fetch(privUrl("log-archive.json") + `?t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
+    if (r.status === 404){ archive = []; archSha = null; }
+    else if (!r.ok) throw new Error(r.status);
+    else { const j = await r.json(); archSha = j.sha; archive = JSON.parse(b64dec(j.content)); }
+  } catch(e){ archive = null; render(); return; }
+  log.forEach(logId);
+  const before = log.length; log = compactYear(log);
+  if (log.length !== before) save();
+  saveArchive(); render();
+}
+function queueArchive(){ if (!isMaster() || archive === null) return; clearTimeout(archTimer); archTimer = setTimeout(saveArchive, 1500); }
+async function saveArchive(retry){
+  if (archive === null) return;
+  mergeArchive();
+  try { archSha = await privPut("log-archive.json", b64enc(JSON.stringify(archive, null, 1)), `Update log archive (${nowStamp()})`, archSha); }
+  catch(e){
+    if (retry) return;
+    const g = await fetch(privUrl("log-archive.json") + `?t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
+    if (g.ok){ const j = await g.json(); archSha = j.sha; const remote = JSON.parse(b64dec(j.content)); const ids = new Set(archive.map(a => a.id)); remote.forEach(a => { if (!ids.has(a.id)) archive.push(a); }); }
+    saveArchive(true);
+  }
+}
+function removeLogs(ids){
+  if (archive !== null) mergeArchive();          // 지우기 전에 보관 로그에 먼저 담기
+  const stamp = nowStamp();
+  (archive || []).forEach(a => { if (ids.includes(a.id) && !a.deletedAt) a.deletedAt = stamp; });
+  log = log.filter(l => !ids.includes(logId(l)));
+  save(); queueArchive(); render();
+}
 
 /* ---------- 수업료 납부 기록 (비공개 저장소) ---------- */
 const PRIV_DEFAULT = "english-class-private";
@@ -875,7 +943,7 @@ async function deletePayment(id){
       const g = await fetch(privUrl(path), {headers: apiHeaders()}); if (!g.ok) continue;
       await fetch(privUrl(path), {method:"DELETE", headers:{...apiHeaders(), "Content-Type":"application/json"}, body: JSON.stringify({message:`Delete receipt ${path}`, sha:(await g.json()).sha})});
     }
-    log.push({at: nowStamp(), ...bothLangs(() => t("logPayDel")(kdate(parse(p.periodStart)), kdate(parse(p.periodEnd))))}); save();
+    addLog(bothLangs(() => t("logPayDel")(kdate(parse(p.periodStart)), kdate(parse(p.periodEnd)))), "pay:"+p.id); save();
   } catch(e) { payments.push(p); alertPay(t("pfFail")(e.message)); }
   renderPayments(); render();
 }
@@ -934,7 +1002,7 @@ async function submitPay(){
     }
     payments.push(rec);
     await savePayments(`Payment ${rec.paidOn} (${rec.periodStart} ~ ${rec.periodEnd})`);
-    log.push({at: nowStamp(), ...bothLangs(() => t("logPay")(kdate(parse(rec.periodStart)), kdate(parse(rec.periodEnd))))}); save();
+    addLog(bothLangs(() => t("logPay")(kdate(parse(rec.periodStart)), kdate(parse(rec.periodEnd)))), "pay:"+rec.id); save();
     $("payModal").classList.remove("on"); renderPayments(); render();
   } catch(e) { payments = payments.filter(x => x.id !== id); alertPay(t("pfFail")(e.message)); }
   $("pfSave").disabled = false;
@@ -1024,7 +1092,7 @@ function drawFx(){
 ["start","months","time","dur","price","alertN","minNotice","rate","rateDate","asof"].forEach(id => $(id).addEventListener("input", () => { render(); if (id !== "asof") queueRemoteSave(); }));
 $("loginBtn").onclick = () => { const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
 $("doLogin").onclick = doLogin;
-$("logoutBtn").onclick = () => { auth = null; payments = []; payLoaded = false; renderPayments(); try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
+$("logoutBtn").onclick = () => { archive = null; auth = null; payments = []; payLoaded = false; renderPayments(); try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
 $("linkBtn").onclick = () => copy(teacherLink(), t("linkCopied")(teacherLink()));
 async function copy(text, ok){
   try { await navigator.clipboard.writeText(text); $("toast").textContent = ok; }
@@ -1048,11 +1116,21 @@ $("dlTxt").onclick = () => {
   const txt = `${t("logFileTitle")} (${nowStamp()})\n${"=".repeat(40)}\n` + logRows().map(([a,b]) => `${a}\n  ${b}`).join("\n\n");
   download(`english-class-log-${fileStamp()}.txt`, txt, "text/plain;charset=utf-8");
 };
+$("logClear").onclick = () => {
+  if (!clearArm){ clearArm = true; render(); setTimeout(() => { clearArm = false; render(); }, 4000); return; }
+  clearArm = false; removeLogs(log.map(logId));
+};
+$("dlArch").onclick = () => {
+  if (archive === null) return;
+  mergeArchive();
+  const esc = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
+  const rows = archive.slice().reverse().map(a => [a.at, a[lang] || a.ko || a.text || "", a.deletedAt ? t("archDeleted")(a.deletedAt) : t("archKept")]);
+  download(`english-class-log-archive-${fileStamp()}.csv`, "\ufeff" + [t("archHead"), ...rows].map(r => r.map(esc).join(",")).join("\r\n"), "text/csv;charset=utf-8");
+};
 // 휴대폰에서는 처음에 접힌 상태
 if (window.innerWidth <= 860) $("logDetails").open = false;
 $("copyLog").addEventListener("click", () => copy(log.map(l => `${l.at}  ${l[lang] || l.ko || l.text || ""}`).join("\n") || t("noLogTxt"), t("logCopied")));
 applyStatic();
 renderAcct();
 render();
-loadRemote();
-loadPayments();
+loadRemote().then(() => { loadPayments(); loadArchive(); });
