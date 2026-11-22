@@ -123,7 +123,37 @@ async function migrateFromPublic(){
   } catch(e) { setSync(t("syncStoreFail")(e.message), true); }
 }
 function fmtStamp(iso){ const p = kstParts(new Date(iso)); return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`; }
-function queueRemoteSave(){ if (!isMaster() || loadingRemote) return; clearTimeout(saveTimer); setSync(t("syncPending")); saveTimer = setTimeout(saveRemote, 1200); }
+function queueRemoteSave(){ if (!isMaster() || loadingRemote) return; clearTimeout(saveTimer); setSync(t("syncPending")); if (!confirming) saveTimer = setTimeout(confirmedSave, 1200); }
+// 마스터 수정은 저장 직전에 비밀번호로 최종 확인 (설정 창이 열려 있으면 닫힐 때까지 기다림)
+let confirming = false, confirmedUntil = 0;
+async function confirmedSave(){
+  if ($("settingsModal").classList.contains("on")){ saveTimer = setTimeout(confirmedSave, 800); return; }
+  if (!(await confirmMaster())){ await loadRemote(); render(); setSync(t("pwCancelled"), true); return; }
+  await saveRemote();
+}
+function confirmMaster(){
+  if (!isMaster()) return Promise.resolve(false);
+  if (Date.now() < confirmedUntil) return Promise.resolve(true);
+  confirming = true;
+  return new Promise(async resolve => {
+    const {m} = await fetchMasterBox();
+    $("pwcHint").textContent = m ? t("pwcHintId")(m.id) : t("pwcHintTok");
+    $("pwcIn").value = ""; $("pwcIn").placeholder = m ? "" : "github_pat_…"; $("pwcMsg").textContent = ""; $("pwcMsg").className = "hint";
+    $("pwcModal").classList.add("on"); setTimeout(() => $("pwcIn").focus(), 50);
+    const done = ok => { $("pwcModal").classList.remove("on"); $("pwcOk").onclick = $("pwcCancel").onclick = $("pwcIn").onkeydown = null; confirming = false; if (ok) confirmedUntil = Date.now() + 8000; resolve(ok); };
+    $("pwcOk").onclick = async () => {
+      const v = $("pwcIn").value; if (!v) return;
+      $("pwcOk").disabled = true; $("pwcMsg").className = "hint"; $("pwcMsg").textContent = t("loginChecking");
+      let ok = false;
+      if (m){ try { ok = (await unlockToken(m.box, v)) === auth.token; } catch(e) { ok = false; } }
+      else ok = v.trim() === auth.token;
+      $("pwcOk").disabled = false;
+      if (ok) done(true); else { $("pwcMsg").className = "hint bad"; $("pwcMsg").textContent = m ? t("pwcBadId") : t("pwcBadTok"); }
+    };
+    $("pwcIn").onkeydown = e => { if (e.key === "Enter") $("pwcOk").click(); };
+    $("pwcCancel").onclick = () => done(false);
+  });
+}
 async function saveRemote(){
   setSync(t("syncSaving"));
   try {
@@ -198,6 +228,9 @@ ko: {
   regPwRule:"비밀번호는 8자 이상, 두 번 똑같이 입력하세요.", regNoInvite:"이 아이디로 대기 중인 초대가 없어요. Edward에게 다시 초대를 요청하세요.", regBadCode:"초대 코드가 맞지 않아요.",
   regHint:"등록하면 이 기기에서 바로 로그인됩니다. 다른 기기에서는 아이디와 비밀번호로 로그인하세요.",
   advRepo:"고급: 저장소 이름 (보통 바꿀 필요 없음)", midTokNote:"토큰으로 로그인해야 할 때(토큰 재발급 등)는 사이트 주소 끝에 #master 를 붙여 여세요.",
+  pwcTitle:"🔒 마스터 비밀번호 확인", pwcOk:"확인하고 저장", pwcCancel:"취소 (변경 되돌리기)", pwCancelled:"저장을 취소해 변경을 되돌렸어요",
+  pwcHintId:id => `변경 내용을 저장하려면 마스터 아이디(${id})의 비밀번호를 입력하세요.`, pwcHintTok:"변경 내용을 저장하려면 마스터 토큰을 입력하세요. (설정에서 마스터 아이디를 정하면 비밀번호로 확인할 수 있어요)",
+  pwcBadId:"비밀번호가 맞지 않아요. (마스터 토큰을 재발급했다면 설정에서 마스터 아이디를 다시 저장하세요)", pwcBadTok:"토큰이 맞지 않아요.",
   hMid:"마스터 아이디 로그인 (다른 기기용)", midPw1:"비밀번호 (12자 이상)", midPw2:"비밀번호 확인", midSave:"저장", midDel:"삭제",
   midHelp:"다른 휴대폰·PC에서는 로그인 → 아이디 로그인 탭에 이 아이디와 비밀번호를 넣으면 마스터로 들어옵니다. 마스터 토큰은 이 비밀번호로 암호화(PBKDF2 60만 회 + AES-GCM)되어 저장되며, 원문과 비밀번호는 어디에도 저장되지 않습니다. 남이 추측하기 어려운 긴 비밀번호를 쓰세요.",
   midSet:(id, at) => `설정됨: 아이디 ${id} · ${at}`, midUnset:"아직 없음 — 아이디와 비밀번호를 정하면 다른 기기에서 토큰 없이 로그인할 수 있어요.",
@@ -261,7 +294,7 @@ ko: {
   addPvV:"수업이 1회 추가됩니다.",
   extraL:n => `추가${n}`, aDelX:"🗑 추가 수업 삭제", nExtra:p => p ? "추가 수업 (선불에 포함)" : "추가 수업 (무료)",
   logAdd:(d,tm,x,p) => `${d} ${tm} ${x} 추가 (${p ? "유료" : "무료"})`, logDel:(d,x) => `${d} ${x} 삭제`,
-  basisExtra:(p,f) => `②+ 추가 수업 ${p+f}회 (유료 ${p} · 무료 ${f}) — 유료분은 선불 수업 수에 포함`, lg9:"추가 수업",
+  basisExtra:f => `②+ 무료 추가 수업 ${f}회 ($0) — 선불 수업 수에는 포함되지 않음`, lg9:"추가 수업",
 
   roleMaster:u => `마스터 · ${u}`, roleViewer:"로그인 전", login:"로그인", logout:"로그아웃", teacherLinkBtn:"선생님 링크 복사",
   linkCopied:u => `선생님 링크를 복사했어요: ${u}`,
@@ -314,8 +347,8 @@ ko: {
   inPrepaid:"선불 포함",
   listFoot:(p,b,m) => `선불 합계 (정규 ${p}회 · 보너스 ${b}회 무료 · 보강 ${m}회는 선불분)`,
   basis:(o) => [
-    `① 선불 기간: ${o.ps} ~ ${o.pe} (시작일 + ${o.months}개월 − 1일)`,
-    `② 기간 내 일요일 = 선불 수업 <b>${o.prepaid}회</b> (매회 ${o.slot}, ${o.dur}분 = 1 Class)`,
+    `① 선불 기간: ${o.ps} ~ ${o.pe}${o.ext ? "" : ` (시작일 + ${o.months}개월 − 1일)`}`,
+    `② 선불 수업 <b>${o.prepaid}회</b> — 매주 일요일 ${o.slot} (${o.dur}분 = 1 Class)`,
     `③ 선불액: ${o.prepaid}회 × ${o.price} = <b>${o.usd}</b> × ${o.rate} UZS (CBU ${o.rateDate}) = <b>${o.uzs} UZS</b>`,
     `④ 내 사유 취소·No-show ${o.consumed}회 → 선불 차감, 보강 없음`,
     `⑤ 선생님 사유 ${o.teacher}회 · 한국 시간 기준 수업 당일 변경, 또는 취소·No-show → 패널티 보너스 수업 총 ${o.bonus}회 ($0). 미리 연락한 변경은 패널티 없음`,
@@ -385,6 +418,9 @@ en: {
   regPwRule:"Use 8+ characters and type the same password twice.", regNoInvite:"There’s no pending invite for this ID. Ask Edward to invite you again.", regBadCode:"Wrong invite code.",
   regHint:"After registering you’re logged in on this device. On other devices, log in with your ID and password.",
   advRepo:"Advanced: repository names (usually leave as is)", midTokNote:"When you need to log in with the token (e.g. after regenerating it), open the site address with #master at the end.",
+  pwcTitle:"🔒 Confirm master password", pwcOk:"Confirm & save", pwcCancel:"Cancel (undo changes)", pwCancelled:"Save cancelled — changes were undone",
+  pwcHintId:id => `Enter the password of the master ID (${id}) to save these changes.`, pwcHintTok:"Enter the master token to save these changes. (Set a master ID in Settings to confirm with a password instead.)",
+  pwcBadId:"Wrong password. (If you regenerated the master token, save the master ID again in Settings.)", pwcBadTok:"That token doesn’t match.",
   hMid:"Master ID login (for other devices)", midPw1:"Password (12+ characters)", midPw2:"Confirm password", midSave:"Save", midDel:"Delete",
   midHelp:"On another phone or PC, use Log in → ID login with this ID and password to enter as master. The master token is encrypted with this password (PBKDF2 600k + AES-GCM); neither the token nor the password is stored in plain form anywhere. Use a long password that is hard to guess.",
   midSet:(id, at) => `Set: ID ${id} · ${at}`, midUnset:"Not set — choose an ID and password to log in on other devices without the token.",
@@ -448,7 +484,7 @@ en: {
   addPvV:"Adds 1 class.",
   extraL:n => `Extra ${n}`, aDelX:"🗑 Delete this extra class", nExtra:p => p ? "Extra class (in prepaid)" : "Extra class (free)",
   logAdd:(d,tm,x,p) => `${d} ${tm} ${x} added (${p ? "paid" : "free"})`, logDel:(d,x) => `${d} ${x} deleted`,
-  basisExtra:(p,f) => `②+ Extra classes: ${p+f} (${p} paid · ${f} free) — paid ones count as prepaid classes`, lg9:"Extra class",
+  basisExtra:f => `②+ Free extra classes: ${f} ($0) — not counted as prepaid classes`, lg9:"Extra class",
 
   roleMaster:u => `Master · ${u}`, roleViewer:"Not logged in", login:"Log in", logout:"Log out", teacherLinkBtn:"Copy teacher link",
   linkCopied:u => `Teacher link copied: ${u}`,
@@ -501,8 +537,8 @@ en: {
   inPrepaid:"In prepaid",
   listFoot:(p,b,m) => `Prepaid total (${p} regular · ${b} bonus free · ${m} makeup from prepaid)`,
   basis:(o) => [
-    `① Prepaid period: ${o.ps} – ${o.pe} (start date + ${o.months} months − 1 day)`,
-    `② Sundays in the period = <b>${o.prepaid} prepaid classes</b> (each ${o.slot}, ${o.dur} min = 1 class)`,
+    `① Prepaid period: ${o.ps} – ${o.pe}${o.ext ? "" : ` (start date + ${o.months} months − 1 day)`}`,
+    `② <b>${o.prepaid} prepaid classes</b> — every Sunday ${o.slot} (${o.dur} min = 1 class)`,
     `③ Prepaid: ${o.prepaid} × ${o.price} = <b>${o.usd}</b> × ${o.rate} UZS (CBU ${o.rateDate}) = <b>${o.uzs} UZS</b>`,
     `④ My cancellations / no-shows: ${o.consumed} → used from prepaid, no makeup`,
     `⑤ Teacher’s reason: ${o.teacher} · same-day changes (Korea time) or cancel / no-show → ${o.bonus} penalty bonus class(es) in total ($0). Changes with advance notice: no penalty`,
@@ -681,6 +717,8 @@ function render(){
   const S = buildSessions(P, C);
   const paidX = extras.filter(x => x.paid).length, freeX = extras.length - paidX;
   const prepaid = P.list.length + paidX;
+  const paidDates = extras.filter(x => x.paid && DATE_RE.test(x.date || "")).map(x => parse(x.date));
+  const Pend = paidDates.length ? new Date(Math.max(P.list.length ? +P.list[P.list.length-1] : 0, ...paidDates.map(Number))) : P.end;
   const prepaidUsd = prepaid*C.price, prepaidUzs = prepaidUsd*C.rate;
 
   const timeline = S.filter(occupies).sort(byTime);
@@ -693,7 +731,7 @@ function render(){
 
   const NP = sundays(addDays(lastSession,1), C.months);
   const nCount = NP.list.length, nUsd = nCount*C.price, nUzs = nUsd*C.rate;
-  lastCalc = {C, P, NP, prepaid, nCount};
+  lastCalc = {C, P, Pend, NP, prepaid, nCount};
 
   $("kCount").innerHTML = `${prepaid}${t("times")(prepaid)}`;
   $("kUsd").textContent = usd(prepaidUsd);
@@ -825,12 +863,12 @@ function render(){
   // 근거
   const cnt = f => S.filter(f).length;
   $("basis").innerHTML = t("basis")({
-    ps:kdate(P.start), pe:kdate(P.end), months:C.months, prepaid, slot:tEnd(C.time), dur:C.dur,
+    ps:kdate(P.start), pe:kdate(Pend), ext: paidDates.length > 0, months:C.months, prepaid, slot:tEnd(C.time), dur:C.dur,
     price:usd(C.price), usd:usd(prepaidUsd), rate:uzs2(C.rate), rateDate:C.rateDate, uzs:uzs2(prepaidUzs),
     consumed:cnt(s => klass(s)==="consumed"), teacher:cnt(s => klass(s)==="teacher"), bonus:bonusCount,
     relocated:cnt(s => klass(s)==="relocated"), holds:holds.length, last:kdate(lastSession), N:C.N, alert:alertItem?kdate(alertItem.d):"–"
   }).map((x,i) => `<div${i===2?' class="money"':""}>${isMaster() ? x : x.replace(/ \(\$0\)/, "")}</div>`)
-    .map((x,i,arr) => (i === 1 && extras.length) ? x + `<div>${t("basisExtra")(paidX, freeX)}</div>` : x).join("");
+    .map((x,i,arr) => (i === 1 && freeX) ? x + `<div>${t("basisExtra")(freeX)}</div>` : x).join("");
   $("nextBasis").innerHTML = t("next")({a:kdate(NP.start), b:kdate(NP.end), months:C.months, n:nCount, list:NP.list.map(sdate).join(", "),
     price:usd(C.price), usd:usd(nUsd), rate:uzs2(C.rate), uzs:uzs2(nUzs)}).map((x,i) => `<div${i===2?' class="money"':""}>${x}</div>`).join("")
     + `<div class="hint">${t("nextHint")(holds.length)}</div>`;
@@ -854,7 +892,7 @@ function render(){
         return `· ${sdate(s.d)} ${s.time} ${labelOf(s)} ${t("nExtra")(s.paid)}${xMemo(s.id)?` (${xMemo(s.id)})`:""}`;
       return `· ${sdate(s.origD)} ${labelOf(s)} ${statusText(s)}${s.children?" → "+s.children.map(c=>`${labelOf(c)} ${sdate(c.d)}`).join(", "):""}${s.meta.memo?` (${s.meta.memo})`:""}`;
     }).join("\n");
-  $("msg").value = t("msg")({ps:kdate(P.start), pe:kdate(P.end), slot:tEnd(C.time), dur:C.dur, prepaid, price:usd(C.price), usd:usd(prepaidUsd),
+  $("msg").value = t("msg")({ps:kdate(P.start), pe:kdate(Pend), slot:tEnd(C.time), dur:C.dur, prepaid, price:usd(C.price), usd:usd(prepaidUsd),
     rate:uzs2(C.rate), rateDate:C.rateDate, uzs:uzs(prepaidUzs), changed, left, last:kdate(lastSession),
     na:kdate(NP.start), nb:kdate(NP.end), nn:nCount, nusd:usd(nUsd), nuzs:uzs(nUzs)});
 }
@@ -1371,6 +1409,7 @@ function applyReq(r){
 }
 async function decide(rid, ok){
   if (!isMaster()) return;
+  if (!(await confirmMaster())) return;
   const r = requests.find(x => x.rid === rid); if (!r) return;
   if (ok) applyReq(r);
   else { notifyKind = "declined"; addLog(bothLangs(() => t("rqRejected")(`${kdate(parse(r.d))} · ${reqWhat(r, cfg())} · ${r.reason || ""}${r.by ? " (" + r.by + ")" : ""}`)), r.id); notifyKind = "change"; save(); }
@@ -1608,7 +1647,8 @@ async function saveArchive(retry){
     saveArchive(true);
   }
 }
-function removeLogs(ids){
+async function removeLogs(ids){
+  if (!(await confirmMaster())) return;
   if (archive !== null) mergeArchive();          // 지우기 전에 보관 로그에 먼저 담기
   const stamp = nowStamp();
   (archive || []).forEach(a => { if (ids.includes(a.id) && !a.deletedAt) a.deletedAt = stamp; });
@@ -1696,8 +1736,8 @@ function openPayForm(){
   fillPeriod(); openModal("payModal");
 }
 function fillPeriod(){
-  const {P, NP, prepaid, nCount} = lastCalc, next = $("pfPeriodSel").value === "next";
-  const a = next ? NP.start : P.start, b = next ? NP.end : P.end;
+  const {P, Pend, NP, prepaid, nCount} = lastCalc, next = $("pfPeriodSel").value === "next";
+  const a = next ? NP.start : P.start, b = next ? NP.end : Pend;
   $("pfPeriodTxt").textContent = `${kdate(a)} ~ ${kdate(b)}`;
   $("pfCls").value = next ? nCount : prepaid;
   calcPay(true);
@@ -1721,11 +1761,12 @@ function compressImage(file){
   });
 }
 async function submitPay(){
+  if (!(await confirmMaster())) return;
   const {P, NP} = lastCalc, next = $("pfPeriodSel").value === "next";
   const n = +$("pfCls").value, price = +$("pfPrice").value, rate = +$("pfRate").value;
   if (!$("pfDate").value || !n){ alertPay(t("pfNeed")); return; }
   const id = "P" + Date.now().toString(36);
-  const rec = {id, paidOn: $("pfDate").value, periodStart: fmt(next ? NP.start : P.start), periodEnd: fmt(next ? NP.end : P.end),
+  const rec = {id, paidOn: $("pfDate").value, periodStart: fmt(next ? NP.start : P.start), periodEnd: fmt(next ? NP.end : lastCalc.Pend),
     classes: n, priceUsd: price, totalUsd: +(n*price).toFixed(2), rate, rateDate: $("pfRateDate").value, paidUzs: +$("pfUzs").value || Math.round(n*price*rate),
     memo: $("pfMemo").value.trim() || undefined, receipts: [], createdAt: new Date().toISOString()};
   $("pfSave").disabled = true;
@@ -1756,10 +1797,11 @@ $("payAddBtn").onclick = openPayForm;
 /* ---------- 모달 ---------- */
 function openModal(id){ document.querySelectorAll(".modal.on").forEach(m => m.classList.remove("on")); $(id).classList.add("on"); }
 document.querySelectorAll(".modal").forEach(m => {
-  m.addEventListener("click", e => { if (e.target === m || e.target.hasAttribute("data-close")) m.classList.remove("on"); });
+  m.addEventListener("click", e => { if (e.target === m || e.target.hasAttribute("data-close")){ if (m.id === "pwcModal") $("pwcCancel").click(); else m.classList.remove("on"); } });
 });
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
+  if ($("pwcModal").classList.contains("on")){ $("pwcCancel").click(); return; }
   const open = document.querySelectorAll(".modal.on");
   if (open.length) open.forEach(m => m.classList.remove("on")); else if (selected) selectSession(null);
 });

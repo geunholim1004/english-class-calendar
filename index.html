@@ -449,6 +449,15 @@ input:disabled{opacity:.75;background:#f3f2ee}
 </div>
 
 <!-- 초대 링크로 등록 -->
+<div class="modal" id="pwcModal" style="z-index:200">
+  <div class="sheet narrow">
+    <header><h2 data-i18n="pwcTitle"></h2></header>
+    <div class="hint" id="pwcHint"></div>
+    <input id="pwcIn" type="password" autocomplete="current-password" style="margin-top:8px">
+    <div class="btns"><button id="pwcOk" data-i18n="pwcOk"></button><button class="ghost" id="pwcCancel" data-i18n="pwcCancel"></button></div>
+    <div class="hint" id="pwcMsg"></div>
+  </div>
+</div>
 <div class="modal" id="regModal">
   <div class="sheet narrow">
     <header><h2 data-i18n="hReg"></h2><button class="x" data-close>×</button></header>
