@@ -172,6 +172,18 @@ body.viewer .kpis{grid-template-columns:repeat(3,1fr)}
 .calhead h2{margin:0}
 .calbtns{display:flex;gap:6px}
 body.viewer .masteronly{display:none}
+.paystate{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.paidtag{font-size:13px;font-weight:700;color:var(--accent)}
+.paytable td{vertical-align:top}
+.thumbs{display:flex;gap:4px;flex-wrap:wrap}
+.thumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:zoom-in;background:#f1f2f3}
+.thumbs img.broken{opacity:.3}
+.pfpreview{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.pfpreview img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.paysum{margin-top:8px;text-align:right}
+select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fcfcfa;color:var(--ink)}
+.sheet.light{max-width:900px;padding:12px}
+.sheet.light img{width:100%;height:auto;border-radius:8px}
 .day.addable{cursor:pointer}
 .day.addable:hover{background:#f1f7f5;box-shadow:inset 0 0 0 1px #c7e3d9}
 .day.addable:not(.has):hover::before{content:"+";position:absolute;right:6px;bottom:3px;color:var(--accent);font-weight:700}
@@ -322,9 +334,45 @@ input:disabled{opacity:.75;background:#f3f2ee}
         <h2 data-i18n="hNext"></h2>
         <div class="basis" id="nextBasis"></div>
       </div>
+
+      <div class="card section masteronly" id="payCard">
+        <div class="calhead"><h2 data-i18n="hPay"></h2><button class="sm" id="payAddBtn" data-i18n="payAdd"></button></div>
+        <div id="payBox"></div>
+      </div>
     </div>
   </div>
 </div>
+
+<!-- 납부 기록 입력 -->
+<div class="modal" id="payModal">
+  <div class="sheet narrow">
+    <header><h2 data-i18n="hPayForm"></h2><button class="x" data-close>×</button></header>
+    <label data-i18n="pfPeriod"></label>
+    <select id="pfPeriodSel"><option value="cur" data-i18n="pfCur"></option><option value="next" data-i18n="pfNext"></option></select>
+    <div class="hint" id="pfPeriodTxt"></div>
+    <div class="row2">
+      <div><label data-i18n="pfDate"></label><input id="pfDate" type="date"></div>
+      <div><label data-i18n="pfCls"></label><input id="pfCls" type="number" min="1"></div>
+    </div>
+    <div class="row2">
+      <div><label data-i18n="pfPrice"></label><input id="pfPrice" type="number" step="0.01"></div>
+      <div><label data-i18n="pfRate"></label><input id="pfRate" type="number" step="0.01"></div>
+    </div>
+    <div class="row2">
+      <div><label data-i18n="pfRateDate"></label><input id="pfRateDate" type="date"></div>
+      <div><label data-i18n="pfUzs"></label><input id="pfUzs" type="number"></div>
+    </div>
+    <div class="hint mono" id="pfCalc"></div>
+    <label data-i18n="pfMemo"></label><input id="pfMemo" data-i18n-ph="pfMemoPh">
+    <label data-i18n="pfRcpt"></label><input id="pfFiles" type="file" accept="image/*" multiple>
+    <div class="hint" data-i18n="pfRcptHint"></div>
+    <div class="pfpreview" id="pfPreview"></div>
+    <div class="btns"><button id="pfSave" data-i18n="pfSave"></button><button class="ghost" data-close data-i18n="close"></button></div>
+    <div class="hint" id="payMsg"></div>
+  </div>
+</div>
+<!-- 영수증 크게 보기 -->
+<div class="modal" id="lightModal"><div class="sheet light"><header><span></span><button class="x" data-close>×</button></header><img id="lightImg" alt=""></div></div>
 
 <!-- 마스터 로그인 -->
 <div class="modal" id="loginModal">
@@ -334,6 +382,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
       <div><label data-i18n="ghOwner"></label><input id="ghOwner"></div>
       <div><label data-i18n="ghRepo"></label><input id="ghRepo"></div>
     </div>
+    <label data-i18n="privRepoL"></label><input id="ghPriv">
     <label data-i18n="ghToken"></label><input id="ghToken" type="password" autocomplete="off" placeholder="github_pat_…">
     <div class="hint" data-i18n-html="tokenHelp"></div>
     <div class="btns"><button id="doLogin" data-i18n="doLogin"></button></div>

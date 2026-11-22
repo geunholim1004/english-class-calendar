@@ -90,10 +90,10 @@ async function doLogin(){
     const j = await r.json();
     if (!(j.permissions && (j.permissions.push || j.permissions.admin))) throw new Error(t("loginNoPush"));
     const u = await fetch("https://api.github.com/user", {headers:{Authorization:"Bearer "+token}}).then(x => x.ok ? x.json() : {}).catch(() => ({}));
-    auth = {token, owner, repo, login: u.login || owner};
+    auth = {token, owner, repo, login: u.login || owner, privRepo: ($("ghPriv").value.trim() || PRIV_DEFAULT)};
     try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
     $("loginModal").classList.remove("on"); $("ghToken").value = "";
-    renderAcct(); await loadRemote();
+    renderAcct(); await loadRemote(); loadPayments();
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 
@@ -101,6 +101,18 @@ async function doLogin(){
 /* ---------- 언어 사전 (Language dictionary) ---------- */
 const L = {
 ko: {
+  hPay:"수업료 납부 기록", payAdd:"＋ 납부 기록", payNone:"아직 납부 기록이 없어요.", payLoading:"불러오는 중…",
+  payNoRepo:r => `비공개 저장소 '${r}'에 접근할 수 없어요. 저장소를 만들고(Private) 토큰의 Repository access에 추가했는지 확인하세요.`,
+  pthDate:"납부일", pthPeriod:"기간", pthCls:"횟수", pthRcpt:"영수증", pthMemo:"메모",
+  payTotal:(n,u,z) => `누적 ${n}건 · ${u} · ${z}`,
+  hPayForm:"수업료 납부 기록", pfPeriod:"납부 기간", pfCur:"이번 기간", pfNext:"다음 기간", pfDate:"납부일", pfCls:"수업 횟수",
+  pfPrice:"1회 금액 (USD)", pfRate:"환율 (1 USD = UZS)", pfRateDate:"환율 기준일", pfUzs:"실제 납부액 (UZS)",
+  pfCalc:(n,p,u,r,z) => `계산: ${n}회 × ${p} = ${u} × ${r} = ${z}`, pfMemo:"메모 (납부 방법 등)", pfMemoPh:"예: Payme 송금, 카드, 현금",
+  pfRcpt:"영수증 사진 (여러 장 가능)", pfRcptHint:"사진은 자동으로 줄여서(최대 1600px) 비공개 저장소에만 올라갑니다.",
+  pfSave:"저장", pfSaving:(i,n) => `업로드 중… (${i}/${n})`, pfFail:e => `저장 실패 (${e})`, pfNeed:"납부일과 횟수를 확인하세요.",
+  payDelQ:"정말 삭제?", logPay:(a,b) => `수업료 납부 기록 (${a} ~ ${b})`, logPayDel:(a,b) => `수업료 납부 기록 삭제 (${a} ~ ${b})`,
+  bannerPaid:d => `✓ 다음 기간 납부 완료 (${d})`, bannerCurPaid:d => `✓ 이번 기간 납부 완료 (${d})`, bannerPayBtn:"납부 기록하기", privRepoL:"비공개 저장소 (납부·영수증)",
+
   addBtn:"＋ 수업 추가", expand:"6개월 펼치기 ▾", collapse:"접기 ▴", addTitle:d => `${d} · 수업 추가`, addKind:"수업료",
   addPaid:"유료 (선불에 추가)", addFree:"무료", addMemoPh:"예: 시험 대비 추가 수업", addApply:"추가",
   addPv:(paid,price) => paid ? `선불 수업이 1회 늘고 수업료에 ${price}가 더해집니다.` : "무료 수업으로 추가됩니다 (선불 횟수·금액 변화 없음).",
@@ -205,6 +217,18 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   fxCross:"2026.11 원화·엔화·위안화 = CBU의 USD/UZS ÷ 각 통화/UZS (원화는 CBU 소수점 둘째 자리 반올림 때문에 ±1원 정도 오차).",
 },
 en: {
+  hPay:"Fee payments", payAdd:"+ Record payment", payNone:"No payments recorded yet.", payLoading:"Loading…",
+  payNoRepo:r => `Can’t access the private repository '${r}'. Create it (Private) and add it to the token’s repository access.`,
+  pthDate:"Paid on", pthPeriod:"Period", pthCls:"Classes", pthRcpt:"Receipt", pthMemo:"Memo",
+  payTotal:(n,u,z) => `${n} payment${n===1?"":"s"} · ${u} · ${z}`,
+  hPayForm:"Record a fee payment", pfPeriod:"Period paid for", pfCur:"Current period", pfNext:"Next period", pfDate:"Paid on", pfCls:"Classes",
+  pfPrice:"Price per class (USD)", pfRate:"Rate (1 USD = UZS)", pfRateDate:"Rate date", pfUzs:"Amount actually paid (UZS)",
+  pfCalc:(n,p,u,r,z) => `Calc: ${n} × ${p} = ${u} × ${r} = ${z}`, pfMemo:"Memo (payment method etc.)", pfMemoPh:"e.g. Payme transfer, card, cash",
+  pfRcpt:"Receipt photos (multiple OK)", pfRcptHint:"Photos are shrunk automatically (max 1600px) and uploaded only to the private repository.",
+  pfSave:"Save", pfSaving:(i,n) => `Uploading… (${i}/${n})`, pfFail:e => `Save failed (${e})`, pfNeed:"Check the payment date and number of classes.",
+  payDelQ:"Delete?", logPay:(a,b) => `Fee payment recorded (${a} – ${b})`, logPayDel:(a,b) => `Fee payment record deleted (${a} – ${b})`,
+  bannerPaid:d => `✓ Next period paid (${d})`, bannerCurPaid:d => `✓ Current period paid (${d})`, bannerPayBtn:"Record payment", privRepoL:"Private repo (payments & receipts)",
+
   addBtn:"+ Add class", expand:"Show 6 months ▾", collapse:"Collapse ▴", addTitle:d => `${d} · add a class`, addKind:"Fee",
   addPaid:"Paid (added to prepaid)", addFree:"Free", addMemoPh:"e.g. extra class before a test", addApply:"Add",
   addPv:(paid,price) => paid ? `Adds 1 prepaid class and ${price} to the fee.` : "Added as a free class (no change to prepaid count or amount).",
@@ -425,7 +449,7 @@ function applyStatic(){
 }
 function setLang(l){
   lang = l; try { localStorage.setItem(LANGKEY, l); } catch(e) {}
-  applyStatic(); renderAcct(); render();
+  applyStatic(); renderAcct(); render(); renderPayments();
   if ($("fxModal").classList.contains("on")) drawFx();
 }
 document.querySelectorAll("[data-lang]").forEach(b => b.onclick = () => setLang(b.dataset.lang));
@@ -449,6 +473,7 @@ function render(){
 
   const NP = sundays(addDays(lastSession,1), C.months);
   const nCount = NP.list.length, nUsd = nCount*C.price, nUzs = nUsd*C.rate;
+  lastCalc = {C, P, NP, prepaid, nCount};
 
   $("kCount").innerHTML = `${prepaid}${t("times")(prepaid)}`;
   $("kUsd").textContent = usd(prepaidUsd);
@@ -475,6 +500,12 @@ function render(){
     b.className = "banner on ok";
     b.innerHTML = alertItem ? `<b class="h">${t("alertNext")(kdate(alertItem.d), alertItem.time)}</b>
       ${t("alertNextBody")(C.N, kdate(lastSession))}${holdNote}${fxLine}` : fxLine;
+  }
+  if (isMaster() && payLoaded && !payErr){
+    const paidNext = payments.find(p => p.periodStart === fmt(NP.start)), paidCur = payments.find(p => p.periodStart === fmt(P.start));
+    const tag = paidNext ? t("bannerPaid")(paidNext.paidOn) : paidCur ? t("bannerCurPaid")(paidCur.paidOn) : "";
+    b.insertAdjacentHTML("beforeend", `<div class="paystate">${tag ? `<span class="paidtag">${tag}</span>` : ""}<button class="sm" id="bannerPay">${t("bannerPayBtn")}</button></div>`);
+    $("bannerPay").onclick = () => openPayForm();
   }
   b.querySelectorAll("[data-fx]").forEach(x => x.onclick = () => openFx(x.dataset.fx));
 
@@ -776,6 +807,143 @@ $("applyBtn").onclick = () => {
   selected = null; render();
 };
 
+/* ---------- 수업료 납부 기록 (비공개 저장소) ---------- */
+const PRIV_DEFAULT = "english-class-private";
+let payments = [], paySha = null, payLoaded = false, payErr = null, lastCalc = null, payFiles = [], delArm = null;
+const thumbCache = {};
+const privRepo = () => (auth && auth.privRepo) || PRIV_DEFAULT;
+const privUrl = path => `https://api.github.com/repos/${auth.owner}/${privRepo()}/contents/${path}`;
+async function privPut(path, b64, message, sha){
+  const body = {message, content: b64}; if (sha) body.sha = sha;
+  const r = await fetch(privUrl(path), {method:"PUT", headers:{...apiHeaders(), "Content-Type":"application/json"}, body: JSON.stringify(body)});
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return (await r.json()).content.sha;
+}
+async function loadPayments(){
+  if (!isMaster()) return;
+  payLoaded = false; payErr = null; renderPayments();
+  try {
+    const r = await fetch(privUrl("payments.json") + `?t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
+    if (r.status === 404){
+      const rr = await fetch(`https://api.github.com/repos/${auth.owner}/${privRepo()}`, {headers: apiHeaders()});
+      if (!rr.ok) throw new Error("norepo");
+      payments = []; paySha = null;
+    } else if (!r.ok) throw new Error("norepo");
+    else { const j = await r.json(); paySha = j.sha; payments = JSON.parse(b64dec(j.content)); }
+  } catch(e) { payErr = e.message; }
+  payLoaded = true; renderPayments(); render();
+}
+async function savePayments(msg){ paySha = await privPut("payments.json", b64enc(JSON.stringify(payments, null, 1)), msg, paySha); }
+async function receiptUrl(path){
+  if (thumbCache[path]) return thumbCache[path];
+  const r = await fetch(privUrl(path), {headers:{...apiHeaders(), Accept:"application/vnd.github.raw"}});
+  if (!r.ok) throw new Error(r.status);
+  return thumbCache[path] = URL.createObjectURL(await r.blob());
+}
+function renderPayments(){
+  const box = $("payBox"); if (!box) return;
+  $("payAddBtn").disabled = !!payErr || !payLoaded;
+  if (!isMaster()){ box.innerHTML = ""; return; }
+  if (!payLoaded){ box.innerHTML = `<div class="empty">${t("payLoading")}</div>`; return; }
+  if (payErr){ box.innerHTML = `<div class="hint bad">${t("payNoRepo")(privRepo())}</div>`; return; }
+  if (!payments.length){ box.innerHTML = `<div class="empty">${t("payNone")}</div>`; return; }
+  const list = payments.slice().sort((a,b) => b.paidOn.localeCompare(a.paidOn));
+  const sumU = list.reduce((a,p) => a + (+p.totalUsd||0), 0), sumZ = list.reduce((a,p) => a + (+p.paidUzs||0), 0);
+  box.innerHTML = `<table class="paytable"><thead><tr><th>${t("pthDate")}</th><th>${t("pthPeriod")}</th><th class="r">${t("pthCls")}</th><th class="r">USD</th><th class="r">UZS</th><th>${t("pthRcpt")}</th><th></th></tr></thead><tbody>` +
+    list.map(p => `<tr><td>${p.paidOn}</td><td>${kdate(parse(p.periodStart))}<br><span class="hint">~ ${kdate(parse(p.periodEnd))}</span></td>
+      <td class="r">${p.classes}</td><td class="r mono">${usd(+p.totalUsd)}</td>
+      <td class="r mono">${Math.round(+p.paidUzs).toLocaleString("en-US")}<br><span class="hint">@ ${uzs2(+p.rate)}</span></td>
+      <td><div class="thumbs">${(p.receipts||[]).map(r => `<img data-path="${r}" alt="">`).join("")}</div>${p.memo?`<div class="hint">${p.memo.replace(/</g,"&lt;")}</div>`:""}</td>
+      <td><button class="ghost sm paydel" data-id="${p.id}">${delArm === p.id ? t("payDelQ") : "🗑"}</button></td></tr>`).join("") +
+    `</tbody></table><div class="hint paysum">${t("payTotal")(list.length, usd(sumU), uzs(sumZ))}</div>`;
+  box.querySelectorAll("img[data-path]").forEach(img => receiptUrl(img.dataset.path).then(u => { img.src = u; img.onclick = () => { $("lightImg").src = u; openModal("lightModal"); }; }).catch(() => img.classList.add("broken")));
+  box.querySelectorAll(".paydel").forEach(btn => btn.onclick = () => deletePayment(btn.dataset.id));
+}
+async function deletePayment(id){
+  if (delArm !== id){ delArm = id; renderPayments(); return; }
+  delArm = null;
+  const p = payments.find(x => x.id === id); if (!p) return;
+  payments = payments.filter(x => x.id !== id);
+  try {
+    await savePayments(`Delete payment ${p.paidOn}`);
+    for (const path of (p.receipts||[])){
+      const g = await fetch(privUrl(path), {headers: apiHeaders()}); if (!g.ok) continue;
+      await fetch(privUrl(path), {method:"DELETE", headers:{...apiHeaders(), "Content-Type":"application/json"}, body: JSON.stringify({message:`Delete receipt ${path}`, sha:(await g.json()).sha})});
+    }
+    log.push({at: nowStamp(), ...bothLangs(() => t("logPayDel")(kdate(parse(p.periodStart)), kdate(parse(p.periodEnd))))}); save();
+  } catch(e) { payments.push(p); alertPay(t("pfFail")(e.message)); }
+  renderPayments(); render();
+}
+function alertPay(msg){ const el = $("payMsg"); if (el){ el.textContent = msg; el.className = "hint bad"; } }
+
+// 납부 입력 창
+function openPayForm(){
+  if (!lastCalc || payErr) return;
+  const {C, P, NP} = lastCalc;
+  const curPaid = payments.some(p => p.periodStart === fmt(P.start));
+  $("pfPeriodSel").value = curPaid ? "next" : "cur";
+  $("pfDate").value = todayStr(); $("pfPrice").value = C.price; $("pfRate").value = C.rate; $("pfRateDate").value = C.rateDate;
+  $("pfMemo").value = ""; $("pfFiles").value = ""; payFiles = []; $("pfPreview").innerHTML = ""; $("payMsg").textContent = "";
+  fillPeriod(); openModal("payModal");
+}
+function fillPeriod(){
+  const {P, NP, prepaid, nCount} = lastCalc, next = $("pfPeriodSel").value === "next";
+  const a = next ? NP.start : P.start, b = next ? NP.end : P.end;
+  $("pfPeriodTxt").textContent = `${kdate(a)} ~ ${kdate(b)}`;
+  $("pfCls").value = next ? nCount : prepaid;
+  calcPay(true);
+}
+function calcPay(resetUzs){
+  const n = +$("pfCls").value || 0, p = +$("pfPrice").value || 0, r = +$("pfRate").value || 0;
+  if (resetUzs) $("pfUzs").value = Math.round(n*p*r);
+  $("pfCalc").textContent = t("pfCalc")(n, usd(p), usd(n*p), uzs2(r), uzs(n*p*r));
+}
+function compressImage(file){
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src); res(c.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => rej(new Error("image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+async function submitPay(){
+  const {P, NP} = lastCalc, next = $("pfPeriodSel").value === "next";
+  const n = +$("pfCls").value, price = +$("pfPrice").value, rate = +$("pfRate").value;
+  if (!$("pfDate").value || !n){ alertPay(t("pfNeed")); return; }
+  const id = "P" + Date.now().toString(36);
+  const rec = {id, paidOn: $("pfDate").value, periodStart: fmt(next ? NP.start : P.start), periodEnd: fmt(next ? NP.end : P.end),
+    classes: n, priceUsd: price, totalUsd: +(n*price).toFixed(2), rate, rateDate: $("pfRateDate").value, paidUzs: +$("pfUzs").value || Math.round(n*price*rate),
+    memo: $("pfMemo").value.trim() || undefined, receipts: [], createdAt: new Date().toISOString()};
+  $("pfSave").disabled = true;
+  try {
+    for (let i = 0; i < payFiles.length; i++){
+      $("payMsg").className = "hint"; $("payMsg").textContent = t("pfSaving")(i+1, payFiles.length);
+      const path = `receipts/${rec.paidOn}_${id}_${i+1}.jpg`;
+      await privPut(path, payFiles[i].split(",")[1], `Receipt ${rec.paidOn} (${i+1})`);
+      thumbCache[path] = payFiles[i]; rec.receipts.push(path);
+    }
+    payments.push(rec);
+    await savePayments(`Payment ${rec.paidOn} (${rec.periodStart} ~ ${rec.periodEnd})`);
+    log.push({at: nowStamp(), ...bothLangs(() => t("logPay")(kdate(parse(rec.periodStart)), kdate(parse(rec.periodEnd))))}); save();
+    $("payModal").classList.remove("on"); renderPayments(); render();
+  } catch(e) { payments = payments.filter(x => x.id !== id); alertPay(t("pfFail")(e.message)); }
+  $("pfSave").disabled = false;
+}
+$("pfPeriodSel").onchange = fillPeriod;
+["pfCls","pfPrice","pfRate"].forEach(id => $(id).addEventListener("input", () => calcPay(true)));
+$("pfFiles").onchange = async e => {
+  const files = [...e.target.files];
+  payFiles = []; $("pfPreview").innerHTML = "";
+  for (const f of files){ try { const d = await compressImage(f); payFiles.push(d); $("pfPreview").insertAdjacentHTML("beforeend", `<img src="${d}" alt="">`); } catch(err) {} }
+};
+$("pfSave").onclick = submitPay;
+$("payAddBtn").onclick = openPayForm;
+
 /* ---------- 모달 ---------- */
 function openModal(id){ $(id).classList.add("on"); }
 document.querySelectorAll(".modal").forEach(m => {
@@ -849,9 +1017,9 @@ function drawFx(){
 
 /* ---------- 이벤트 ---------- */
 ["start","months","time","dur","price","alertN","minNotice","rate","rateDate","asof"].forEach(id => $(id).addEventListener("input", () => { render(); if (id !== "asof") queueRemoteSave(); }));
-$("loginBtn").onclick = () => { const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("loginMsg").textContent = ""; openModal("loginModal"); };
+$("loginBtn").onclick = () => { const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
 $("doLogin").onclick = doLogin;
-$("logoutBtn").onclick = () => { auth = null; try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
+$("logoutBtn").onclick = () => { auth = null; payments = []; payLoaded = false; renderPayments(); try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
 $("linkBtn").onclick = () => copy(teacherLink(), t("linkCopied")(teacherLink()));
 async function copy(text, ok){
   try { await navigator.clipboard.writeText(text); $("toast").textContent = ok; }
@@ -863,3 +1031,4 @@ applyStatic();
 renderAcct();
 render();
 loadRemote();
+loadPayments();
