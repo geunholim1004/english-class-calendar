@@ -632,8 +632,14 @@ function render(){
   $("dlArch").disabled = archive === null;
 
   // 카톡 메시지
-  const changed = S.filter(s => !["plan","done"].includes(s.act) || s.edited).sort((a,b)=>a.origD-b.origD)
-    .map(s => `· ${sdate(s.origD)} ${labelOf(s)} ${statusText(s)}${s.children?" → "+s.children.map(c=>`${labelOf(c)} ${sdate(c.d)}`).join(", "):""}${s.meta.memo?` (${s.meta.memo})`:""}`).join("\n");
+  // 변경 내역 = 상태가 바뀐 수업(이동·취소·Hold·No-show·수정) + 새로 추가한 수업
+  const xMemo = id => (extras.find(x => x.id === id) || {}).memo;
+  const changed = S.filter(s => !["plan","done"].includes(s.act) || s.edited || s.kind === "extra").sort((a,b)=>a.origD-b.origD)
+    .map(s => {
+      if (s.kind === "extra" && ["plan","done"].includes(s.act))
+        return `· ${sdate(s.d)} ${s.time} ${labelOf(s)} ${t("nExtra")(s.paid)}${xMemo(s.id)?` (${xMemo(s.id)})`:""}`;
+      return `· ${sdate(s.origD)} ${labelOf(s)} ${statusText(s)}${s.children?" → "+s.children.map(c=>`${labelOf(c)} ${sdate(c.d)}`).join(", "):""}${s.meta.memo?` (${s.meta.memo})`:""}`;
+    }).join("\n");
   $("msg").value = t("msg")({ps:kdate(P.start), pe:kdate(P.end), slot:tEnd(C.time), dur:C.dur, prepaid, price:usd(C.price), usd:usd(prepaidUsd),
     rate:uzs2(C.rate), rateDate:C.rateDate, uzs:uzs(prepaidUzs), changed, left, last:kdate(lastSession),
     na:kdate(NP.start), nb:kdate(NP.end), nn:nCount, nusd:usd(nUsd), nuzs:uzs(nUzs)});
