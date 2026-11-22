@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-11-22T04:10:08.686Z",
+ "updatedAt": "2026-11-22T04:10:20.261Z",
  "settings": {
   "start": "2026-11-22",
   "months": "3",
@@ -16,14 +16,6 @@
   "R1": {
    "act": "move",
    "cause": "teacher"
-  },
-  "M:R1": {
-   "act": "move",
-   "cause": "mutual",
-   "agreed": "2027-03-07",
-   "notice": -7,
-   "late": true,
-   "how": "end"
   }
  },
  "log": [
@@ -76,6 +68,11 @@
    "at": "2026-11-22 13:10",
    "ko": "2027.02.28(일) 보강(#1): 예정 → 이동 · 사전 합의 사유 · 생성: 보강(보강(#1)) 2027.03.14(일) · 연락 2027-03-07 (-7일 전 ⚠기준 미달)",
    "en": "Sun, Feb 28, 2027 Makeup(#1): Scheduled → Moved · by mutual agreement · created: Makeup(Makeup(#1)) Sun, Mar 14, 2027 · Contacted 2027-03-07 (-7 days before, ⚠ below notice rule)"
+  },
+  {
+   "at": "2026-11-22 13:10",
+   "ko": "2027.02.28(일) 보강(#1): 이동 · 사전 합의 사유 → 예정 · 기존 보강(보강(#1)) 2027.03.14(일) 해제",
+   "en": "Sun, Feb 28, 2027 Makeup(#1): Moved · by mutual agreement → Scheduled · removed Makeup(Makeup(#1)) Sun, Mar 14, 2027"
   }
  ]
 }
