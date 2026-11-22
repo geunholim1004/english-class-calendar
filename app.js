@@ -257,7 +257,7 @@ ko: {
   logAdd:(d,tm,x,p) => `${d} ${tm} ${x} 추가 (${p ? "유료" : "무료"})`, logDel:(d,x) => `${d} ${x} 삭제`,
   basisExtra:(p,f) => `②+ 추가 수업 ${p+f}회 (유료 ${p} · 무료 ${f}) — 유료분은 선불 수업 수에 포함`, lg9:"추가 수업",
 
-  roleMaster:u => `마스터 · ${u}`, roleViewer:"보기 전용", login:"마스터 로그인", logout:"로그아웃", teacherLinkBtn:"선생님 링크 복사",
+  roleMaster:u => `마스터 · ${u}`, roleViewer:"로그인 전", login:"로그인", logout:"로그아웃", teacherLinkBtn:"선생님 링크 복사",
   linkCopied:u => `선생님 링크를 복사했어요: ${u}`,
   syncLoading:"불러오는 중…", syncLoaded:d => `마지막 업데이트 ${d}`, syncPending:"변경 사항 저장 대기…", syncSaving:"GitHub에 저장 중…",
   syncSaved:d => `저장됨 · ${d}`, syncFail:e => `저장 실패 (${e}) — 토큰 권한을 확인하세요`, syncOffline:"GitHub에서 불러오지 못해 이 브라우저 데이터로 표시 중",
@@ -438,7 +438,7 @@ en: {
   logAdd:(d,tm,x,p) => `${d} ${tm} ${x} added (${p ? "paid" : "free"})`, logDel:(d,x) => `${d} ${x} deleted`,
   basisExtra:(p,f) => `②+ Extra classes: ${p+f} (${p} paid · ${f} free) — paid ones count as prepaid classes`, lg9:"Extra class",
 
-  roleMaster:u => `Master · ${u}`, roleViewer:"View only", login:"Master login", logout:"Log out", teacherLinkBtn:"Copy teacher link",
+  roleMaster:u => `Master · ${u}`, roleViewer:"Not logged in", login:"Log in", logout:"Log out", teacherLinkBtn:"Copy teacher link",
   linkCopied:u => `Teacher link copied: ${u}`,
   syncLoading:"Loading…", syncLoaded:d => `Last updated ${d}`, syncPending:"Waiting to save…", syncSaving:"Saving to GitHub…",
   syncSaved:d => `Saved · ${d}`, syncFail:e => `Save failed (${e}) — check the token’s permissions`, syncOffline:"Couldn’t load from GitHub; showing this browser’s data",
