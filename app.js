@@ -70,6 +70,7 @@ function setSync(msg, bad){ const el = $("syncStatus"); if (!el) return; el.text
 function teacherLink(){ const {owner, repo} = isMaster() ? auth : repoCoords(); return `https://${owner}.github.io/${repo}/`; }
 function renderAcct(){
   const m = isMaster();
+  document.querySelector(".sub").textContent = m ? t("sub") : t("subV");
   document.body.classList.toggle("viewer", !m);
   $("roleBadge").textContent = m ? t("roleMaster")(auth.login || auth.owner) : t("roleViewer");
   $("roleBadge").className = "badge " + (m ? "master" : "viewer");
@@ -108,6 +109,7 @@ ko: {
   docTitle:"영어 수업 달력 & 수업료 계산기 (USD→UZS)",
   title:"영어 수업 달력 & 수업료 계산기",
   sub:"선불제 · 매주 일요일 17:00 · 25분 = 1 Class · $6 · CBU 공식 환율로 UZS 환산 · 취소·이동·보류·No-show를 사유와 함께 기록",
+  subV:"매주 일요일 17:00 · 25분 = 1 Class · 취소·이동·보류·No-show를 사유와 함께 기록",
   hHolds:"보류 중인 수업", hKakao:"카카오톡 알림 메시지", copyMsg:"메시지 복사",
   kakaoHint:"복사 후 카카오톡 ‘나와의 채팅’이나 선생님 채팅방에 붙여넣으세요.",
   hLog:"변경 기록", copyLog:"기록 복사",
@@ -138,6 +140,7 @@ ko: {
   fxTail:d => `CBU ${d} 기준 · 누르면 2010년~ 추세`,
   alertDue:(left,last) => `정산 알림 · 남은 수업 ${left}회 (마지막 수업 ${last})`,
   alertDueBody:(a,b,n,p,u,z) => `다음 선불 기간 ${a} ~ ${b} 일요일 ${n}회 × ${p} = <b>${u}</b> → ${z}. 결제 전 CBU 최신 환율로 갱신하세요.`,
+  alertDueBodyV:(a,b,n) => `다음 기간 ${a} ~ ${b} · 일요일 ${n}회`,
   alertNext:(d,t) => `다음 정산 알림일: ${d} ${t}`,
   alertNextBody:(N,last) => `이날 수업 후 남은 수업이 ${N}회가 됩니다. 마지막 수업은 ${last}입니다.`,
   noHolds:"보류 중인 수업이 없어요.", pickDate:"날짜 정하기", noReason:"사유 없음",
@@ -201,6 +204,7 @@ en: {
   doLogin:"Log in", loginChecking:"Checking…", loginNoRepo:s => `Can’t access the repository (HTTP ${s}). Check the account, repo name and token.`, loginNoPush:"This token can’t write. Create it with Contents = Read and write.",
   docTitle:"English Class Calendar & Fee Calculator (USD→UZS)",
   title:"English Class Calendar & Fee Calculator",
+  subV:"Every Sunday 17:00 · 25 min = 1 class · Cancellations, moves, holds and no-shows logged with reasons",
   sub:"Prepaid · Every Sunday 17:00 · 25 min = 1 class · $6 · Converted to UZS at the official CBU rate · Cancellations, moves, holds and no-shows logged with reasons",
   hHolds:"Classes on hold", hKakao:"KakaoTalk message", copyMsg:"Copy message",
   kakaoHint:"Paste it into your KakaoTalk ‘Chat with myself’ or the teacher’s chat room.",
@@ -232,6 +236,7 @@ en: {
   fxTail:d => `CBU ${d} · tap for trends since 2010`,
   alertDue:(left,last) => `Payment alert · ${left} class${left===1?"":"es"} left (last class ${last})`,
   alertDueBody:(a,b,n,p,u,z) => `Next prepaid period ${a} – ${b}: ${n} Sundays × ${p} = <b>${u}</b> → ${z}. Update to the latest CBU rate before paying.`,
+  alertDueBodyV:(a,b,n) => `Next period ${a} – ${b} · ${n} Sundays`,
   alertNext:(d,t) => `Next payment alert: ${d} ${t}`,
   alertNextBody:(N,last) => `After this class, ${N} classes will be left. The last class is ${last}.`,
   noHolds:"No classes on hold.", pickDate:"Set a date", noReason:"no reason",
@@ -444,7 +449,7 @@ function render(){
   if (alertItem && C.asof >= alertItem.d){
     b.className = "banner on warn";
     b.innerHTML = `<b class="h">${t("alertDue")(left, kdate(lastSession))}</b>
-      ${t("alertDueBody")(kdate(NP.start), kdate(NP.end), nCount, usd(C.price), usd(nUsd), uzs(nUzs))}${holdNote}${fxLine}`;
+      ${isMaster() ? t("alertDueBody")(kdate(NP.start), kdate(NP.end), nCount, usd(C.price), usd(nUsd), uzs(nUzs)) : t("alertDueBodyV")(kdate(NP.start), kdate(NP.end), nCount)}${holdNote}${fxLine}`;
   } else {
     b.className = "banner on ok";
     b.innerHTML = alertItem ? `<b class="h">${t("alertNext")(kdate(alertItem.d), alertItem.time)}</b>
@@ -537,9 +542,9 @@ function render(){
     price:usd(C.price), usd:usd(prepaidUsd), rate:uzs2(C.rate), rateDate:C.rateDate, uzs:uzs2(prepaidUzs),
     consumed:cnt(s => klass(s)==="consumed"), teacher:cnt(s => klass(s)==="teacher"), bonus:bonusCount,
     relocated:cnt(s => klass(s)==="relocated"), holds:holds.length, last:kdate(lastSession), N:C.N, alert:alertItem?kdate(alertItem.d):"–"
-  }).map(x => `<div>${x}</div>`).join("");
+  }).map((x,i) => `<div${i===2?' class="money"':""}>${isMaster() ? x : x.replace(/ \(\$0\)/, "")}</div>`).join("");
   $("nextBasis").innerHTML = t("next")({a:kdate(NP.start), b:kdate(NP.end), months:C.months, n:nCount, list:NP.list.map(sdate).join(", "),
-    price:usd(C.price), usd:usd(nUsd), rate:uzs2(C.rate), uzs:uzs2(nUzs)}).map(x => `<div>${x}</div>`).join("")
+    price:usd(C.price), usd:usd(nUsd), rate:uzs2(C.rate), uzs:uzs2(nUzs)}).map((x,i) => `<div${i===2?' class="money"':""}>${x}</div>`).join("")
     + `<div class="hint">${t("nextHint")(holds.length)}</div>`;
 
   // 기록
