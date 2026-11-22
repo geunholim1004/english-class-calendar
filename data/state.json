@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-11-22T04:11:57.524Z",
+ "updatedAt": "2026-11-22T04:12:03.757Z",
  "settings": {
   "start": "2026-11-22",
   "months": "3",
@@ -13,17 +13,6 @@
   "rateDate": "2026-11-21"
  },
  "state": {
-  "R4": {
-   "act": "move",
-   "cause": "mutual",
-   "memo": "test",
-   "agreed": "2026-11-22",
-   "notice": 21,
-   "late": false,
-   "how": "date",
-   "to": "2026-11-25",
-   "toTime": "22:05"
-  },
   "M:R4": {
    "ed": {
     "date": "2026-11-25",
@@ -116,6 +105,11 @@
    "at": "2026-11-22 13:11",
    "ko": "2026.11.25(수) 보강(#4): 예정 → 수정 (2026.11.25(수) 21:00)",
    "en": "Wed, Nov 25, 2026 Makeup(#4): Scheduled → Edited (Wed, Nov 25, 2026 21:00)"
+  },
+  {
+   "at": "2026-11-22 13:12",
+   "ko": "2026.12.13(일) #4: 이동 · 사전 합의 사유 → 예정 · 기존 보강(#4) 2026.11.25(수) 해제 · 사유: test",
+   "en": "Sun, Dec 13, 2026 #4: Moved · by mutual agreement → Scheduled · removed Makeup(#4) Wed, Nov 25, 2026 · Reason: test"
   }
  ]
 }
