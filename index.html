@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
 <title>영어 수업 달력 & 수업료 계산기 (USD→UZS)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -186,6 +189,27 @@ body.viewer .masteronly{display:none}
 .logdel:hover{color:var(--tc)}
 button.danger{color:var(--tc);border-color:#f1c7c2}
 .quick.two{grid-template-columns:1fr 1fr}
+.badge.subm{background:var(--bonus-soft);color:var(--bonus)}
+.notify{position:fixed;right:18px;bottom:18px;width:360px;max-width:calc(100vw - 24px);z-index:60;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:0 14px 40px rgba(20,24,28,.2);display:none}
+.notify.on{display:block;animation:pop .14s ease-out}
+.nfhead{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:14px}
+.notify [data-nl].on{background:var(--ink);color:#fff;border-color:var(--ink)}
+#nfText{width:100%;min-height:150px;margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:8px;font:12.5px/1.45 "Noto Sans KR",sans-serif;color:var(--ink);background:#fcfcfa}
+@media(max-width:640px){.notify{left:12px;right:12px;bottom:12px;width:auto}}
+.subonly{display:none}
+body.subm .subonly{display:block}
+.pendcard{border-color:#efcfb6;background:#fffaf5;margin-bottom:14px}
+.myreqcard{margin-bottom:14px}
+.pendrow{padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.pendrow:last-child{border-bottom:0}
+.st-pending{color:var(--warn)} .st-approved{color:var(--accent)} .st-rejected{color:var(--tc)}
+.it.pending{box-shadow:inset 0 0 0 1px var(--warn)}
+.bytag{color:var(--bonus);font-weight:500}
+.subbox{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.subbox h4{margin:0 0 4px;font-size:13.5px}
+.ulist{margin:8px 0}
+.urow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.outbox,#uInvite{width:100%;min-height:150px;margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:8px;font:12.5px/1.45 "Noto Sans KR",sans-serif;color:var(--ink);background:#fcfcfa}
 #reqText{width:100%;min-height:120px;margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:8px;font:12.5px/1.45 "Noto Sans KR",sans-serif;color:var(--ink);background:#fcfcfa}
 /* 휴대폰: 보류 → 달력/요약 → 카톡 → 변경 기록(맨 아래, 접힌 상태) */
 @media(max-width:860px){
@@ -266,6 +290,14 @@ input:disabled{opacity:.75;background:#f3f2ee}
       </div>
     </div>
     <div class="rightcol">
+      <div class="card pendcard masteronly" id="pendCard" style="display:none">
+        <h2><span data-i18n="hPend"></span> <span id="pendCount" class="logcount"></span></h2>
+        <div id="pendList"></div>
+      </div>
+      <div class="card subonly myreqcard">
+        <h2 data-i18n="hMyReq"></h2>
+        <div id="myReqList"></div>
+      </div>
       <div class="banner" id="banner"></div>
 
       <div class="kpis">
@@ -398,6 +430,51 @@ input:disabled{opacity:.75;background:#f3f2ee}
   </div>
 </div>
 
+<!-- 마스터 변경 → 카톡 알림 메시지 -->
+<div class="notify" id="notify">
+  <div class="nfhead"><b data-i18n="nfTitle"></b>
+    <span><button class="ghost sm" data-nl="ko">KO</button> <button class="ghost sm" data-nl="en">EN</button> <button class="x" id="nfX">×</button></span></div>
+  <textarea id="nfText" readonly></textarea>
+  <div class="btns"><button class="sm" id="nfCopy" data-i18n="nfCopy"></button><button class="ghost sm" id="nfShare" data-i18n="nfShare"></button></div>
+  <div class="hint" data-i18n="nfHint"></div>
+</div>
+
+<!-- 초대 링크로 등록 -->
+<div class="modal" id="regModal">
+  <div class="sheet narrow">
+    <header><h2 data-i18n="hReg"></h2><button class="x" data-close>×</button></header>
+    <label data-i18n="uIdL"></label><input id="regId" autocapitalize="none" autocomplete="username">
+    <div id="regCodeWrap"><label data-i18n="regCode"></label><input id="regCode" autocapitalize="characters" autocomplete="one-time-code"></div>
+    <div class="row2"><div><label data-i18n="regPw1"></label><input id="regPw1" type="password" autocomplete="new-password"></div>
+      <div><label data-i18n="regPw2"></label><input id="regPw2" type="password" autocomplete="new-password"></div></div>
+    <div class="btns"><button id="doRegister" data-i18n="regBtn"></button></div>
+    <div class="hint" data-i18n="regHint"></div>
+    <div class="hint" id="regMsg"></div>
+  </div>
+</div>
+
+<!-- 등록 요청 (사용자) -->
+<div class="modal" id="regReqModal">
+  <div class="sheet narrow">
+    <header><h2 data-i18n="hRR"></h2><button class="x" data-close>×</button></header>
+    <div class="row2"><div><label data-i18n="rrId"></label><input id="rrId" autocapitalize="none"></div>
+      <div><label data-i18n="rrName"></label><input id="rrName"></div></div>
+    <div class="btns"><button id="rrSend" data-i18n="rrSend"></button></div>
+    <div id="rrOut" style="display:none"><textarea id="rrText" readonly class="outbox"></textarea>
+      <div class="btns"><button class="sm" id="rrCopy" data-i18n="rqCopy"></button></div><div class="hint" data-i18n="rrHint"></div></div>
+    <div class="hint" id="rrMsg"></div>
+  </div>
+</div>
+<!-- 등록 요청 승인 (마스터) -->
+<div class="modal" id="raModal">
+  <div class="sheet narrow">
+    <header><h2 data-i18n="hRA"></h2><button class="x" data-close>×</button></header>
+    <div class="basis" id="raBody"></div>
+    <div class="btns"><button id="raApprove" data-i18n="raApprove"></button><button class="ghost danger" id="raReject" data-i18n="raReject"></button></div>
+    <div class="hint" id="raMsg"></div>
+  </div>
+</div>
+
 <!-- 선생님 요청 승인 -->
 <div class="modal" id="reqModal">
   <div class="sheet narrow">
@@ -443,7 +520,15 @@ input:disabled{opacity:.75;background:#f3f2ee}
 <!-- 마스터 로그인 -->
 <div class="modal" id="loginModal">
   <div class="sheet narrow">
-    <header><h2 data-i18n="hLogin"></h2><button class="x" data-close>×</button></header>
+    <header><h2 data-i18n="login"></h2><button class="x" data-close>×</button></header>
+    <div class="tabs" id="loginTabs"><button data-v="sub" data-i18n="loginTabSub"></button><button data-v="master" data-i18n="loginTabMaster"></button></div>
+    <div id="loginSub">
+      <label data-i18n="uIdL"></label><input id="subId" autocomplete="username" autocapitalize="none">
+      <label data-i18n="subPwL"></label><input id="subPw" type="password" autocomplete="current-password">
+      <div class="btns"><button id="doSubLogin" data-i18n="subLoginBtn"></button></div>
+      <div class="hint"><a href="#" id="regReqLink" data-i18n="rrLink"></a></div>
+    </div>
+    <div id="loginMaster" style="display:none">
     <div class="row2">
       <div><label data-i18n="ghOwner"></label><input id="ghOwner"></div>
       <div><label data-i18n="ghRepo"></label><input id="ghRepo"></div>
@@ -452,6 +537,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
     <label data-i18n="ghToken"></label><input id="ghToken" type="password" autocomplete="off" placeholder="github_pat_…">
     <div class="hint" data-i18n-html="tokenHelp"></div>
     <div class="btns"><button id="doLogin" data-i18n="doLogin"></button></div>
+    </div>
     <div class="hint" id="loginMsg"></div>
   </div>
 </div>
@@ -483,6 +569,22 @@ input:disabled{opacity:.75;background:#f3f2ee}
     <input id="asof" type="date">
     <div class="btns"><button data-close data-i18n="sDone"></button></div>
     <div class="hint" data-i18n="sHint"></div>
+    <div class="masteronly subbox">
+      <h4 data-i18n="hUsers"></h4>
+      <div class="hint" id="uTokState"></div>
+      <div id="uTokWrap">
+        <label data-i18n="uTokL"></label><input id="uToken" type="password" autocomplete="off" placeholder="github_pat_…">
+        <div class="hint" data-i18n-html="uTokHelp"></div>
+        <div class="btns"><button class="sm" id="uTokSave" data-i18n="uTokSave"></button></div>
+      </div>
+      <div id="uList" class="ulist"></div>
+      <div class="row2"><div><label data-i18n="uNewId"></label><input id="uNewId" autocapitalize="none"></div>
+        <div><label data-i18n="uNewName"></label><input id="uNewName"></div></div>
+      <div class="btns"><button class="sm" id="uInviteBtn" data-i18n="uInviteBtn"></button><button class="ghost sm" id="uTokChange" data-i18n="uTokChange"></button></div>
+      <div id="uInviteBox" style="display:none"><textarea id="uInvite" readonly></textarea>
+        <div class="btns"><button class="sm" id="uInviteCopy" data-i18n="rqCopy"></button></div><div class="hint" data-i18n="uInviteHint"></div></div>
+      <div class="hint" id="uMsg"></div>
+    </div>
   </div>
 </div>
 

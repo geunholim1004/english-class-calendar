@@ -1,4 +1,26 @@
 const $ = id => document.getElementById(id);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, TIME_RE = /^\d{2}:\d{2}$/;
+const safeTime = (v, def) => TIME_RE.test(String(v || "")) ? v : def;
+// 저장소에서 읽은 요청은 형식이 맞는 값만 남김 (조작된 값 차단)
+function cleanReq(r){
+  if (!r || typeof r !== "object") return null;
+  const o = {...r};
+  if (!DATE_RE.test(o.d || "") || !["edit","move"].includes(o.act) || !/^[A-Za-z0-9:]+$/.test(o.id || "")) return null;
+  if (o.cause && !["me","teacher","mutual"].includes(o.cause)) o.cause = undefined;
+  if (o.how && !["end","date"].includes(o.how)) o.how = "end";
+  if (o.to && !DATE_RE.test(o.to)) return null;
+  if ((o.act === "edit" || o.how === "date") && !o.to) return null;
+  o.toTime = o.toTime ? safeTime(o.toTime, undefined) : undefined;
+  o.at = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(o.at || "") ? o.at : "";
+  o.decidedAt = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(o.decidedAt || "") ? o.decidedAt : undefined;
+  o.rid = String(o.rid || "").replace(/[^\w-]/g, "");
+  o.by = String(o.by || "").replace(/[^a-z0-9._-]/g, "");
+  o.name = String(o.name || "").slice(0, 40); o.reason = String(o.reason || "").slice(0, 300);
+  if (!["pending","approved","rejected", undefined].includes(o.status)) o.status = "pending";
+  return o;
+}
+// 사용자가 입력한 글자는 화면에 그릴 때 반드시 이스케이프 (악성 코드 실행 방지)
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const KEY = "eng-class-state-v4", LOGKEY = "eng-class-log-v4", LANGKEY = "eng-class-lang";
 let state = {}, log = [], extras = [], selected = null, lang = "ko", addDate = null, addPaid = "paid", calExpanded = false;
 try { extras = JSON.parse(localStorage.getItem("eng-class-extras-v1") || "[]"); } catch(e) {}
@@ -19,7 +41,9 @@ function repoCoords(){
 }
 let auth = null;   // {token, owner, repo, login}
 try { auth = JSON.parse(localStorage.getItem(AUTHKEY) || "null"); } catch(e) {}
-const isMaster = () => !!(auth && auth.token);
+const isMaster = () => !!(auth && auth.token && auth.role !== "sub");
+const isSub = () => !!(auth && auth.token && auth.role === "sub");
+const isEditor = () => isMaster() || isSub();
 let remoteSha = null, lastUpdated = null, syncStatus = "", saveTimer = null, loadingRemote = false;
 const SETTING_IDS = ["start","months","time","dur","price","alertN","minNotice","rate","rateDate"];
 function snapshot(){ const settings = {}; SETTING_IDS.forEach(id => settings[id] = $(id).value);
@@ -32,9 +56,9 @@ function applySnapshot(d){
 }
 const b64enc = s => btoa(unescape(encodeURIComponent(s)));
 const b64dec = s => decodeURIComponent(escape(atob(s.replace(/\n/g,""))));
-function apiHeaders(){ const h = {"Accept":"application/vnd.github+json"}; if (isMaster()) h.Authorization = "Bearer " + auth.token; return h; }
+function apiHeaders(){ const h = {"Accept":"application/vnd.github+json"}; if (isEditor()) h.Authorization = "Bearer " + auth.token; return h; }
 async function loadRemote(){
-  const {owner, repo} = isMaster() ? auth : repoCoords();
+  const {owner, repo} = isEditor() ? auth : repoCoords();
   loadingRemote = true; setSync(t("syncLoading"));
   try {
     const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${DATA_PATH}?ref=${BRANCH}&t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
@@ -50,7 +74,7 @@ async function loadRemote(){
   setSync(lastUpdated ? t("syncLoaded")(fmtStamp(lastUpdated)) : "");
   render();
 }
-function fmtStamp(iso){ const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; }
+function fmtStamp(iso){ const p = kstParts(new Date(iso)); return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`; }
 function queueRemoteSave(){ if (!isMaster() || loadingRemote) return; clearTimeout(saveTimer); setSync(t("syncPending")); saveTimer = setTimeout(saveRemote, 1200); }
 async function saveRemote(retry){
   const {owner, repo, token} = auth;
@@ -73,12 +97,15 @@ function teacherLink(){ const {owner, repo} = isMaster() ? auth : repoCoords(); 
 function renderAcct(){
   const m = isMaster();
   document.querySelector(".sub").textContent = m ? t("sub") : t("subV");
-  document.querySelector(".calHintEl").textContent = m ? t("calHint") : t("calHintV");
+  const sb = isSub();
+  document.querySelector(".calHintEl").textContent = m ? t("calHint") : sb ? t("calHintS") : t("calHintV");
   document.body.classList.toggle("viewer", !m);
-  $("roleBadge").textContent = m ? t("roleMaster")(auth.login || auth.owner) : t("roleViewer");
-  $("roleBadge").className = "badge " + (m ? "master" : "viewer");
-  $("loginBtn").style.display = m ? "none" : "";
-  $("logoutBtn").style.display = m ? "" : "none";
+  document.body.classList.toggle("subm", sb);
+  if (typeof renderPending === "function") renderPending();
+  $("roleBadge").textContent = m ? t("roleMaster")(auth.login || auth.owner) : sb ? t("roleUser")(auth.name || auth.login) : t("roleViewer");
+  $("roleBadge").className = "badge " + (m ? "master" : sb ? "subm" : "viewer");
+  $("loginBtn").style.display = (m || sb) ? "none" : "";
+  $("logoutBtn").style.display = (m || sb) ? "" : "none";
   $("linkBtn").style.display = m ? "" : "none";
   SETTING_IDS.forEach(id => $(id).disabled = !m);
 }
@@ -94,7 +121,7 @@ async function doLogin(){
     auth = {token, owner, repo, login: u.login || owner, privRepo: ($("ghPriv").value.trim() || PRIV_DEFAULT)};
     try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
     $("loginModal").classList.remove("on"); $("ghToken").value = "";
-    renderAcct(); await loadRemote(); loadPayments(); loadArchive(); if (incoming) showReq();
+    renderAcct(); await loadRemote(); loadPayments(); loadArchive(); loadRequests(); if (incoming) showReq();
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 
@@ -102,15 +129,52 @@ async function doLogin(){
 /* ---------- 언어 사전 (Language dictionary) ---------- */
 const L = {
 ko: {
-  calHintV:"예정된 수업을 누르면 수정·이동을 요청할 수 있어요. Edward가 승인하면 반영됩니다.",
+  rqWhatTeacherDate:(d,tm) => `이동 → ${d} ${tm} (선생님 사유 · 보너스 1회)`, rqSameDayBonus:" (선생님 사유 · 한국 시간 기준 당일 변경 → 보너스 1회)",
+  nfTitle:"카톡 알림 메시지", nfCopy:"복사", nfShare:"공유", nfHint:"복사해서 선생님과의 단톡방에 붙여넣으세요. 계속 바꾸면 이 메시지에 이어서 모입니다.",
+  hPend:"승인 대기 요청", pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ 승인", pendReject:"✕ 거절",
+  hMyReq:"내 변경 요청", myNone:"보낸 요청이 없어요.", st_pending:"⏳ 승인 대기", st_approved:"✓ 승인됨", st_rejected:"✕ 거절됨", myCancel:"요청 취소",
+  rqSaveFail:e => `요청 저장 실패 (${e})`, rqAlready:"이 수업에는 이미 승인 대기 중인 요청이 있어요.",
+  rqMsg2:o => `[영어 수업 변경 요청]\n${o.target}\n요청: ${o.what}\n사유: ${o.why}\n요청자: ${o.who}\n\n웹에서 확인·승인해 주세요 👇\n${o.url}`,
+
+  rrLink:"아이디가 없나요? 등록 요청", hRR:"사용 등록 요청", rrId:"희망 아이디 (영문 소문자·숫자)", rrName:"이름", rrSend:"📨 등록 요청 보내기", rrNeedName:"이름을 입력하세요.",
+  rrText:o => `[영어 수업 앱 등록 요청]\n이름: ${o.name}\n희망 아이디: ${o.id}\n\n승인 링크 👇\n${o.url}`,
+  rrHint:"이 내용을 카카오톡으로 Edward에게 보내세요. 승인되면 이 기기에서 사이트를 다시 열어 비밀번호만 정하면 됩니다.",
+  rrWaiting:id => `'${id}' 등록 승인 대기 중`, rrApproved:"승인됐어요! 사용할 비밀번호를 정하면 등록이 끝납니다.",
+  hRA:"사용 등록 요청", raApprove:"✓ 승인", raReject:"✕ 거절", raNeedTok:"설정 → 사용자 관리에서 선생님용 토큰을 먼저 저장하세요.",
+  raExists:"이미 사용 중인 아이디예요. 승인하면 기존 등록을 덮어씁니다.", raDone:n => `승인했어요. ${n}님이 같은 기기에서 사이트를 다시 열면 비밀번호를 정해 등록이 끝납니다.`,
+
+  roleUser:n => `사용자 · ${n}`, loginTabSub:"아이디 로그인", uIdL:"아이디", subPwL:"비밀번호", subLoginBtn:"로그인",
+  uNoId:"등록되지 않은 아이디예요.", uNotRegistered:"아직 등록이 끝나지 않았어요. 카톡으로 받은 초대 링크에서 먼저 등록하세요.",
+  hReg:"사용자 등록", regCode:"초대 코드 (카톡으로 받은 8자리)", regPw1:"사용할 비밀번호 (8자 이상)", regPw2:"비밀번호 확인", regBtn:"등록하고 시작",
+  regPwRule:"비밀번호는 8자 이상, 두 번 똑같이 입력하세요.", regNoInvite:"이 아이디로 대기 중인 초대가 없어요. Edward에게 다시 초대를 요청하세요.", regBadCode:"초대 코드가 맞지 않아요.",
+  regHint:"등록하면 이 기기에서 바로 로그인됩니다. 다른 기기에서는 아이디와 비밀번호로 로그인하세요.",
+  hUsers:"사용자 관리 (보조 마스터)", uTokL:"선생님용 GitHub 토큰", uTokSave:"토큰 저장", uTokChange:"토큰 바꾸기", uTokSet:"선생님용 토큰: 설정됨 (이 기기)", uTokUnset:"선생님용 토큰: 아직 없음",
+  uTokHelp:'<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">토큰을 하나 더</a> 만드세요: Only select repositories → <b>english-class-calendar만</b> (비공개 저장소 X) → Contents: Read and write. 초대할 때 이 토큰이 사용자별 비밀번호로 잠겨 저장됩니다.',
+  uNewId:"아이디 (영문 소문자·숫자)", uNewName:"이름", uInviteBtn:"＋ 초대 만들기", uNone:"등록된 사용자가 없어요.",
+  uActive:d => `사용 중 · 등록 ${d}`, uInvited:d => `초대됨 (등록 대기) · ${d}`, uReinvite:"다시 초대", uDelete:"삭제",
+  uNeedTok:"먼저 선생님용 토큰을 저장하세요.", uIdRule:"아이디는 영문 소문자·숫자·.-_ 2~20자로 정하세요.", uDup:"이미 있는 아이디예요. 목록에서 '다시 초대'를 누르세요.",
+  uDeleted:"삭제했어요. 이미 로그인된 기기까지 막으려면 GitHub에서 선생님용 토큰을 Delete하고 새 토큰으로 다시 초대하세요.",
+  uInviteMsg:o => `[영어 수업 앱 초대]\n${o.name}님, 영어 수업 달력에 초대합니다.\n\n아이디: ${o.id}\n초대 코드: ${o.code}\n\n아래 링크를 열고 초대 코드와 사용할 비밀번호를 입력해 등록하세요.\n${o.link}`,
+  uInviteHint:"이 메시지를 카톡으로 보내세요. 초대 코드는 한 번 등록하면 더 이상 쓸 수 없습니다.",
+
+  roleSub:"", calHintS:"예정된 수업을 누르면 수정·이동을 요청할 수 있어요. Edward가 웹에서 승인하면 반영됩니다.", byTeacher:"선생님",
+  loginTabMaster:"마스터 (Edward)",
+  subBadPw:"비밀번호가 맞지 않아요.",
+ 
+ 
+  subTooWide:r => `이 토큰은 비공개 저장소(${r})도 열 수 있어요. 선생님용은 english-class-calendar만 선택해서 새로 만드세요.`,
+ 
+ 
+
+  calHintV:"보기 전용입니다. 수정·이동 요청은 등록된 사용자가 로그인해야 할 수 있어요.",
   rcStudent:"학생 사유", rqReason:"사유", rqNotePh:"자세한 내용 (선택)", rqSend:"📨 변경 요청 보내기", rqCopy:"요청 복사",
-  rqOutHint:"이 내용을 카카오톡으로 Edward에게 보내 주세요. Edward가 링크를 열어 승인하면 달력에 반영됩니다.",
+  rqOutHint:"요청이 승인 대기로 저장됐어요. 이 내용을 카카오톡으로 Edward에게 보내 알려 주세요.",
   rqReasons:["선생님 개인 사정","선생님 출장·이동","건강 문제","인터넷·기술 문제","학생 요청","공휴일·명절","기타"],
   rqTitle:(d,x) => `${d} · ${x} 변경 요청`, rqPick:"수정 또는 이동을 고르세요.", rqNeedCause:"사유가 누구에게 있는지 고르세요.", rqNeedDate:"새 날짜를 고르세요.",
   rqPvEdit:(d,tm) => `같은 수업을 ${d} ${tm}(으)로 바꾸자는 요청입니다.`, rqPvFoot:"요청은 Edward(마스터)가 승인해야 반영됩니다.",
   rqMsg:(o) => `[영어 수업 변경 요청]\n${o.target}\n요청: ${o.what}\n사유: ${o.why}\n\n승인 링크 👇\n${o.url}`,
   rqWhatEdit:(d,tm) => `수정 → ${d} ${tm}`, rqWhatEnd:"이동 → 마지막 수업 다음 (자동)", rqWhatDate:(d,tm) => `이동 → ${d} ${tm}`,
-  rqWhatTeacher:"이동 → 선생님 사유 규칙 (맨 뒤 보강 + 보너스)",
+  rqWhatTeacher:"이동 → 마지막 수업 다음 (선생님 사유 · 한국 시간 당일 → 패널티 보너스 1회)", rqNoPenalty:" (선생님 사유 · 미리 연락 → 패널티 없음)",
   rqInTitle:"선생님 변경 요청", rqApprove:"✓ 승인하고 적용", rqReject:"✕ 거절", rqNeedLogin:"마스터로 로그인해야 승인할 수 있어요.",
   rqTarget:"대상", rqWhat:"요청", rqWhy:"사유", rqWhen:"요청 시각", rqStale:"⚠ 요청 이후 이 수업의 날짜나 상태가 바뀌었습니다. 확인 후 승인하세요.",
   rqGone:"요청한 수업을 찾을 수 없어요 (이미 삭제·변경됨).", rqTag:"선생님 요청", rqRejected:(x) => `선생님 변경 요청 거절: ${x}`,
@@ -141,7 +205,7 @@ ko: {
   logAdd:(d,tm,x,p) => `${d} ${tm} ${x} 추가 (${p ? "유료" : "무료"})`, logDel:(d,x) => `${d} ${x} 삭제`,
   basisExtra:(p,f) => `②+ 추가 수업 ${p+f}회 (유료 ${p} · 무료 ${f}) — 유료분은 선불 수업 수에 포함`, lg9:"추가 수업",
 
-  roleMaster:u => `마스터 · ${u}`, roleViewer:"선생님 (변경은 요청)", login:"마스터 로그인", logout:"로그아웃", teacherLinkBtn:"선생님 링크 복사",
+  roleMaster:u => `마스터 · ${u}`, roleViewer:"보기 전용", login:"마스터 로그인", logout:"로그아웃", teacherLinkBtn:"선생님 링크 복사",
   linkCopied:u => `선생님 링크를 복사했어요: ${u}`,
   syncLoading:"불러오는 중…", syncLoaded:d => `마지막 업데이트 ${d}`, syncPending:"변경 사항 저장 대기…", syncSaving:"GitHub에 저장 중…",
   syncSaved:d => `저장됨 · ${d}`, syncFail:e => `저장 실패 (${e}) — 토큰 권한을 확인하세요`, syncOffline:"GitHub에서 불러오지 못해 이 브라우저 데이터로 표시 중",
@@ -162,7 +226,7 @@ ko: {
   aUndo:"↩ 이동 취소 (원래 날짜로)", close:"닫기", qDone:"✓ 완료", qEdit:"✎ 수정", qMove:"→ 이동", hOther:"다른 처리", aCancel:"취소", aPlan:"예정으로 되돌리기",
   hCause:"사유는 누구에게 있나요?", cMe:"나 (학생)", cTeacher:"선생님", cMutual:"사전 합의",
   hHow:"어디로 옮길까요?", howEnd:"마지막 수업 다음으로 자동", howDate:"날짜 지정",
-  lAgreed:"합의(연락)한 날", lTo:"새 날짜", lToTime:"새 시각", lMemo:"사유 입력", memoPh:"예: 선생님 출장, 가족 행사, 인터넷 장애 …",
+  lAgreed:"합의(연락)한 날 (한국 날짜)", lTo:"새 날짜", lToTime:"새 시각", lMemo:"사유 입력", memoPh:"예: 선생님 출장, 가족 행사, 인터넷 장애 …",
   apply:"적용", calHint:"수업을 누르면 완료·수정·이동·Hold·취소·No-show, 빈 날짜를 누르면 그날 수업 추가.",
   hBasis:"계산 근거", hList:"수업 목록", thDate:"날짜", thType:"구분", thStatus:"상태", thNotes:"비고 / 사유", hNext:"다음 선불 기간 미리 계산",
   hSettings:"나의 수업 설정", sStart:"시작일", sMonths:"선불 기간(개월)", sTime:"수업 시각", sDur:"수업 길이(분)", sPrice:"1 Class 가격 (USD)",
@@ -196,7 +260,7 @@ ko: {
     `② 기간 내 일요일 = 선불 수업 <b>${o.prepaid}회</b> (매회 ${o.slot}, ${o.dur}분 = 1 Class)`,
     `③ 선불액: ${o.prepaid}회 × ${o.price} = <b>${o.usd}</b> × ${o.rate} UZS (CBU ${o.rateDate}) = <b>${o.uzs} UZS</b>`,
     `④ 내 사유 취소·No-show ${o.consumed}회 → 선불 차감, 보강 없음`,
-    `⑤ 선생님 사유 ${o.teacher}회 → 각 수업을 맨 뒤로 보강 이동 + 그다음 주 보너스 수업 ${o.bonus}회 ($0)`,
+    `⑤ 선생님 사유 ${o.teacher}회 · 한국 시간 기준 수업 당일 변경, 또는 취소·No-show → 패널티 보너스 수업 총 ${o.bonus}회 ($0). 미리 연락한 변경은 패널티 없음`,
     `⑥ 사전 합의·내 사유 이동 ${o.relocated}회 · Hold ${o.holds}회 → 선불분 유지, 차감 없음`,
     `⑦ 실제 마지막 수업: ${o.last} · 정산 알림: 남은 수업 ${o.N}회가 되는 ${o.alert}`],
   next:(o) => [
@@ -218,9 +282,9 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   copied:"복사됐어요. 카카오톡에 붙여넣으세요.", logCopied:"기록을 복사했어요.", copyFail:"자동 복사가 막혀 있어요. 텍스트를 직접 선택해 복사하세요.", noLogTxt:"(기록 없음)",
   origBonus:(d,x) => ` · ${d} ${x} 선생님 사유 보너스`, origMakeup:(d,x) => ` · ${d} ${x}의 보강`, nowIs:s => `현재: ${s}`,
   datesEdit:"새 날짜·시각 (같은 수업을 그대로 옮김)", datesMove:"연락한 날과 새 날짜",
-  pv:{ delX:"이 추가 수업을 지웁니다. 유료였다면 선불 횟수와 금액도 원래대로 돌아갑니다.", undo:(d,x) => `원래 수업 ${d} ${x}을(를) 되살리고, 거기서 생긴 보강·보너스를 모두 지웁니다.`, already:"이미 예정 상태예요. 바꿀 것이 없습니다.", pick:"위에서 할 일을 고르세요.", done:"이 수업을 완료로 표시합니다.", plan:"예정 상태로 되돌리고, 이 수업에서 생긴 보강·보너스를 해제합니다.",
+  pv:{ holdPenalty:`<b>선생님 사유 · 당일 보류 (한국 시간 기준):</b> 날짜 미정으로 보류하고, 마지막 수업 다음 일요일에 <b>패널티 보너스 수업 1회($0)</b>가 생깁니다.`, noPenalty:"선생님 사유지만 수업 전날 이전(한국 시간 기준)에 연락해 패널티 보너스는 없습니다.", teacherDate:`<b>선생님 사유 · 당일 변경 (한국 시간 기준):</b> 지정한 날짜로 옮기고, 마지막 수업 다음 일요일에 <b>보너스 수업 1회($0)</b>가 새로 생깁니다. 사유가 기록에 남습니다.`, editBonus:`<b>선생님 사유 · 당일 변경 (한국 시간 기준):</b> 날짜·시각만 바꾸고 <b>보너스 수업 1회($0)</b>가 무조건 추가됩니다.`, editNoBonus:"선생님 사유지만 수업 당일(한국 시간 기준) 변경이 아니라 보너스는 없습니다 (날짜·시각만 변경).", delX:"이 추가 수업을 지웁니다. 유료였다면 선불 횟수와 금액도 원래대로 돌아갑니다.", undo:(d,x) => `원래 수업 ${d} ${x}을(를) 되살리고, 거기서 생긴 보강·보너스를 모두 지웁니다.`, already:"이미 예정 상태예요. 바꿀 것이 없습니다.", pick:"위에서 할 일을 고르세요.", done:"이 수업을 완료로 표시합니다.", plan:"예정 상태로 되돌리고, 이 수업에서 생긴 보강·보너스를 해제합니다.",
     edit:"같은 수업의 날짜·시각만 바꿉니다. 선불 차감이나 보너스는 없습니다.", cause:"사유가 누구에게 있는지 고르세요.",
-    teacher:`<b>선생님 사유 규칙:</b> 이 수업은 마지막 수업 다음 일요일로 자동 이동(보강)되고, 그다음 주에 <b>보너스 수업 1회($0)</b>가 새로 생깁니다. 사유가 기록에 남습니다.`,
+    teacher:`<b>선생님 사유 · 당일(한국 시간) 변경 또는 취소·No-show:</b> 이 수업은 마지막 수업 다음 일요일로 자동 이동(보강)되고, 그다음 주에 <b>패널티 보너스 수업 1회($0)</b>가 새로 생깁니다. 사유가 기록에 남습니다.`,
     consumed:a => `내 사유 ${a}: 선불 1회가 차감되고 보강은 없습니다. 기록에 남습니다.`,
     hold:"날짜 미정으로 보류합니다 (선불 유지).", toDate:"지정한 날짜로 옮깁니다 (선불 유지).", toEnd:"마지막 수업 다음 일요일로 자동 이동합니다 (선불 유지).",
     head:(a,c,w) => `${a} · ${c} 사유: ${w}`,
@@ -237,15 +301,52 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   fxCross:"2026.11 원화·엔화·위안화 = CBU의 USD/UZS ÷ 각 통화/UZS (원화는 CBU 소수점 둘째 자리 반올림 때문에 ±1원 정도 오차).",
 },
 en: {
-  calHintV:"Tap an upcoming class to request an edit or a move. It takes effect once Edward approves.",
+  rqWhatTeacherDate:(d,tm) => `Move → ${d} ${tm} (teacher’s reason · 1 bonus class)`, rqSameDayBonus:" (teacher’s reason · same-day change in Korea time → 1 bonus class)",
+  nfTitle:"KakaoTalk message", nfCopy:"Copy", nfShare:"Share", nfHint:"Copy it into the group chat with the teacher. Further changes keep adding to this message.",
+  hPend:"Pending requests", pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ Approve", pendReject:"✕ Decline",
+  hMyReq:"My change requests", myNone:"No requests yet.", st_pending:"⏳ Pending", st_approved:"✓ Approved", st_rejected:"✕ Declined", myCancel:"Cancel request",
+  rqSaveFail:e => `Couldn’t save the request (${e})`, rqAlready:"There’s already a pending request for this class.",
+  rqMsg2:o => `[English class – change request]\n${o.target}\nRequest: ${o.what}\nReason: ${o.why}\nFrom: ${o.who}\n\nPlease review and approve on the web 👇\n${o.url}`,
+
+  rrLink:"No ID yet? Request access", hRR:"Request access", rrId:"Preferred ID (lowercase letters / digits)", rrName:"Name", rrSend:"📨 Send request", rrNeedName:"Enter your name.",
+  rrText:o => `[English class app – access request]\nName: ${o.name}\nPreferred ID: ${o.id}\n\nApprove here 👇\n${o.url}`,
+  rrHint:"Send this to Edward on KakaoTalk. Once approved, reopen the site on this device and just choose a password.",
+  rrWaiting:id => `'${id}' waiting for approval`, rrApproved:"Approved! Choose a password to finish registering.",
+  hRA:"Access request", raApprove:"✓ Approve", raReject:"✕ Decline", raNeedTok:"Save the teacher token first under Settings → Users.",
+  raExists:"This ID is already in use. Approving will replace the existing registration.", raDone:n => `Approved. When ${n} reopens the site on the same device, they set a password and they’re done.`,
+
+  roleUser:n => `User · ${n}`, loginTabSub:"ID login", uIdL:"ID", subPwL:"Password", subLoginBtn:"Log in",
+  uNoId:"This ID isn’t registered.", uNotRegistered:"Registration isn’t finished yet. Register first from the invite link you received.",
+  hReg:"Register", regCode:"Invite code (8 characters, from KakaoTalk)", regPw1:"Choose a password (8+ characters)", regPw2:"Confirm password", regBtn:"Register & start",
+  regPwRule:"Use 8+ characters and type the same password twice.", regNoInvite:"There’s no pending invite for this ID. Ask Edward to invite you again.", regBadCode:"Wrong invite code.",
+  regHint:"After registering you’re logged in on this device. On other devices, log in with your ID and password.",
+  hUsers:"Users (sub-masters)", uTokL:"GitHub token for teachers", uTokSave:"Save token", uTokChange:"Change token", uTokSet:"Teacher token: set (this device)", uTokUnset:"Teacher token: not set",
+  uTokHelp:'Create <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">one more token</a>: Only select repositories → <b>english-class-calendar only</b> (not the private repo) → Contents: Read and write. Each invite stores it locked with that user’s own password.',
+  uNewId:"ID (lowercase letters / digits)", uNewName:"Name", uInviteBtn:"+ Create invite", uNone:"No users yet.",
+  uActive:d => `Active · registered ${d}`, uInvited:d => `Invited (waiting) · ${d}`, uReinvite:"Re-invite", uDelete:"Delete",
+  uNeedTok:"Save the teacher token first.", uIdRule:"Use 2–20 lowercase letters, digits, or . - _ for the ID.", uDup:"That ID already exists. Use ‘Re-invite’ in the list.",
+  uDeleted:"Deleted. To also block devices already logged in, delete the teacher token on GitHub and re-invite with a new one.",
+  uInviteMsg:o => `[English class app – invitation]\nHi ${o.name}, you’re invited to the English class calendar.\n\nID: ${o.id}\nInvite code: ${o.code}\n\nOpen the link below and enter the invite code and a password of your choice to register.\n${o.link}`,
+  uInviteHint:"Send this on KakaoTalk. The invite code stops working once it’s used.",
+
+  roleSub:"", calHintS:"Tap an upcoming class to request an edit or a move. It takes effect once Edward approves it on the web.", byTeacher:"Teacher",
+  loginTabMaster:"Master (Edward)",
+  subBadPw:"Wrong password.",
+ 
+ 
+  subTooWide:r => `This token can also open the private repo (${r}). Make a new one with only english-class-calendar selected.`,
+ 
+ 
+
+  calHintV:"View only. Registered users can log in to request edits or moves.",
   rcStudent:"Student’s reason", rqReason:"Reason", rqNotePh:"Details (optional)", rqSend:"📨 Send change request", rqCopy:"Copy request",
-  rqOutHint:"Send this to Edward on KakaoTalk. Once he opens the link and approves, the calendar updates.",
+  rqOutHint:"Your request is saved as pending. Send this to Edward on KakaoTalk to let him know.",
   rqReasons:["Teacher – personal reasons","Teacher – travel","Health","Internet / technical problem","Student’s request","Public holiday","Other"],
   rqTitle:(d,x) => `${d} · request a change to ${x}`, rqPick:"Choose Edit or Move.", rqNeedCause:"Choose whose reason it is.", rqNeedDate:"Pick a new date.",
   rqPvEdit:(d,tm) => `Asks to reschedule this class to ${d} ${tm}.`, rqPvFoot:"Edward (master) must approve the request before it takes effect.",
   rqMsg:(o) => `[English class – change request]\n${o.target}\nRequest: ${o.what}\nReason: ${o.why}\n\nApprove here 👇\n${o.url}`,
   rqWhatEdit:(d,tm) => `Edit → ${d} ${tm}`, rqWhatEnd:"Move → after the last class (auto)", rqWhatDate:(d,tm) => `Move → ${d} ${tm}`,
-  rqWhatTeacher:"Move → teacher’s-reason rule (makeup at the end + bonus)",
+  rqWhatTeacher:"Move → after the last class (teacher’s reason · same day in Korea time → 1 penalty bonus class)", rqNoPenalty:" (teacher’s reason · notice given in advance → no penalty)",
   rqInTitle:"Teacher’s change request", rqApprove:"✓ Approve & apply", rqReject:"✕ Decline", rqNeedLogin:"Log in as master to approve.",
   rqTarget:"Class", rqWhat:"Request", rqWhy:"Reason", rqWhen:"Requested at", rqStale:"⚠ This class’s date or status changed after the request. Check before approving.",
   rqGone:"The requested class can’t be found (already deleted or changed).", rqTag:"Teacher request", rqRejected:(x) => `Teacher’s change request declined: ${x}`,
@@ -276,7 +377,7 @@ en: {
   logAdd:(d,tm,x,p) => `${d} ${tm} ${x} added (${p ? "paid" : "free"})`, logDel:(d,x) => `${d} ${x} deleted`,
   basisExtra:(p,f) => `②+ Extra classes: ${p+f} (${p} paid · ${f} free) — paid ones count as prepaid classes`, lg9:"Extra class",
 
-  roleMaster:u => `Master · ${u}`, roleViewer:"Teacher (changes by request)", login:"Master login", logout:"Log out", teacherLinkBtn:"Copy teacher link",
+  roleMaster:u => `Master · ${u}`, roleViewer:"View only", login:"Master login", logout:"Log out", teacherLinkBtn:"Copy teacher link",
   linkCopied:u => `Teacher link copied: ${u}`,
   syncLoading:"Loading…", syncLoaded:d => `Last updated ${d}`, syncPending:"Waiting to save…", syncSaving:"Saving to GitHub…",
   syncSaved:d => `Saved · ${d}`, syncFail:e => `Save failed (${e}) — check the token’s permissions`, syncOffline:"Couldn’t load from GitHub; showing this browser’s data",
@@ -297,7 +398,7 @@ en: {
   aUndo:"↩ Undo move (back to original)", close:"Close", qDone:"✓ Done", qEdit:"✎ Edit", qMove:"→ Move", hOther:"Other", aCancel:"Cancel", aPlan:"Reset to scheduled",
   hCause:"Whose reason is it?", cMe:"Me (student)", cTeacher:"Teacher", cMutual:"Agreed in advance",
   hHow:"Move it where?", howEnd:"Auto: after the last class", howDate:"Pick a date",
-  lAgreed:"Date we agreed", lTo:"New date", lToTime:"New time", lMemo:"Reason", memoPh:"e.g. teacher travelling, family event, internet outage …",
+  lAgreed:"Date contacted (Korea date)", lTo:"New date", lToTime:"New time", lMemo:"Reason", memoPh:"e.g. teacher travelling, family event, internet outage …",
   apply:"Apply", calHint:"Click a class to mark it done, edit, move, hold, cancel or no-show; click an empty day to add a class there.",
   hBasis:"How it’s calculated", hList:"Class list", thDate:"Date", thType:"Type", thStatus:"Status", thNotes:"Notes / reason", hNext:"Next prepaid period (estimate)",
   hSettings:"My class settings", sStart:"Start date", sMonths:"Prepaid period (months)", sTime:"Class time", sDur:"Length (min)", sPrice:"Price per class (USD)",
@@ -331,7 +432,7 @@ en: {
     `② Sundays in the period = <b>${o.prepaid} prepaid classes</b> (each ${o.slot}, ${o.dur} min = 1 class)`,
     `③ Prepaid: ${o.prepaid} × ${o.price} = <b>${o.usd}</b> × ${o.rate} UZS (CBU ${o.rateDate}) = <b>${o.uzs} UZS</b>`,
     `④ My cancellations / no-shows: ${o.consumed} → used from prepaid, no makeup`,
-    `⑤ Teacher’s reason: ${o.teacher} → each moved to the end as a makeup + ${o.bonus} bonus class(es) the week after ($0)`,
+    `⑤ Teacher’s reason: ${o.teacher} · same-day changes (Korea time) or cancel / no-show → ${o.bonus} penalty bonus class(es) in total ($0). Changes with advance notice: no penalty`,
     `⑥ Moves by me or by agreement: ${o.relocated} · On hold: ${o.holds} → stays prepaid, nothing used`,
     `⑦ Actual last class: ${o.last} · Payment alert on ${o.alert}, when ${o.N} classes are left`],
   next:(o) => [
@@ -353,9 +454,9 @@ ${o.nn} × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   copied:"Copied. Paste it into KakaoTalk.", logCopied:"Log copied.", copyFail:"Copying is blocked here. Select the text and copy it manually.", noLogTxt:"(no entries)",
   origBonus:(d,x) => ` · bonus for teacher’s cancellation of ${x} on ${d}`, origMakeup:(d,x) => ` · makeup for ${x} on ${d}`, nowIs:s => `Now: ${s}`,
   datesEdit:"New date & time (same class, just rescheduled)", datesMove:"Contact date & new date",
-  pv:{ delX:"Deletes this extra class. If it was paid, the prepaid count and amount go back too.", undo:(d,x) => `Restores the original class ${x} on ${d} and removes the makeup and bonus created from it.`, already:"Already scheduled — nothing to change.", pick:"Choose what to do above.", done:"Marks this class as done.", plan:"Resets to scheduled and removes any makeup or bonus created from this class.",
+  pv:{ holdPenalty:`<b>Teacher’s reason · same-day hold (Korea time):</b> put on hold with no date yet, and a <b>penalty bonus class ($0)</b> is added on the Sunday after the last class.`, noPenalty:"Teacher’s reason, but notice was given before the class day (Korea time), so no penalty bonus.", teacherDate:`<b>Teacher’s reason · same-day change (Korea time):</b> moves the class to the date you pick, and a new <b>bonus class ($0)</b> is added on the Sunday after the last class. The reason is logged.`, editBonus:`<b>Teacher’s reason · same-day change (Korea time):</b> only the date/time changes, and a <b>bonus class ($0)</b> is always added.`, editNoBonus:"Teacher’s reason, but not changed on the class day (Korea time), so no bonus (date/time change only).", delX:"Deletes this extra class. If it was paid, the prepaid count and amount go back too.", undo:(d,x) => `Restores the original class ${x} on ${d} and removes the makeup and bonus created from it.`, already:"Already scheduled — nothing to change.", pick:"Choose what to do above.", done:"Marks this class as done.", plan:"Resets to scheduled and removes any makeup or bonus created from this class.",
     edit:"Changes only this class’s date and time. Nothing is used from prepaid and no bonus is added.", cause:"Choose whose reason it is.",
-    teacher:`<b>Teacher’s-reason rule:</b> this class moves automatically to the Sunday after the last class (makeup), and a new <b>bonus class ($0)</b> is added the week after. The reason is logged.`,
+    teacher:`<b>Teacher’s reason · same-day change (Korea time) or cancel / no-show:</b> this class moves automatically to the Sunday after the last class (makeup), and a <b>penalty bonus class ($0)</b> is added the week after. The reason is logged.`,
     consumed:a => `${a} for my own reason: 1 prepaid class is used, no makeup. It’s logged.`,
     hold:"Puts it on hold with no date yet (stays prepaid).", toDate:"Moves it to the date you pick (stays prepaid).", toEnd:"Moves it to the Sunday after the last class (stays prepaid).",
     head:(a,c,w) => `${a} · ${c==="mutual agreement"?"by mutual agreement":"by "+c}: ${w}`,
@@ -397,8 +498,11 @@ function addMonths(d,n){
 function nextSundayAfter(d){ let x = addDays(d,1); while (x.getUTCDay() !== 0) x = addDays(x,1); return x; }
 function kdate(d){ return t("kdate")(d.getUTCFullYear(), d.getUTCMonth()+1, d.getUTCDate(), t("dow")[d.getUTCDay()]); }
 function sdate(d){ return `${d.getUTCMonth()+1}/${d.getUTCDate()}`; }
-function todayStr(){ const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; }
-function nowStamp(){ const n = new Date(); return `${todayStr()} ${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`; }
+// 모든 날짜·시각은 한국 시간(Asia/Seoul, KST) 기준 — 선생님이 다른 나라에서 열어도 '당일'과 기록 시각이 같게 나옴
+const KST_FMT = new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Seoul", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
+function kstParts(d){ const o = {}; KST_FMT.formatToParts(d || new Date()).forEach(p => o[p.type] = p.value); return o; }
+function todayStr(){ const p = kstParts(); return `${p.year}-${p.month}-${p.day}`; }
+function nowStamp(){ const p = kstParts(); return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`; }
 const usd = v => "$" + v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 const uzs = v => Math.round(v).toLocaleString("en-US") + " UZS";
 const uzs2 = v => v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -435,6 +539,7 @@ function labelOf(s){
 function klass(s){
   const a = s.act, c = s.cause;
   if (a === "plan" || a === "done") return a;
+  if (a === "hold") return "hold";
   if (c === "teacher") return "teacher";
   if ((a === "cancel" || a === "noshow") && c === "me") return "consumed";
   if (a === "hold") return "hold";
@@ -448,29 +553,32 @@ function statusText(s){
 
 function buildSessions(P, C){
   const S = P.list.map((d,i) => ({id:"R"+(i+1), d, kind:"reg", no:i+1, time:C.time}));
-  extras.slice().sort((a,b) => a.date.localeCompare(b.date)).forEach((x,i) => S.push({id:x.id, d:parse(x.date), kind:"extra", xno:i+1, paid:x.paid, time:x.time || C.time}));
+  extras.filter(x => x && DATE_RE.test(x.date || "") && /^X\w+$/.test(x.id || "")).sort((a,b) => a.date.localeCompare(b.date)).forEach((x,i) => S.push({id:x.id, d:parse(x.date), kind:"extra", xno:i+1, paid:x.paid, time:safeTime(x.time, C.time)}));
   let bonusNo = 0;
   const endSlot = () => nextSundayAfter(S.reduce((m,x) => x.d > m ? x.d : m, P.start));
   for (let i=0; i<S.length; i++){
     const s = S[i], meta = state[s.id] || {};
     s.meta = meta; s.act = meta.act || "plan"; s.cause = meta.cause || null;
     s.origD = s.d;
-    if (meta.ed){ s.d = parse(meta.ed.date); s.time = meta.ed.time || s.time; s.edited = true; }
+    if (meta.ed && DATE_RE.test(meta.ed.date || "")){ s.d = parse(meta.ed.date); s.time = safeTime(meta.ed.time, s.time); s.edited = true; }
+    if (meta.ed && meta.edCause === "teacher" && meta.edSameDay){          // 선생님 사유 당일 변경 → 무조건 보너스
+      const bn = {id:"BE:"+s.id, kind:"bonus", bno:++bonusNo, from:s, d:endSlot(), time:C.time};
+      S.push(bn); s.children = [bn];
+    }
     const relocate = !["plan","done"].includes(s.act) && !occupies(s);
     if (!relocate) continue;
-    if (s.cause === "teacher"){
-      const mk = {id:"M:"+s.id, kind:"moved", from:s, d:endSlot(), time:C.time};
-      S.push(mk);
-      const bn = {id:"B:"+s.id, kind:"bonus", bno:++bonusNo, from:s, d:endSlot(), time:C.time};
-      S.push(bn);
-      s.children = [mk, bn];
-    } else if (s.act === "move" && meta.how === "date" && meta.to){
-      const mk = {id:"M:"+s.id, kind:"moved", from:s, d:parse(meta.to), time:meta.toTime || C.time};
-      S.push(mk); s.children = [mk];
-    } else if (s.act === "move" || s.act === "cancel" || s.act === "noshow"){
-      const mk = {id:"M:"+s.id, kind:"moved", from:s, d:endSlot(), time:C.time};
-      S.push(mk); s.children = [mk];
-    }
+    // 패널티(보너스 1회): 선생님 사유 취소·No-show는 항상, 이동·Hold는 한국 시간 기준 수업 당일 연락일 때만
+    const penalty = s.cause === "teacher" && (s.act === "cancel" || s.act === "noshow" || ((s.act === "move" || s.act === "hold") && (meta.notice ?? 0) <= 0));
+    const kids = [];
+    if (s.act === "move"){
+      const toDate = meta.how === "date" && DATE_RE.test(meta.to || "") && meta.to;
+      kids.push({id:"M:"+s.id, kind:"moved", from:s, d: toDate ? parse(meta.to) : endSlot(), time: toDate ? safeTime(meta.toTime, C.time) : C.time});
+    } else if ((s.act === "cancel" || s.act === "noshow") && s.cause !== "me"){
+      kids.push({id:"M:"+s.id, kind:"moved", from:s, d:endSlot(), time:C.time});     // 선생님·합의 취소 → 맨 뒤 보강
+    }                                                                                 // Hold → 날짜 미정 (보강 없음)
+    kids.forEach(k => S.push(k));
+    if (penalty){ const bn = {id:"B:"+s.id, kind:"bonus", bno:++bonusNo, from:s, d:endSlot(), time:C.time}; S.push(bn); kids.push(bn); }
+    if (kids.length) s.children = (s.children || []).concat(kids);
   }
   return S;
 }
@@ -488,7 +596,7 @@ function applyStatic(){
 }
 function setLang(l){
   lang = l; try { localStorage.setItem(LANGKEY, l); } catch(e) {}
-  applyStatic(); renderAcct(); render(); renderPayments();
+  applyStatic(); renderAcct(); render(); renderPayments(); renderPending();
   if ($("fxModal").classList.contains("on")) drawFx();
 }
 document.querySelectorAll("[data-lang]").forEach(b => b.onclick = () => setLang(b.dataset.lang));
@@ -503,7 +611,7 @@ function render(){
   const prepaidUsd = prepaid*C.price, prepaidUzs = prepaidUsd*C.rate;
 
   const timeline = S.filter(occupies).sort(byTime);
-  const holds = S.filter(s => s.act === "hold" && s.cause !== "teacher");
+  const holds = S.filter(s => s.act === "hold");
   const bonusCount = S.filter(s => s.kind === "bonus").length;
   const movedCount = S.filter(s => s.kind === "moved").length;
   const lastSession = timeline.length ? timeline[timeline.length-1].d : P.end;
@@ -590,8 +698,9 @@ function render(){
           it.textContent = `${labelOf(s)} ${short}`;
           it.title = `${labelOf(s)} · ${statusText(s)}${s.meta&&s.meta.memo?" · "+s.meta.memo:""}`;
           if (isMaster()) it.onclick = () => selectSession(selected === s.id ? null : s.id);
-          else if (s.act === "plan" && s.d >= C.asof) it.onclick = () => openReq(reqSid === s.id ? null : s.id);
+          else if (isSub() && s.act === "plan" && s.d >= C.asof && !pendingFor(s.id)) it.onclick = () => openReq(reqSid === s.id ? null : s.id);
           else it.style.cursor = "default";
+          if (pendingFor(s.id)){ it.classList.add("pending"); it.textContent += " ⏳"; it.title += " · " + t("st_pending"); }
           if (reqSid === s.id) it.classList.add("sel");
           el.appendChild(it);
         });
@@ -606,13 +715,13 @@ function render(){
   const sel = selected && S.find(s => s.id === selected);
   if (sel){ renderPanel(sel, C); positionPanel(); }
   else { $("actions").className = "actions"; selected = null; }
-  const rs = reqSid && !isMaster() && S.find(x => x.id === reqSid);
+  const rs = reqSid && isSub() && S.find(x => x.id === reqSid);
   if (rs){ renderReq(rs, C); positionPop($("reqPanel"), $("calcard").querySelector(".it.sel")); } else { $("reqPanel").className = "actions"; reqSid = null; }
   if (addDate && isMaster()){ renderAdd(C); positionPop($("addPanel"), document.querySelector(`.day[data-date="${addDate}"]`)); }
   else { $("addPanel").className = "actions"; addDate = null; }
 
   // 보류 목록
-  $("holds").innerHTML = holds.length ? holds.map(h => `<div><span>${kdate(h.d)} ${labelOf(h)}<br><span class="hint">${t("cause")[h.cause]} · ${h.meta.memo||t("noReason")}</span></span>
+  $("holds").innerHTML = holds.length ? holds.map(h => `<div><span>${kdate(h.d)} ${labelOf(h)}<br><span class="hint">${t("cause")[h.cause]} · ${esc(h.meta.memo||t("noReason"))}</span></span>
       ${isMaster()?`<button class="ghost" data-sel="${h.id}">${t("pickDate")}</button>`:""}</div>`).join("")
     : `<div class="empty">${t("noHolds")}</div>`;
   $("holds").querySelectorAll("[data-sel]").forEach(x => x.onclick = () => {
@@ -637,7 +746,7 @@ function render(){
     const cc = s.act==="done" ? "c-done" : s.act==="plan" ? "" : s.cause ? "c-"+s.cause : "";
     return `<tr><td>${kdate(s.d)} ${s===alertItem?"🔔":""}<br><span class="hint">${tEnd(s.time)}</span></td>
       <td><span class="tag ${s.kind}">${labelOf(s)}</span></td>
-      <td class="${cc}">${statusText(s)}</td><td>${notes.join("<br>")}</td><td class="r mono usdcol">${fee}</td></tr>`;
+      <td class="${cc}">${statusText(s)}</td><td>${notes.map(esc).join("<br>")}</td><td class="r mono usdcol">${fee}</td></tr>`;
   }).join("") + `<tr><th colspan="4">${t("listFoot")(prepaid, bonusCount, movedCount)}</th><th class="r mono usdcol">${usd(prepaidUsd)}</th></tr>`;
 
   // 근거
@@ -655,7 +764,7 @@ function render(){
 
   // 기록
   $("logCount").textContent = log.length ? "(" + t("logCountTxt")(log.length) + ")" : "";
-  $("log").innerHTML = log.length ? log.slice().reverse().map(l => `<div class="logrow"><div><time>${l.at}</time>${l[lang] || l.ko || l.text || ""}</div>${isMaster() ? `<button class="logdel" data-id="${logId(l)}" title="${t("logDel")}">×</button>` : ""}</div>`).join("")
+  $("log").innerHTML = log.length ? log.slice().reverse().map(l => `<div class="logrow"><div><time>${esc(l.at)}${l.by ? ` · <span class="bytag">${esc(l.by)}</span>` : ""}</time>${esc(l[lang] || l.ko || l.text || "")}</div>${isMaster() ? `<button class="logdel" data-id="${esc(logId(l))}" title="${t("logDel")}">×</button>` : ""}</div>`).join("")
     : `<div class="empty">${t("noLog")}</div>`;
 
   $("log").querySelectorAll(".logdel").forEach(btn => btn.onclick = () => removeLogs([btn.dataset.id]));
@@ -718,6 +827,228 @@ document.addEventListener("mousedown", e => {
   addDate = null; selectSession(null);
 });
 
+/* ---------- 사용자(보조 마스터) 관리: 아이디 발급 → 카톡 초대 → 본인 등록 ---------- */
+// data/users.json 에는 사용자별로 '선생님용 토큰'을 각자의 비밀번호(처음엔 초대 코드)로 암호화한 값만 저장합니다.
+// (PBKDF2-SHA256 25만 회 + AES-GCM) — 토큰 원문이나 비밀번호는 어디에도 저장되지 않습니다.
+const USERS_PATH = "data/users.json", TTOKKEY = "eng-class-teacher-token";
+const bytes2b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
+const b642bytes = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function deriveKey(pw, salt, iter){
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations: iter, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+async function lockToken(token, pw){
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)), iter = 250000;
+  const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, await deriveKey(pw, salt, iter), new TextEncoder().encode(token));
+  return {iter, salt: bytes2b64(salt), iv: bytes2b64(iv), ct: bytes2b64(ct)};
+}
+async function unlockToken(box, pw){
+  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv: b642bytes(box.iv)}, await deriveKey(pw, b642bytes(box.salt), box.iter), b642bytes(box.ct));
+  return new TextDecoder().decode(pt);
+}
+function inviteCode(){ const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; return Array.from(crypto.getRandomValues(new Uint8Array(8)), n => A[n % A.length]).join(""); }
+const normId = s => String(s || "").trim().toLowerCase();
+async function fetchUsers(){
+  const c = repoCoords();
+  try {
+    const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${USERS_PATH}?ref=${BRANCH}&t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
+    if (r.status === 404) return {users: [], sha: null};
+    if (!r.ok) throw 0;
+    const j = await r.json(); return {users: (JSON.parse(b64dec(j.content)).users || []).filter(u => u && /^[a-z0-9._-]{2,20}$/.test(u.id || "")), sha: j.sha};
+  } catch(e) {
+    const r2 = await fetch(`${USERS_PATH}?t=${Date.now()}`, {cache:"no-store"});
+    return {users: r2.ok ? ((await r2.json()).users || []) : [], sha: null};
+  }
+}
+async function saveUsers(users, sha, token, message){
+  const c = repoCoords();
+  const body = {message, content: b64enc(JSON.stringify({users}, null, 1)), branch: BRANCH}; if (sha) body.sha = sha;
+  const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${USERS_PATH}`, {method:"PUT",
+    headers:{Accept:"application/vnd.github+json", Authorization:"Bearer " + token, "Content-Type":"application/json"}, body: JSON.stringify(body)});
+  if (!r.ok) throw new Error("HTTP " + r.status);
+}
+function becomeUser(u, token){
+  const c = repoCoords();
+  auth = {token, owner: c.owner, repo: c.repo, role: "sub", login: u.id, name: u.name};
+  try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
+}
+// 아이디 로그인
+async function doSubLogin(){
+  const out = $("loginMsg"), id = normId($("subId").value), pw = $("subPw").value;
+  out.className = "hint"; out.textContent = t("loginChecking");
+  try {
+    const {users} = await fetchUsers();
+    const u = users.find(x => x.id === id);
+    if (!u) throw new Error(t("uNoId"));
+    if (u.status !== "active") throw new Error(t("uNotRegistered"));
+    let token; try { token = await unlockToken(u.box, pw); } catch(e) { throw new Error(t("subBadPw")); }
+    becomeUser(u, token);
+    $("loginModal").classList.remove("on"); $("subPw").value = "";
+    renderAcct(); await loadRemote(); loadRequests();
+  } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
+}
+// 초대 링크로 등록 (#invite=아이디)
+async function doRegister(){
+  const out = $("regMsg"), id = normId($("regId").value), code = $("regCode").value.trim().toUpperCase(), p1 = $("regPw1").value, p2 = $("regPw2").value;
+  out.className = "hint";
+  if (p1.length < 8 || p1 !== p2){ out.className = "hint bad"; out.textContent = t("regPwRule"); return; }
+  out.textContent = t("loginChecking");
+  try {
+    const {users, sha} = await fetchUsers();
+    const u = users.find(x => x.id === id);
+    if (!u || u.status !== "invited") throw new Error(t("regNoInvite"));
+    let token; try { token = await unlockToken(u.box, code); } catch(e) { throw new Error(t("regBadCode")); }
+    u.box = await lockToken(token, p1); u.status = "active"; u.registeredAt = new Date().toISOString();
+    await saveUsers(users, sha, token, `User registered: ${u.id}`);
+    try { localStorage.removeItem(PENDKEY); } catch(e) {}
+    becomeUser(u, token);
+    $("regModal").classList.remove("on");
+    try { history.replaceState(null, "", location.pathname); } catch(e) {}
+    renderAcct(); await loadRemote(); loadRequests();
+  } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
+}
+function checkInvite(){
+  const m = location.hash.match(/^#invite=([a-z0-9._-]+)$/i);
+  if (!m || isEditor()) return;
+  $("regId").value = m[1]; $("regCode").value = ""; $("regCodeWrap").style.display = ""; $("regPw1").value = $("regPw2").value = ""; $("regMsg").textContent = "";
+  openModal("regModal");
+}
+// 마스터: 사용자 목록 · 초대 · 다시 초대 · 삭제
+let teacherToken = ""; try { teacherToken = localStorage.getItem(TTOKKEY) || ""; } catch(e) {}
+async function renderUsers(){
+  if (!isMaster()) return;
+  $("uTokState").textContent = teacherToken ? t("uTokSet") : t("uTokUnset");
+  $("uTokWrap").style.display = teacherToken ? "none" : "";
+  const {users} = await fetchUsers();
+  $("uList").innerHTML = users.length ? users.map(u => `<div class="urow"><span><b>${esc(u.id)}</b> · ${esc(u.name)}<br>
+      <span class="hint">${u.status === "active" ? t("uActive")(fmtStamp(u.registeredAt)) : t("uInvited")(fmtStamp(u.invitedAt))}</span></span>
+      <span><button class="ghost sm" data-reinv="${u.id}">${t("uReinvite")}</button> <button class="ghost sm danger" data-udel="${u.id}">${t("uDelete")}</button></span></div>`).join("")
+    : `<div class="empty">${t("uNone")}</div>`;
+  $("uList").querySelectorAll("[data-reinv]").forEach(b => b.onclick = () => invite(b.dataset.reinv));
+  $("uList").querySelectorAll("[data-udel]").forEach(b => b.onclick = () => deleteUser(b.dataset.udel, b));
+}
+async function setTeacherToken(){
+  const tok = $("uToken").value.trim(), out = $("uMsg"); out.className = "hint"; out.textContent = t("loginChecking");
+  try {
+    const r = await fetch(`https://api.github.com/repos/${auth.owner}/${auth.repo}`, {headers:{Accept:"application/vnd.github+json", Authorization:"Bearer " + tok}});
+    const j = r.ok ? await r.json() : null;
+    if (!j || !(j.permissions && j.permissions.push)) throw new Error(t("loginNoPush"));
+    const pr = await fetch(`https://api.github.com/repos/${auth.owner}/${privRepo()}`, {headers:{Accept:"application/vnd.github+json", Authorization:"Bearer " + tok}});
+    if (pr.ok) throw new Error(t("subTooWide")(privRepo()));
+    teacherToken = tok; try { localStorage.setItem(TTOKKEY, tok); } catch(e) {}
+    $("uToken").value = ""; out.textContent = ""; renderUsers();
+  } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
+}
+async function invite(idArg){
+  const out = $("uMsg"); out.className = "hint";
+  const id = normId(idArg || $("uNewId").value), name = idArg ? null : $("uNewName").value.trim();
+  if (!teacherToken){ out.className = "hint bad"; out.textContent = t("uNeedTok"); return; }
+  if (!/^[a-z0-9._-]{2,20}$/.test(id)){ out.className = "hint bad"; out.textContent = t("uIdRule"); return; }
+  try {
+    const {users, sha} = await fetchUsers();
+    let u = users.find(x => x.id === id);
+    if (u && !idArg){ out.className = "hint bad"; out.textContent = t("uDup"); return; }
+    const code = inviteCode();
+    if (!u){ u = {id, name: name || id}; users.push(u); }
+    u.box = await lockToken(teacherToken, code); u.status = "invited"; u.invitedAt = new Date().toISOString(); delete u.registeredAt;
+    await saveUsers(users, sha, auth.token, `Invite user: ${id}`);
+    $("uNewId").value = $("uNewName").value = "";
+    const link = teacherLink() + "#invite=" + id;
+    $("uInvite").value = t("uInviteMsg")({name: u.name, id, code, link});
+    $("uInviteBox").style.display = "";
+    renderUsers();
+  } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
+}
+async function deleteUser(id, btn){
+  if (btn.dataset.arm !== "1"){ btn.dataset.arm = "1"; btn.textContent = t("payDelQ"); return; }
+  const {users, sha} = await fetchUsers();
+  await saveUsers(users.filter(u => u.id !== id), sha, auth.token, `Remove user: ${id}`);
+  $("uMsg").className = "hint"; $("uMsg").textContent = t("uDeleted"); renderUsers();
+}
+$("doSubLogin").onclick = doSubLogin;
+$("subPw").addEventListener("keydown", e => { if (e.key === "Enter") doSubLogin(); });
+$("doRegister").onclick = doRegister;
+$("uTokSave").onclick = setTeacherToken;
+$("uTokChange").onclick = () => { $("uTokWrap").style.display = ""; };
+$("uInviteBtn").onclick = () => invite();
+$("uInviteCopy").onclick = () => copy($("uInvite").value, t("copied"));
+document.querySelectorAll("#loginTabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#loginTabs button").forEach(x => x.classList.toggle("on", x === b));
+  $("loginMaster").style.display = b.dataset.v === "master" ? "" : "none";
+  $("loginSub").style.display = b.dataset.v === "sub" ? "" : "none";
+  $("loginMsg").textContent = "";
+});
+window.addEventListener("hashchange", checkInvite);
+/* ---------- 등록 요청 → 마스터 승인 → (같은 기기에서) 비밀번호 정하고 완료 ---------- */
+const PENDKEY = "eng-class-pending-reg";
+let incomingReg = null;
+$("regReqLink").onclick = e => { e.preventDefault(); $("loginModal").classList.remove("on"); $("rrOut").style.display = "none"; $("rrMsg").textContent = ""; openModal("regReqModal"); };
+$("rrSend").onclick = async () => {
+  const id = normId($("rrId").value), name = $("rrName").value.trim(), out = $("rrMsg");
+  out.className = "hint";
+  if (!/^[a-z0-9._-]{2,20}$/.test(id)){ out.className = "hint bad"; out.textContent = t("uIdRule"); return; }
+  if (!name){ out.className = "hint bad"; out.textContent = t("rrNeedName"); return; }
+  const s = inviteCode() + inviteCode();                     // 이 기기에만 남는 1회용 비밀값
+  try { localStorage.setItem(PENDKEY, JSON.stringify({id, name, s})); } catch(e) {}
+  const url = teacherLink() + "#regreq=" + b64url(JSON.stringify({id, name, s, at: nowStamp()}));
+  const text = t("rrText")({id, name, url});
+  $("rrText").value = text; $("rrOut").style.display = "";
+  if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){ try { await navigator.share({text}); } catch(e) {} }
+};
+$("rrCopy").onclick = () => copy($("rrText").value, t("copied"));
+// 마스터: #regreq= 링크를 열면 승인 창
+function checkRegReq(){
+  const m = location.hash.match(/^#regreq=([A-Za-z0-9_-]+)$/);
+  if (!m) return;
+  try { incomingReg = JSON.parse(unb64url(m[1])); } catch(e){ incomingReg = null; return; }
+  showRegApprove();
+}
+async function showRegApprove(){
+  const r = incomingReg; if (!r) return;
+  $("raBody").innerHTML = `<div><b>${t("uIdL")}</b> · ${String(r.id).replace(/</g,"&lt;")}</div><div><b>${t("uNewName")}</b> · ${String(r.name).replace(/</g,"&lt;")}</div><div><b>${t("rqWhen")}</b> · ${esc(r.at)}</div>`;
+  const msg = $("raMsg"); msg.className = "hint"; msg.textContent = "";
+  let ok = isMaster();
+  if (!ok) msg.textContent = t("rqNeedLogin");
+  else if (!teacherToken){ ok = false; msg.className = "hint bad"; msg.textContent = t("raNeedTok"); }
+  else {
+    const {users} = await fetchUsers();
+    const ex = users.find(u => u.id === normId(r.id));
+    if (ex && ex.status === "active"){ msg.className = "hint bad"; msg.textContent = t("raExists"); }
+  }
+  $("raApprove").style.display = ok ? "" : "none";
+  openModal("raModal");
+}
+$("raApprove").onclick = async () => {
+  const r = incomingReg, msg = $("raMsg"); if (!r || !isMaster() || !teacherToken) return;
+  msg.className = "hint"; msg.textContent = t("loginChecking");
+  try {
+    const {users, sha} = await fetchUsers(), id = normId(r.id);
+    let u = users.find(x => x.id === id); if (!u){ u = {id}; users.push(u); }
+    u.name = r.name; u.box = await lockToken(teacherToken, r.s); u.status = "invited"; u.invitedAt = new Date().toISOString(); delete u.registeredAt;
+    await saveUsers(users, sha, auth.token, `Approve registration: ${id}`);
+    msg.textContent = t("raDone")(r.name); $("raApprove").style.display = "none";
+    try { history.replaceState(null, "", location.pathname); } catch(e) {}
+    incomingReg = null;
+  } catch(e) { msg.className = "hint bad"; msg.textContent = e.message; }
+};
+$("raReject").onclick = () => { incomingReg = null; $("raModal").classList.remove("on"); try { history.replaceState(null, "", location.pathname); } catch(e) {} };
+// 요청한 사람: 다시 열었을 때 승인됐는지 확인
+async function checkPendingReg(){
+  if (isEditor()) return;
+  let p = null; try { p = JSON.parse(localStorage.getItem(PENDKEY) || "null"); } catch(e) {}
+  if (!p) return;
+  const {users} = await fetchUsers();
+  const u = users.find(x => x.id === p.id);
+  if (u && u.status === "active"){ try { localStorage.removeItem(PENDKEY); } catch(e) {} return; }
+  let approved = false;
+  if (u && u.status === "invited"){ try { await unlockToken(u.box, p.s); approved = true; } catch(e) {} }
+  if (!approved){ setSync(t("rrWaiting")(p.id)); return; }
+  $("regId").value = p.id; $("regCode").value = p.s; $("regCodeWrap").style.display = "none";
+  $("regPw1").value = $("regPw2").value = ""; $("regMsg").className = "hint"; $("regMsg").textContent = t("rrApproved");
+  openModal("regModal");
+}
+window.addEventListener("hashchange", checkRegReq);
+
 /* ---------- 선생님 변경 요청 → 마스터 승인 ---------- */
 let reqSid = null, rq = {act:null, cause:null, how:"end"};
 const b64url = str => b64enc(str).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
@@ -730,24 +1061,32 @@ function openReq(id){
   render();
 }
 function reqWhat(r, C){
-  if (r.act === "edit") return t("rqWhatEdit")(kdate(parse(r.to)), r.toTime);
-  if (r.cause === "teacher") return t("rqWhatTeacher");
+  if (r.act === "edit") return t("rqWhatEdit")(kdate(parse(r.to)), r.toTime) + (r.cause === "teacher" ? (String(r.at).slice(0,10) === r.d ? t("rqSameDayBonus") : "") : "");
+  if (r.cause === "teacher"){
+    const sd = String(r.at).slice(0,10) === r.d;
+    if (sd) return r.how === "date" ? t("rqWhatTeacherDate")(kdate(parse(r.to)), r.toTime) : t("rqWhatTeacher");
+    return (r.how === "date" ? t("rqWhatDate")(kdate(parse(r.to)), r.toTime) : t("rqWhatEnd")) + t("rqNoPenalty");
+  }
   return r.how === "date" ? t("rqWhatDate")(kdate(parse(r.to)), r.toTime) : t("rqWhatEnd");
 }
 function renderReq(sel, C){
   $("reqTitle").innerHTML = `<b>${t("rqTitle")(kdate(sel.d) + " " + sel.time, labelOf(sel))}</b>`;
   setSeg("reqAct", rq.act); setSeg("reqCause", rq.cause); setSeg("reqHow", rq.how);
   const mv = rq.act === "move";
-  $("reqCauseFld").classList.toggle("on", mv);
-  $("reqHowFld").classList.toggle("on", mv && !!rq.cause && rq.cause !== "teacher");
-  $("reqDateFld").classList.toggle("on", rq.act === "edit" || (mv && !!rq.cause && rq.cause !== "teacher" && rq.how === "date"));
+  $("reqCauseFld").classList.toggle("on", mv || rq.act === "edit");
+  $("reqHowFld").classList.toggle("on", mv && !!rq.cause);
+  $("reqDateFld").classList.toggle("on", rq.act === "edit" || (mv && !!rq.cause && rq.how === "date"));
   if (rq.act === "edit" && !$("reqDate").value) $("reqDate").value = fmt(sel.d);
   const p = $("reqPreview"); p.className = "preview"; let x;
   if (!rq.act) x = t("rqPick");
-  else if (rq.act === "edit") x = $("reqDate").value ? t("rqPvEdit")(kdate(parse($("reqDate").value)), $("reqTime").value) : t("rqNeedDate");
+  else if (rq.act === "edit"){
+    const sd = todayStr() === fmt(sel.d);
+    x = $("reqDate").value ? t("rqPvEdit")(kdate(parse($("reqDate").value)), $("reqTime").value) + (rq.cause === "teacher" ? "<br>" + outcomeHtml("edit", "teacher", null, sd) : "") : t("rqNeedDate");
+    if (rq.cause === "teacher" && sd) p.className = "preview teacher";
+  }
   else if (!rq.cause) x = t("rqNeedCause");
-  else if (rq.cause === "teacher"){ p.className = "preview teacher"; x = t("pv").teacher.replace(/\s?\(\$0\)/, ""); }
-  else x = rq.how === "date" ? t("pv").toDate : t("pv").toEnd;
+  else { const sd = todayStr() === fmt(sel.d); if (rq.cause === "teacher" && sd) p.className = "preview teacher"; x = outcomeHtml("move", rq.cause, rq.how, sd); }
+  x = x.replace(/\s?\(\$0\)/g, "");
   p.innerHTML = x + `<br><span class="hint">${t("rqPvFoot")}</span>`;
 }
 ["reqAct","reqCause","reqHow"].forEach(id => $(id).querySelectorAll("button").forEach(b => b.onclick = () => {
@@ -756,19 +1095,25 @@ function renderReq(sel, C){
 ["reqDate","reqTime"].forEach(id => $(id).addEventListener("input", () => render()));
 $("xReq").onclick = $("reqClose").onclick = () => { reqSid = null; render(); };
 $("reqSend").onclick = async () => {
+  if (!isSub()) return;
   const C = cfg(), sel = buildSessions(sundays(C.start, C.months), C).find(x => x.id === reqSid);
   if (!sel || !rq.act) return;
-  if (rq.act === "move" && !rq.cause) return;
-  const needDate = rq.act === "edit" || (rq.act === "move" && rq.cause !== "teacher" && rq.how === "date");
+  if (rq.act === "move" && !rq.cause){ $("reqPreview").textContent = t("rqNeedCause"); return; }
+  const needDate = rq.act === "edit" || (rq.act === "move" && rq.how === "date");
   if (needDate && !$("reqDate").value){ $("reqPreview").textContent = t("rqNeedDate"); return; }
   const reason = t("rqReasons")[+$("reqReason").value] + ($("reqNote").value.trim() ? " – " + $("reqNote").value.trim() : "");
-  const r = {v:1, id: sel.id, d: fmt(sel.d), act: rq.act, cause: rq.act === "move" ? rq.cause : undefined,
-    how: rq.act === "move" && rq.cause !== "teacher" ? rq.how : undefined,
+  const r = {rid: "Q" + Date.now().toString(36), id: sel.id, d: fmt(sel.d), act: rq.act, cause: rq.cause || undefined,
+    how: rq.act === "move" ? rq.how : undefined,
     to: needDate ? $("reqDate").value : undefined, toTime: needDate ? ($("reqTime").value || C.time) : undefined,
-    reason, at: nowStamp()};
-  const url = teacherLink() + "#req=" + b64url(JSON.stringify(r));
-  const text = t("rqMsg")({target: `${kdate(sel.d)} ${sel.time} ${labelOf(sel)}`, what: reqWhat(r, C), why: reason, url});
-  $("reqText").value = text; $("reqOut").classList.add("on"); positionPop($("reqPanel"), $("calcard").querySelector(".it.sel"));
+    reason, at: nowStamp(), by: auth.login, name: auth.name, status: "pending"};
+  $("reqSend").disabled = true;
+  try {
+    await mutateRequests(list => { if (list.some(x => x.id === r.id && x.status === "pending")) throw new Error(t("rqAlready")); list.push(r); }, `Request from ${r.by}: ${r.d} ${r.act}`);
+  } catch(e){ $("reqSend").disabled = false; $("reqPreview").className = "preview bad"; $("reqPreview").textContent = t("rqSaveFail")(e.message); return; }
+  $("reqSend").disabled = false;
+  const text = t("rqMsg2")({target: `${kdate(sel.d)} ${sel.time} ${labelOf(sel)}`, what: reqWhat(r, C), why: reason, who: `${r.name} (${r.by})`, url: teacherLink()});
+  $("reqText").value = text; $("reqOut").classList.add("on"); render(); renderPending();
+  positionPop($("reqPanel"), $("calcard").querySelector(".it.sel"));
   if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){ try { await navigator.share({text}); } catch(e) {} }
 };
 $("reqCopy").onclick = () => copy($("reqText").value, t("copied"));
@@ -778,7 +1123,7 @@ let incoming = null;
 function checkReq(){
   const m = location.hash.match(/^#req=([A-Za-z0-9_-]+)$/);
   if (!m) return;
-  try { incoming = JSON.parse(unb64url(m[1])); } catch(e){ incoming = null; return; }
+  try { incoming = cleanReq(JSON.parse(unb64url(m[1]))); } catch(e){ incoming = null; } if (!incoming) return;
   showReq();
 }
 function clearReqHash(){ incoming = null; try { history.replaceState(null, "", location.pathname + location.search); } catch(e) { location.hash = ""; } }
@@ -790,7 +1135,7 @@ function showReq(){
   $("reqInBody").innerHTML = lines.map(([k,v]) => `<div><b>${k}</b> · ${String(v).replace(/</g,"&lt;")}</div>`).join("");
   const stale = s && (fmt(s.d) !== r.d || s.act !== "plan");
   const pv = $("reqInPv"); pv.className = "preview" + (r.cause === "teacher" ? " teacher" : "");
-  pv.innerHTML = !s ? t("rqGone") : (stale ? t("rqStale") + "<br>" : "") + (r.act === "edit" ? t("rqPvEdit")(kdate(parse(r.to)), r.toTime) : r.cause === "teacher" ? t("pv").teacher : r.how === "date" ? t("pv").toDate : t("pv").toEnd);
+  pv.innerHTML = !s ? t("rqGone") : (stale ? t("rqStale") + "<br>" : "") + (r.act === "edit" ? t("rqPvEdit")(kdate(parse(r.to)), r.toTime) + (r.cause === "teacher" ? "<br>" + outcomeHtml("edit", "teacher", null, String(r.at).slice(0,10) === r.d) : "") : outcomeHtml("move", r.cause, r.how, String(r.at).slice(0,10) === r.d));
   $("reqApprove").style.display = isMaster() && s ? "" : "none";
   $("reqReject").style.display = isMaster() ? "" : "none";
   $("reqInMsg").textContent = isMaster() ? "" : t("rqNeedLogin");
@@ -798,19 +1143,122 @@ function showReq(){
 }
 $("reqApprove").onclick = () => {
   const r = incoming; if (!r || !isMaster()) return;
-  selected = r.id; pick = {act: r.act, cause: r.cause || null, how: r.how || "end"};
-  $("toDate").value = r.to || ""; $("toTime").value = r.toTime || $("time").value; $("agreed").value = String(r.at).slice(0,10);
-  $("memo").value = `[${t("rqTag")}] ${r.reason || ""}`;
-  $("applyBtn").onclick();
+  applyReq(r);
   $("reqModal").classList.remove("on"); clearReqHash();
 };
 $("reqReject").onclick = () => {
   const r = incoming; if (!r || !isMaster()) return;
   const C = cfg();
-  addLog(bothLangs(() => t("rqRejected")(`${kdate(parse(r.d))} · ${reqWhat(r, C)} · ${r.reason || ""}`)), r.id); save(); render();
+  notifyKind = "declined"; addLog(bothLangs(() => t("rqRejected")(`${kdate(parse(r.d))} · ${reqWhat(r, C)} · ${r.reason || ""}`)), r.id); notifyKind = "change"; save(); render();
   $("reqModal").classList.remove("on"); clearReqHash();
 };
 window.addEventListener("hashchange", checkReq);
+/* ---------- 승인 대기 요청 (data/requests.json): 등록 사용자가 저장 → 마스터가 웹에서 승인 ---------- */
+const REQS_PATH = "data/requests.json";
+let requests = [];
+const pendingFor = sid => requests.find(r => r.id === sid && r.status === "pending");
+async function fetchRequests(){
+  const c = repoCoords();
+  try {
+    const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${REQS_PATH}?ref=${BRANCH}&t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
+    if (r.status === 404) return {list: [], sha: null};
+    if (!r.ok) throw 0;
+    const j = await r.json(); return {list: (JSON.parse(b64dec(j.content)).requests || []).map(cleanReq).filter(Boolean), sha: j.sha};
+  } catch(e) {
+    const r2 = await fetch(`${REQS_PATH}?t=${Date.now()}`, {cache:"no-store"});
+    return {list: r2.ok ? ((await r2.json()).requests || []).map(cleanReq).filter(Boolean) : [], sha: null};
+  }
+}
+async function loadRequests(){ requests = (await fetchRequests()).list; render(); renderPending(); }
+async function mutateRequests(fn, message, retry){
+  const {list, sha} = await fetchRequests();
+  fn(list);
+  const c = repoCoords();
+  const body = {message, content: b64enc(JSON.stringify({requests: list}, null, 1)), branch: BRANCH}; if (sha) body.sha = sha;
+  const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${REQS_PATH}`, {method:"PUT", headers:{...apiHeaders(), "Content-Type":"application/json"}, body: JSON.stringify(body)});
+  if ((r.status === 409 || r.status === 422) && !retry) return mutateRequests(fn, message, true);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  requests = list;
+}
+function reqLines(r, C){
+  const s = buildSessions(sundays(C.start, C.months), C).find(x => x.id === r.id);
+  return {s, html: `<div><b>${kdate(parse(r.d))} ${s ? labelOf(s) : ""}</b> · ${reqWhat(r, C)}</div>
+    <div class="hint">${(r.cause ? t("cause")[r.cause] + " · " : "") + String(r.reason || "").replace(/</g,"&lt;")}</div>`};
+}
+// 마스터: 승인 대기 목록
+function renderPending(){
+  const box = $("pendList"); if (!box) return;
+  const C = cfg(), list = requests.filter(r => r.status === "pending").sort((a,b) => String(a.at).localeCompare(String(b.at)));
+  $("pendCard").style.display = isMaster() && list.length ? "" : "none";
+  $("pendCount").textContent = list.length ? `(${list.length})` : "";
+  box.innerHTML = list.map(r => {
+    const {s, html} = reqLines(r, C);
+    const stale = !s || fmt(s.d) !== r.d || s.act !== "plan";
+    return `<div class="pendrow"><div class="hint">${esc(t("pendBy")(r.name || r.by, r.by, r.at))}</div>${html}
+      ${stale ? `<div class="hint bad">${s ? t("rqStale") : t("rqGone")}</div>` : ""}
+      <div class="btns">${s ? `<button class="sm" data-pa="${esc(r.rid)}">${t("pendApprove")}</button>` : ""}<button class="ghost sm danger" data-pr="${esc(r.rid)}">${t("pendReject")}</button></div></div>`;
+  }).join("");
+  box.querySelectorAll("[data-pa]").forEach(b => b.onclick = () => decide(b.dataset.pa, true));
+  box.querySelectorAll("[data-pr]").forEach(b => b.onclick = () => decide(b.dataset.pr, false));
+  renderMyRequests();
+}
+let notifyKind = "change", notifyItems = [], notifyLang = null;
+function notifyAdd(entry){
+  if (!$("notify").classList.contains("on")){ notifyItems = []; notifyLang = notifyLang || lang; }
+  notifyItems.push({kind: notifyKind, ko: entry.ko, en: entry.en});
+  renderNotify(); $("notify").classList.add("on");
+}
+function renderNotify(){
+  const L2 = notifyLang || lang, url = teacherLink();
+  const groups = {change: [], approved: [], declined: []};
+  notifyItems.forEach(x => groups[x.kind].push("• " + (x[L2] || x.ko)));
+  const head = L2 === "en"
+    ? {change:"[English class – schedule change]", approved:"[English class – request approved]", declined:"[English class – request declined]"}
+    : {change:"[영어 수업 변경 안내]", approved:"[영어 수업 변경 요청 승인]", declined:"[영어 수업 변경 요청 거절]"};
+  const tail = L2 === "en"
+    ? {change:"Please check and confirm 🙏", approved:"Updated on the calendar ✓", declined:"Not applied. Let’s talk if needed."}
+    : {change:"확인 부탁드립니다 🙏", approved:"달력에 반영했습니다 ✓", declined:"반영하지 않았습니다. 필요하면 다시 이야기해요."};
+  const parts = ["change","approved","declined"].filter(k => groups[k].length).map(k => `${head[k]}\n${groups[k].join("\n")}\n${tail[k]}`);
+  $("nfText").value = parts.join("\n\n") + "\n\n" + url;
+  document.querySelectorAll("#notify [data-nl]").forEach(b => b.classList.toggle("on", b.dataset.nl === L2));
+}
+document.querySelectorAll("#notify [data-nl]").forEach(b => b.onclick = () => { notifyLang = b.dataset.nl; renderNotify(); });
+$("nfX").onclick = () => { $("notify").classList.remove("on"); notifyItems = []; };
+$("nfCopy").onclick = () => copy($("nfText").value, t("copied"));
+$("nfShare").onclick = async () => { try { await navigator.share({text: $("nfText").value}); } catch(e) {} };
+if (!navigator.share) $("nfShare").style.display = "none";
+function applyReq(r){
+  selected = r.id; pick = {act: r.act, cause: r.cause || null, how: r.how || "end"};
+  $("toDate").value = r.to || ""; $("toTime").value = r.toTime || $("time").value; $("agreed").value = String(r.at).slice(0,10);
+  $("memo").value = `[${t("rqTag")}${r.by ? " · " + r.by : ""}] ${r.reason || ""}`;
+  notifyKind = "approved"; try { $("applyBtn").onclick(); } finally { notifyKind = "change"; }
+}
+async function decide(rid, ok){
+  if (!isMaster()) return;
+  const r = requests.find(x => x.rid === rid); if (!r) return;
+  if (ok) applyReq(r);
+  else { notifyKind = "declined"; addLog(bothLangs(() => t("rqRejected")(`${kdate(parse(r.d))} · ${reqWhat(r, cfg())} · ${r.reason || ""}${r.by ? " (" + r.by + ")" : ""}`)), r.id); notifyKind = "change"; save(); }
+  try { await mutateRequests(list => { const x = list.find(y => y.rid === rid); if (x){ x.status = ok ? "approved" : "rejected"; x.decidedAt = nowStamp(); } }, `${ok ? "Approve" : "Decline"} request ${rid}`); }
+  catch(e){ setSync(t("rqSaveFail")(e.message), true); }
+  render(); renderPending();
+}
+// 사용자: 내 요청 현황
+function renderMyRequests(){
+  const box = $("myReqList"); if (!box) return;
+  if (!isSub()){ box.innerHTML = ""; return; }
+  const C = cfg(), mine = requests.filter(r => r.by === auth.login).sort((a,b) => String(b.at).localeCompare(String(a.at))).slice(0, 20);
+  box.innerHTML = mine.length ? mine.map(r => `<div class="pendrow">${reqLines(r, C).html}
+      <div class="hint">${esc(r.at)} · <b class="st-${esc(r.status)}">${t("st_" + r.status)}</b>${r.decidedAt ? " · " + esc(r.decidedAt) : ""}
+      ${r.status === "pending" ? ` · <a href="#" data-cancel="${esc(r.rid)}">${t("myCancel")}</a>` : ""}</div></div>`).join("")
+    : `<div class="empty">${t("myNone")}</div>`;
+  box.querySelectorAll("[data-cancel]").forEach(a => a.onclick = async e => {
+    e.preventDefault();
+    try { await mutateRequests(list => { const i = list.findIndex(y => y.rid === a.dataset.cancel && y.status === "pending"); if (i >= 0) list.splice(i, 1); }, "Cancel request"); }
+    catch(err){ setSync(t("rqSaveFail")(err.message), true); }
+    render(); renderPending();
+  });
+}
+
 
 /* ---------- 수업 추가 ---------- */
 function openAdd(k){
@@ -848,18 +1296,28 @@ function renderPanel(sel, C){
   $("segAct").querySelector("[data-v=plan]").textContent = sel.kind === "reg" ? t("aPlan") : sel.kind === "extra" ? t("aDelX") : t("aUndo");
   setSeg("segAct", a); setSeg("quickAct", a); setSeg("segCause", pick.cause); setSeg("segHow", pick.how);
   const needCause = ["move","hold","cancel","noshow"].includes(a);
-  $("fldCause").classList.toggle("on", needCause);
-  const teacher = pick.cause === "teacher";
-  $("fldMoveHow").classList.toggle("on", a === "move" && needCause && !teacher);
-  const showDates = a === "edit" || (needCause && !teacher && (a === "hold" || a === "move"));
+  $("fldCause").classList.toggle("on", needCause || a === "edit");
+  $("fldMoveHow").classList.toggle("on", a === "move" && !!pick.cause);
+  const showDates = a === "edit" || (needCause && (a === "hold" || a === "move"));
   $("fldDates").classList.toggle("on", showDates);
-  $("wrapAgreed").style.display = (a === "edit") ? "none" : "";
+  $("wrapAgreed").style.display = "";
   const dateNeeded = a === "edit" || (a === "move" && pick.how === "date");
   $("wrapTo").style.display = dateNeeded ? "" : "none";
   $("wrapToTime").style.display = dateNeeded ? "" : "none";
   $("datesTitle").textContent = a === "edit" ? t("datesEdit") : t("datesMove");
   if (a === "edit" && !$("toDate").value) $("toDate").value = fmt(sel.d);
   updatePreview(sel, C);
+}
+function outcomeHtml(act, cause, how, sameDay){
+  const pv = t("pv");
+  if (act === "edit") return cause === "teacher" ? (sameDay ? pv.editBonus : pv.editNoBonus) : pv.edit;
+  if (cause === "teacher"){
+    if (act === "cancel" || act === "noshow") return pv.teacher;
+    if (act === "hold") return sameDay ? pv.holdPenalty : pv.hold + "<br>" + pv.noPenalty;
+    return sameDay ? (how === "date" ? pv.teacherDate : pv.teacher) : (how === "date" ? pv.toDate : pv.toEnd) + "<br>" + pv.noPenalty;
+  }
+  if (act === "hold") return pv.hold;
+  return how === "date" ? pv.toDate : pv.toEnd;
 }
 function noticeDays(sel){ const ag = $("agreed").value; return ag ? Math.round((sel.d - parse(ag)) / 86400000) : 0; }
 function updatePreview(sel, C){
@@ -872,9 +1330,14 @@ function updatePreview(sel, C){
   else if (a === "plan" && sel.kind !== "reg") x = pv.undo(kdate(sel.from.origD || sel.from.d), labelOf(sel.from));
   else if (a === "plan" && sel.act === "plan" && !state[sel.id]) x = pv.already;
   else if (a === "plan") x = pv.plan;
-  else if (a === "edit") x = pv.edit;
+  else if (a === "edit"){ const sd = noticeDays(sel) <= 0; x = outcomeHtml("edit", c, null, sd); if (c === "teacher" && sd) p.className = "preview teacher"; }
   else if (!c) x = pv.cause;
-  else if (c === "teacher"){ p.className = "preview teacher"; x = pv.teacher; }
+  else if (c === "teacher"){
+    const sd = noticeDays(sel) <= 0;
+    x = outcomeHtml(a, c, pick.how, sd);
+    if (sd || a === "cancel" || a === "noshow") p.className = "preview teacher";
+    if (a === "move" || a === "hold") x += "<br>" + pv.notice(noticeDays(sel), C.minNotice, noticeDays(sel) < C.minNotice);
+  }
   else if (c === "me" && (a === "cancel" || a === "noshow")) x = pv.consumed(act[a]);
   else {
     const n = noticeDays(sel), late = n < C.minNotice;
@@ -904,7 +1367,7 @@ $("applyBtn").onclick = () => {
     if (cur && cur.kind === "extra"){                                // 추가 수업 삭제
       const entry = bothLangs(() => t("logDel")(kdate(cur.d), labelOf(cur)));
       extras = extras.filter(x => x.id !== cur.id);
-      ["", "M:", "B:"].forEach(p => delete state[p + cur.id]);
+      ["", "M:", "B:", "BE:"].forEach(p => delete state[p + cur.id]);
       addLog(entry, cur.id); selected = null; save(); render(); return;
     }
     if (cur && cur.kind !== "reg") selected = cur.from.id;          // 보강·보너스 → 원래 수업을 되돌림
@@ -915,7 +1378,7 @@ $("applyBtn").onclick = () => {
   }
   const needCause = ["move","hold","cancel","noshow"].includes(a);
   if (needCause && !pick.cause){ updatePreview(before, C); return; }
-  if ((a === "edit" || (a === "move" && pick.how === "date" && pick.cause !== "teacher")) && !$("toDate").value){
+  if ((a === "edit" || (a === "move" && pick.how === "date")) && !$("toDate").value){
     $("preview").className = "preview bad"; $("preview").textContent = t("pv").needDate; return;
   }
   const memo = $("memo").value.trim();
@@ -923,20 +1386,24 @@ $("applyBtn").onclick = () => {
   let meta;
   if (a === "plan") meta = prev.ed ? {ed: prev.ed} : null;
   else if (a === "done") meta = {...(prev.ed?{ed:prev.ed}:{}), act:"done", memo: memo || undefined};
-  else if (a === "edit") meta = {...prev, ed:{date:$("toDate").value, time:$("toTime").value || C.time}, memo: memo || prev.memo};
+  else if (a === "edit"){
+    const n = noticeDays(before);
+    meta = {...prev, ed:{date:$("toDate").value, time:$("toTime").value || C.time}, memo: memo || prev.memo,
+      edCause: pick.cause || undefined, edSameDay: pick.cause === "teacher" && n <= 0, agreed: $("agreed").value || todayStr(), notice: n};
+  }
   else {
     meta = {act:a, cause:pick.cause, memo: memo || undefined, ...(prev.ed?{ed:prev.ed}:{})};
-    if (pick.cause !== "teacher" && (a === "move" || a === "hold")){
+    if (a === "move" || a === "hold"){
       const n = noticeDays(before);
       meta.agreed = $("agreed").value || todayStr(); meta.notice = n; meta.late = n < C.minNotice;
     }
-    if (a === "move" && pick.cause !== "teacher"){
+    if (a === "move"){
       meta.how = pick.how;
       if (pick.how === "date"){ meta.to = $("toDate").value; meta.toTime = $("toTime").value || C.time; }
     }
   }
   if (meta) state[selected] = meta; else delete state[selected];
-  if (a === "plan"){ delete state["M:"+selected]; delete state["B:"+selected]; }   // 지워진 보강·보너스의 남은 상태 정리
+  if (a === "plan"){ delete state["M:"+selected]; delete state["B:"+selected]; delete state["BE:"+selected]; }   // 지워진 보강·보너스의 남은 상태 정리
 
   const entry = bothLangs(() => {
     const b4 = buildSessions(P, C);  // after-state (state already updated)
@@ -962,7 +1429,7 @@ $("applyBtn").onclick = () => {
 let archive = null, archSha = null, archTimer = null, clearArm = false;
 function hashStr(str){ let x = 0; for (const c of str) x = (x*31 + c.codePointAt(0)) | 0; return (x >>> 0).toString(36); }
 function logId(l){ if (!l.id) l.id = "L" + hashStr(l.at + (l.ko || l.text || "")); return l.id; }
-function addLog(entry, sid){ log.push({id: "L" + Date.now().toString(36) + Math.random().toString(36).slice(2,5), at: nowStamp(), sid, ...entry}); queueArchive(); }
+function addLog(entry, sid){ if (isMaster() && !String(sid || "").startsWith("pay:")) notifyAdd(entry); log.push({id: "L" + Date.now().toString(36) + Math.random().toString(36).slice(2,5), at: nowStamp(), sid, ...(isSub() ? {by: auth.login} : {}), ...entry}); queueArchive(); }
 function logKey(l){                       // 같은 수업의 기록끼리 묶는 키
   if (l.sid) return l.sid;
   const m = (l.ko || l.text || "").match(/^(\d{4}\.\d{2}\.\d{2}\([^)]*\)\s+[^:\s]+)/);
@@ -1151,7 +1618,7 @@ $("pfSave").onclick = submitPay;
 $("payAddBtn").onclick = openPayForm;
 
 /* ---------- 모달 ---------- */
-function openModal(id){ $(id).classList.add("on"); }
+function openModal(id){ document.querySelectorAll(".modal.on").forEach(m => m.classList.remove("on")); $(id).classList.add("on"); }
 document.querySelectorAll(".modal").forEach(m => {
   m.addEventListener("click", e => { if (e.target === m || e.target.hasAttribute("data-close")) m.classList.remove("on"); });
 });
@@ -1160,7 +1627,7 @@ document.addEventListener("keydown", e => {
   const open = document.querySelectorAll(".modal.on");
   if (open.length) open.forEach(m => m.classList.remove("on")); else if (selected) selectSession(null);
 });
-$("openSettings").onclick = () => openModal("settingsModal");
+$("openSettings").onclick = () => { openModal("settingsModal"); renderUsers(); };
 
 /* ---------- 환율 추세 차트 ---------- */
 let fxCur = "KRW";
@@ -1223,7 +1690,7 @@ function drawFx(){
 
 /* ---------- 이벤트 ---------- */
 ["start","months","time","dur","price","alertN","minNotice","rate","rateDate","asof"].forEach(id => $(id).addEventListener("input", () => { render(); if (id !== "asof") queueRemoteSave(); }));
-$("loginBtn").onclick = () => { const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
+$("loginBtn").onclick = () => { document.querySelector('#loginTabs [data-v="sub"]').click(); const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
 $("doLogin").onclick = doLogin;
 $("logoutBtn").onclick = () => { archive = null; auth = null; payments = []; payLoaded = false; renderPayments(); try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
 $("linkBtn").onclick = () => copy(teacherLink(), t("linkCopied")(teacherLink()));
@@ -1233,7 +1700,7 @@ async function copy(text, ok){
 }
 $("copyMsg").addEventListener("click", () => copy($("msg").value, t("copied")));
 // 변경 기록 내려받기
-function logRows(){ return log.slice().reverse().map(l => [l.at, l[lang] || l.ko || l.text || ""]); }
+function logRows(){ return log.slice().reverse().map(l => [l.at, (l.by ? `[${l.by}] ` : "") + (l[lang] || l.ko || l.text || "")]); }
 function download(name, text, type){
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name;
@@ -1266,4 +1733,4 @@ $("copyLog").addEventListener("click", () => copy(log.map(l => `${l.at}  ${l[lan
 applyStatic();
 renderAcct();
 render();
-loadRemote().then(() => { loadPayments(); loadArchive(); checkReq(); });
+loadRemote().then(() => { loadPayments(); loadArchive(); checkReq(); checkInvite(); checkRegReq(); checkPendingReg(); loadRequests(); });
