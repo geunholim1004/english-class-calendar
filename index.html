@@ -165,7 +165,6 @@ textarea#msg{color:var(--ink);background:#fcfcfa}
 button.sm{font-size:12px;padding:4px 10px}
 .sync{font-size:11.5px;color:var(--muted);min-height:16px}
 .sync.bad,.hint.bad{color:var(--tc)}
-body.viewer .calHintEl{display:none}
 body.viewer .fx, body.viewer .usdcol, body.viewer .money{display:none}   /* 선생님 화면: 금액·환율 숨김 */
 body.viewer .kpis{grid-template-columns:repeat(3,1fr)}
 .calhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
@@ -186,6 +185,8 @@ body.viewer .masteronly{display:none}
 .logrow:hover .logdel{opacity:1}
 .logdel:hover{color:var(--tc)}
 button.danger{color:var(--tc);border-color:#f1c7c2}
+.quick.two{grid-template-columns:1fr 1fr}
+#reqText{width:100%;min-height:120px;margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:8px;font:12.5px/1.45 "Noto Sans KR",sans-serif;color:var(--ink);background:#fcfcfa}
 /* 휴대폰: 보류 → 달력/요약 → 카톡 → 변경 기록(맨 아래, 접힌 상태) */
 @media(max-width:860px){
   .grid{display:flex;flex-direction:column;gap:0}
@@ -338,6 +339,27 @@ input:disabled{opacity:.75;background:#f3f2ee}
             <button class="ghost" id="closeAct" data-i18n="close"></button>
           </div>
         </div>
+        <div class="actions" id="reqPanel">
+          <div class="head"><div class="t" id="reqTitle"></div><button class="x" id="xReq">×</button></div>
+          <div class="quick two" id="reqAct">
+            <button class="ghost" data-v="edit" data-i18n="qEdit"></button>
+            <button class="ghost" data-v="move" data-i18n="qMove"></button>
+          </div>
+          <div class="fld" id="reqCauseFld"><h4 data-i18n="hCause"></h4>
+            <div class="seg" id="reqCause"><button data-v="teacher" data-i18n="cTeacher"></button><button data-v="me" data-i18n="rcStudent"></button><button data-v="mutual" data-i18n="cMutual"></button></div></div>
+          <div class="fld" id="reqHowFld"><h4 data-i18n="hHow"></h4>
+            <div class="seg" id="reqHow"><button data-v="end" data-i18n="howEnd"></button><button data-v="date" data-i18n="howDate"></button></div></div>
+          <div class="fld" id="reqDateFld"><div class="grid3">
+            <div><label data-i18n="lTo"></label><input id="reqDate" type="date"></div>
+            <div><label data-i18n="lToTime"></label><input id="reqTime" type="time" value="17:00"></div></div></div>
+          <label data-i18n="rqReason"></label><select id="reqReason"></select>
+          <input id="reqNote" data-i18n-ph="rqNotePh" style="margin-top:6px">
+          <div class="preview" id="reqPreview"></div>
+          <div class="btns"><button id="reqSend" data-i18n="rqSend"></button><button class="ghost" id="reqClose" data-i18n="close"></button></div>
+          <div class="fld" id="reqOut"><textarea id="reqText" readonly></textarea>
+            <div class="btns"><button id="reqCopy" data-i18n="rqCopy"></button></div><div class="hint" data-i18n="rqOutHint"></div></div>
+        </div>
+
         <div class="actions" id="addPanel">
           <div class="head"><div class="t" id="addTitle"></div><button class="x" id="xAdd">×</button></div>
           <div class="grid3"><div><label data-i18n="lToTime"></label><input id="addTime" type="time" value="17:00"></div></div>
@@ -373,6 +395,17 @@ input:disabled{opacity:.75;background:#f3f2ee}
         <div id="payBox"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 선생님 요청 승인 -->
+<div class="modal" id="reqModal">
+  <div class="sheet narrow">
+    <header><h2 data-i18n="rqInTitle"></h2><button class="x" data-close>×</button></header>
+    <div class="basis" id="reqInBody"></div>
+    <div class="preview" id="reqInPv"></div>
+    <div class="btns"><button id="reqApprove" data-i18n="rqApprove"></button><button class="ghost danger" id="reqReject" data-i18n="rqReject"></button></div>
+    <div class="hint" id="reqInMsg"></div>
   </div>
 </div>
 

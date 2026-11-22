@@ -73,6 +73,7 @@ function teacherLink(){ const {owner, repo} = isMaster() ? auth : repoCoords(); 
 function renderAcct(){
   const m = isMaster();
   document.querySelector(".sub").textContent = m ? t("sub") : t("subV");
+  document.querySelector(".calHintEl").textContent = m ? t("calHint") : t("calHintV");
   document.body.classList.toggle("viewer", !m);
   $("roleBadge").textContent = m ? t("roleMaster")(auth.login || auth.owner) : t("roleViewer");
   $("roleBadge").className = "badge " + (m ? "master" : "viewer");
@@ -93,7 +94,7 @@ async function doLogin(){
     auth = {token, owner, repo, login: u.login || owner, privRepo: ($("ghPriv").value.trim() || PRIV_DEFAULT)};
     try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
     $("loginModal").classList.remove("on"); $("ghToken").value = "";
-    renderAcct(); await loadRemote(); loadPayments(); loadArchive();
+    renderAcct(); await loadRemote(); loadPayments(); loadArchive(); if (incoming) showReq();
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 
@@ -101,6 +102,19 @@ async function doLogin(){
 /* ---------- 언어 사전 (Language dictionary) ---------- */
 const L = {
 ko: {
+  calHintV:"예정된 수업을 누르면 수정·이동을 요청할 수 있어요. Edward가 승인하면 반영됩니다.",
+  rcStudent:"학생 사유", rqReason:"사유", rqNotePh:"자세한 내용 (선택)", rqSend:"📨 변경 요청 보내기", rqCopy:"요청 복사",
+  rqOutHint:"이 내용을 카카오톡으로 Edward에게 보내 주세요. Edward가 링크를 열어 승인하면 달력에 반영됩니다.",
+  rqReasons:["선생님 개인 사정","선생님 출장·이동","건강 문제","인터넷·기술 문제","학생 요청","공휴일·명절","기타"],
+  rqTitle:(d,x) => `${d} · ${x} 변경 요청`, rqPick:"수정 또는 이동을 고르세요.", rqNeedCause:"사유가 누구에게 있는지 고르세요.", rqNeedDate:"새 날짜를 고르세요.",
+  rqPvEdit:(d,tm) => `같은 수업을 ${d} ${tm}(으)로 바꾸자는 요청입니다.`, rqPvFoot:"요청은 Edward(마스터)가 승인해야 반영됩니다.",
+  rqMsg:(o) => `[영어 수업 변경 요청]\n${o.target}\n요청: ${o.what}\n사유: ${o.why}\n\n승인 링크 👇\n${o.url}`,
+  rqWhatEdit:(d,tm) => `수정 → ${d} ${tm}`, rqWhatEnd:"이동 → 마지막 수업 다음 (자동)", rqWhatDate:(d,tm) => `이동 → ${d} ${tm}`,
+  rqWhatTeacher:"이동 → 선생님 사유 규칙 (맨 뒤 보강 + 보너스)",
+  rqInTitle:"선생님 변경 요청", rqApprove:"✓ 승인하고 적용", rqReject:"✕ 거절", rqNeedLogin:"마스터로 로그인해야 승인할 수 있어요.",
+  rqTarget:"대상", rqWhat:"요청", rqWhy:"사유", rqWhen:"요청 시각", rqStale:"⚠ 요청 이후 이 수업의 날짜나 상태가 바뀌었습니다. 확인 후 승인하세요.",
+  rqGone:"요청한 수업을 찾을 수 없어요 (이미 삭제·변경됨).", rqTag:"선생님 요청", rqRejected:(x) => `선생님 변경 요청 거절: ${x}`,
+
   logDel:"기록에서 지우기", logClear:"🗑 전체 지우기", logClearQ:"정말 전체 지울까요? 한 번 더", dlArch:"⬇ 보관 로그(CSV)",
   archHead:["시각","내용","상태"], archKept:"보관", archDeleted:d => `화면에서 삭제 (${d})`,
   logHintM:"지운 기록도 비공개 저장소의 보관 로그(log-archive.json)에 남습니다. 1년이 지난 기록은 수업별 마지막 변경 1건만 남기고 자동 정리됩니다.",
@@ -127,7 +141,7 @@ ko: {
   logAdd:(d,tm,x,p) => `${d} ${tm} ${x} 추가 (${p ? "유료" : "무료"})`, logDel:(d,x) => `${d} ${x} 삭제`,
   basisExtra:(p,f) => `②+ 추가 수업 ${p+f}회 (유료 ${p} · 무료 ${f}) — 유료분은 선불 수업 수에 포함`, lg9:"추가 수업",
 
-  roleMaster:u => `마스터 · ${u}`, roleViewer:"보기 전용 (선생님)", login:"마스터 로그인", logout:"로그아웃", teacherLinkBtn:"선생님 링크 복사",
+  roleMaster:u => `마스터 · ${u}`, roleViewer:"선생님 (변경은 요청)", login:"마스터 로그인", logout:"로그아웃", teacherLinkBtn:"선생님 링크 복사",
   linkCopied:u => `선생님 링크를 복사했어요: ${u}`,
   syncLoading:"불러오는 중…", syncLoaded:d => `마지막 업데이트 ${d}`, syncPending:"변경 사항 저장 대기…", syncSaving:"GitHub에 저장 중…",
   syncSaved:d => `저장됨 · ${d}`, syncFail:e => `저장 실패 (${e}) — 토큰 권한을 확인하세요`, syncOffline:"GitHub에서 불러오지 못해 이 브라우저 데이터로 표시 중",
@@ -223,6 +237,19 @@ ${o.nn}회 × ${o.price} = ${o.nusd} ≈ ${o.nuzs}`,
   fxCross:"2026.11 원화·엔화·위안화 = CBU의 USD/UZS ÷ 각 통화/UZS (원화는 CBU 소수점 둘째 자리 반올림 때문에 ±1원 정도 오차).",
 },
 en: {
+  calHintV:"Tap an upcoming class to request an edit or a move. It takes effect once Edward approves.",
+  rcStudent:"Student’s reason", rqReason:"Reason", rqNotePh:"Details (optional)", rqSend:"📨 Send change request", rqCopy:"Copy request",
+  rqOutHint:"Send this to Edward on KakaoTalk. Once he opens the link and approves, the calendar updates.",
+  rqReasons:["Teacher – personal reasons","Teacher – travel","Health","Internet / technical problem","Student’s request","Public holiday","Other"],
+  rqTitle:(d,x) => `${d} · request a change to ${x}`, rqPick:"Choose Edit or Move.", rqNeedCause:"Choose whose reason it is.", rqNeedDate:"Pick a new date.",
+  rqPvEdit:(d,tm) => `Asks to reschedule this class to ${d} ${tm}.`, rqPvFoot:"Edward (master) must approve the request before it takes effect.",
+  rqMsg:(o) => `[English class – change request]\n${o.target}\nRequest: ${o.what}\nReason: ${o.why}\n\nApprove here 👇\n${o.url}`,
+  rqWhatEdit:(d,tm) => `Edit → ${d} ${tm}`, rqWhatEnd:"Move → after the last class (auto)", rqWhatDate:(d,tm) => `Move → ${d} ${tm}`,
+  rqWhatTeacher:"Move → teacher’s-reason rule (makeup at the end + bonus)",
+  rqInTitle:"Teacher’s change request", rqApprove:"✓ Approve & apply", rqReject:"✕ Decline", rqNeedLogin:"Log in as master to approve.",
+  rqTarget:"Class", rqWhat:"Request", rqWhy:"Reason", rqWhen:"Requested at", rqStale:"⚠ This class’s date or status changed after the request. Check before approving.",
+  rqGone:"The requested class can’t be found (already deleted or changed).", rqTag:"Teacher request", rqRejected:(x) => `Teacher’s change request declined: ${x}`,
+
   logDel:"Remove from log", logClear:"🗑 Clear all", logClearQ:"Clear everything? Tap again", dlArch:"⬇ Archive log (CSV)",
   archHead:["Time","Entry","Status"], archKept:"kept", archDeleted:d => `removed from view (${d})`,
   logHintM:"Removed entries stay in the archive log (log-archive.json) in the private repo. Entries older than 1 year are trimmed to the last change per class.",
@@ -249,7 +276,7 @@ en: {
   logAdd:(d,tm,x,p) => `${d} ${tm} ${x} added (${p ? "paid" : "free"})`, logDel:(d,x) => `${d} ${x} deleted`,
   basisExtra:(p,f) => `②+ Extra classes: ${p+f} (${p} paid · ${f} free) — paid ones count as prepaid classes`, lg9:"Extra class",
 
-  roleMaster:u => `Master · ${u}`, roleViewer:"View only (teacher)", login:"Master login", logout:"Log out", teacherLinkBtn:"Copy teacher link",
+  roleMaster:u => `Master · ${u}`, roleViewer:"Teacher (changes by request)", login:"Master login", logout:"Log out", teacherLinkBtn:"Copy teacher link",
   linkCopied:u => `Teacher link copied: ${u}`,
   syncLoading:"Loading…", syncLoaded:d => `Last updated ${d}`, syncPending:"Waiting to save…", syncSaving:"Saving to GitHub…",
   syncSaved:d => `Saved · ${d}`, syncFail:e => `Save failed (${e}) — check the token’s permissions`, syncOffline:"Couldn’t load from GitHub; showing this browser’s data",
@@ -562,7 +589,10 @@ function render(){
           it.className = `it ${s.kind} ${kc}` + (selected === s.id ? " sel" : "");
           it.textContent = `${labelOf(s)} ${short}`;
           it.title = `${labelOf(s)} · ${statusText(s)}${s.meta&&s.meta.memo?" · "+s.meta.memo:""}`;
-          if (isMaster()) it.onclick = () => selectSession(selected === s.id ? null : s.id); else it.style.cursor = "default";
+          if (isMaster()) it.onclick = () => selectSession(selected === s.id ? null : s.id);
+          else if (s.act === "plan" && s.d >= C.asof) it.onclick = () => openReq(reqSid === s.id ? null : s.id);
+          else it.style.cursor = "default";
+          if (reqSid === s.id) it.classList.add("sel");
           el.appendChild(it);
         });
       }
@@ -576,6 +606,8 @@ function render(){
   const sel = selected && S.find(s => s.id === selected);
   if (sel){ renderPanel(sel, C); positionPanel(); }
   else { $("actions").className = "actions"; selected = null; }
+  const rs = reqSid && !isMaster() && S.find(x => x.id === reqSid);
+  if (rs){ renderReq(rs, C); positionPop($("reqPanel"), $("calcard").querySelector(".it.sel")); } else { $("reqPanel").className = "actions"; reqSid = null; }
   if (addDate && isMaster()){ renderAdd(C); positionPop($("addPanel"), document.querySelector(`.day[data-date="${addDate}"]`)); }
   else { $("addPanel").className = "actions"; addDate = null; }
 
@@ -680,10 +712,105 @@ function positionPop(p, it){
 }
 window.addEventListener("resize", () => { if (selected) positionPanel(); });
 document.addEventListener("mousedown", e => {
-  if (!selected && !addDate) return;
+  if (!selected && !addDate && !reqSid) return;
+  if (reqSid && !e.target.closest(".actions") && !e.target.closest(".it") && !e.target.closest(".lang")){ reqSid = null; render(); return; }
   if (e.target.closest(".actions") || e.target.closest(".it") || e.target.closest(".modal") || e.target.closest("[data-sel]") || e.target.closest(".lang") || e.target.closest(".day.addable") || e.target.closest("#addBtn")) return;
   addDate = null; selectSession(null);
 });
+
+/* ---------- 선생님 변경 요청 → 마스터 승인 ---------- */
+let reqSid = null, rq = {act:null, cause:null, how:"end"};
+const b64url = str => b64enc(str).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+const unb64url = str => b64dec(str.replace(/-/g,"+").replace(/_/g,"/") + "===".slice((str.length + 3) % 4));
+function openReq(id){
+  reqSid = id; rq = {act:null, cause:null, how:"end"};
+  $("reqDate").value = ""; $("reqTime").value = $("time").value || "17:00"; $("reqNote").value = "";
+  $("reqReason").innerHTML = t("rqReasons").map((r,i) => `<option value="${i}">${r}</option>`).join("");
+  $("reqOut").classList.remove("on");
+  render();
+}
+function reqWhat(r, C){
+  if (r.act === "edit") return t("rqWhatEdit")(kdate(parse(r.to)), r.toTime);
+  if (r.cause === "teacher") return t("rqWhatTeacher");
+  return r.how === "date" ? t("rqWhatDate")(kdate(parse(r.to)), r.toTime) : t("rqWhatEnd");
+}
+function renderReq(sel, C){
+  $("reqTitle").innerHTML = `<b>${t("rqTitle")(kdate(sel.d) + " " + sel.time, labelOf(sel))}</b>`;
+  setSeg("reqAct", rq.act); setSeg("reqCause", rq.cause); setSeg("reqHow", rq.how);
+  const mv = rq.act === "move";
+  $("reqCauseFld").classList.toggle("on", mv);
+  $("reqHowFld").classList.toggle("on", mv && !!rq.cause && rq.cause !== "teacher");
+  $("reqDateFld").classList.toggle("on", rq.act === "edit" || (mv && !!rq.cause && rq.cause !== "teacher" && rq.how === "date"));
+  if (rq.act === "edit" && !$("reqDate").value) $("reqDate").value = fmt(sel.d);
+  const p = $("reqPreview"); p.className = "preview"; let x;
+  if (!rq.act) x = t("rqPick");
+  else if (rq.act === "edit") x = $("reqDate").value ? t("rqPvEdit")(kdate(parse($("reqDate").value)), $("reqTime").value) : t("rqNeedDate");
+  else if (!rq.cause) x = t("rqNeedCause");
+  else if (rq.cause === "teacher"){ p.className = "preview teacher"; x = t("pv").teacher.replace(/\s?\(\$0\)/, ""); }
+  else x = rq.how === "date" ? t("pv").toDate : t("pv").toEnd;
+  p.innerHTML = x + `<br><span class="hint">${t("rqPvFoot")}</span>`;
+}
+["reqAct","reqCause","reqHow"].forEach(id => $(id).querySelectorAll("button").forEach(b => b.onclick = () => {
+  const k = {reqAct:"act", reqCause:"cause", reqHow:"how"}[id]; rq[k] = b.dataset.v; $("reqOut").classList.remove("on"); render();
+}));
+["reqDate","reqTime"].forEach(id => $(id).addEventListener("input", () => render()));
+$("xReq").onclick = $("reqClose").onclick = () => { reqSid = null; render(); };
+$("reqSend").onclick = async () => {
+  const C = cfg(), sel = buildSessions(sundays(C.start, C.months), C).find(x => x.id === reqSid);
+  if (!sel || !rq.act) return;
+  if (rq.act === "move" && !rq.cause) return;
+  const needDate = rq.act === "edit" || (rq.act === "move" && rq.cause !== "teacher" && rq.how === "date");
+  if (needDate && !$("reqDate").value){ $("reqPreview").textContent = t("rqNeedDate"); return; }
+  const reason = t("rqReasons")[+$("reqReason").value] + ($("reqNote").value.trim() ? " – " + $("reqNote").value.trim() : "");
+  const r = {v:1, id: sel.id, d: fmt(sel.d), act: rq.act, cause: rq.act === "move" ? rq.cause : undefined,
+    how: rq.act === "move" && rq.cause !== "teacher" ? rq.how : undefined,
+    to: needDate ? $("reqDate").value : undefined, toTime: needDate ? ($("reqTime").value || C.time) : undefined,
+    reason, at: nowStamp()};
+  const url = teacherLink() + "#req=" + b64url(JSON.stringify(r));
+  const text = t("rqMsg")({target: `${kdate(sel.d)} ${sel.time} ${labelOf(sel)}`, what: reqWhat(r, C), why: reason, url});
+  $("reqText").value = text; $("reqOut").classList.add("on"); positionPop($("reqPanel"), $("calcard").querySelector(".it.sel"));
+  if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){ try { await navigator.share({text}); } catch(e) {} }
+};
+$("reqCopy").onclick = () => copy($("reqText").value, t("copied"));
+
+// 마스터: 요청 링크(#req=...)를 열면 승인 창
+let incoming = null;
+function checkReq(){
+  const m = location.hash.match(/^#req=([A-Za-z0-9_-]+)$/);
+  if (!m) return;
+  try { incoming = JSON.parse(unb64url(m[1])); } catch(e){ incoming = null; return; }
+  showReq();
+}
+function clearReqHash(){ incoming = null; try { history.replaceState(null, "", location.pathname + location.search); } catch(e) { location.hash = ""; } }
+function showReq(){
+  const r = incoming; if (!r) return;
+  const C = cfg(), s = buildSessions(sundays(C.start, C.months), C).find(x => x.id === r.id);
+  const lines = [[t("rqTarget"), s ? `${kdate(parse(r.d))} ${labelOf(s)}` : kdate(parse(r.d))], [t("rqWhat"), reqWhat(r, C)],
+    [t("rqWhy"), (r.cause ? t("cause")[r.cause] + " · " : "") + (r.reason || "")], [t("rqWhen"), r.at]];
+  $("reqInBody").innerHTML = lines.map(([k,v]) => `<div><b>${k}</b> · ${String(v).replace(/</g,"&lt;")}</div>`).join("");
+  const stale = s && (fmt(s.d) !== r.d || s.act !== "plan");
+  const pv = $("reqInPv"); pv.className = "preview" + (r.cause === "teacher" ? " teacher" : "");
+  pv.innerHTML = !s ? t("rqGone") : (stale ? t("rqStale") + "<br>" : "") + (r.act === "edit" ? t("rqPvEdit")(kdate(parse(r.to)), r.toTime) : r.cause === "teacher" ? t("pv").teacher : r.how === "date" ? t("pv").toDate : t("pv").toEnd);
+  $("reqApprove").style.display = isMaster() && s ? "" : "none";
+  $("reqReject").style.display = isMaster() ? "" : "none";
+  $("reqInMsg").textContent = isMaster() ? "" : t("rqNeedLogin");
+  openModal("reqModal");
+}
+$("reqApprove").onclick = () => {
+  const r = incoming; if (!r || !isMaster()) return;
+  selected = r.id; pick = {act: r.act, cause: r.cause || null, how: r.how || "end"};
+  $("toDate").value = r.to || ""; $("toTime").value = r.toTime || $("time").value; $("agreed").value = String(r.at).slice(0,10);
+  $("memo").value = `[${t("rqTag")}] ${r.reason || ""}`;
+  $("applyBtn").onclick();
+  $("reqModal").classList.remove("on"); clearReqHash();
+};
+$("reqReject").onclick = () => {
+  const r = incoming; if (!r || !isMaster()) return;
+  const C = cfg();
+  addLog(bothLangs(() => t("rqRejected")(`${kdate(parse(r.d))} · ${reqWhat(r, C)} · ${r.reason || ""}`)), r.id); save(); render();
+  $("reqModal").classList.remove("on"); clearReqHash();
+};
+window.addEventListener("hashchange", checkReq);
 
 /* ---------- 수업 추가 ---------- */
 function openAdd(k){
@@ -1139,4 +1266,4 @@ $("copyLog").addEventListener("click", () => copy(log.map(l => `${l.at}  ${l[lan
 applyStatic();
 renderAcct();
 render();
-loadRemote().then(() => { loadPayments(); loadArchive(); });
+loadRemote().then(() => { loadPayments(); loadArchive(); checkReq(); });
