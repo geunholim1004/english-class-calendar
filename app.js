@@ -197,6 +197,7 @@ ko: {
   hReg:"사용자 등록", regCode:"초대 코드 (카톡으로 받은 8자리)", regPw1:"사용할 비밀번호 (8자 이상)", regPw2:"비밀번호 확인", regBtn:"등록하고 시작",
   regPwRule:"비밀번호는 8자 이상, 두 번 똑같이 입력하세요.", regNoInvite:"이 아이디로 대기 중인 초대가 없어요. Edward에게 다시 초대를 요청하세요.", regBadCode:"초대 코드가 맞지 않아요.",
   regHint:"등록하면 이 기기에서 바로 로그인됩니다. 다른 기기에서는 아이디와 비밀번호로 로그인하세요.",
+  advRepo:"고급: 저장소 이름 (보통 바꿀 필요 없음)", midTokNote:"토큰으로 로그인해야 할 때(토큰 재발급 등)는 사이트 주소 끝에 #master 를 붙여 여세요.",
   hMid:"마스터 아이디 로그인 (다른 기기용)", midPw1:"비밀번호 (12자 이상)", midPw2:"비밀번호 확인", midSave:"저장", midDel:"삭제",
   midHelp:"다른 휴대폰·PC에서는 로그인 → 아이디 로그인 탭에 이 아이디와 비밀번호를 넣으면 마스터로 들어옵니다. 마스터 토큰은 이 비밀번호로 암호화(PBKDF2 60만 회 + AES-GCM)되어 저장되며, 원문과 비밀번호는 어디에도 저장되지 않습니다. 남이 추측하기 어려운 긴 비밀번호를 쓰세요.",
   midSet:(id, at) => `설정됨: 아이디 ${id} · ${at}`, midUnset:"아직 없음 — 아이디와 비밀번호를 정하면 다른 기기에서 토큰 없이 로그인할 수 있어요.",
@@ -383,6 +384,7 @@ en: {
   hReg:"Register", regCode:"Invite code (8 characters, from KakaoTalk)", regPw1:"Choose a password (8+ characters)", regPw2:"Confirm password", regBtn:"Register & start",
   regPwRule:"Use 8+ characters and type the same password twice.", regNoInvite:"There’s no pending invite for this ID. Ask Edward to invite you again.", regBadCode:"Wrong invite code.",
   regHint:"After registering you’re logged in on this device. On other devices, log in with your ID and password.",
+  advRepo:"Advanced: repository names (usually leave as is)", midTokNote:"When you need to log in with the token (e.g. after regenerating it), open the site address with #master at the end.",
   hMid:"Master ID login (for other devices)", midPw1:"Password (12+ characters)", midPw2:"Confirm password", midSave:"Save", midDel:"Delete",
   midHelp:"On another phone or PC, use Log in → ID login with this ID and password to enter as master. The master token is encrypted with this password (PBKDF2 600k + AES-GCM); neither the token nor the password is stored in plain form anywhere. Use a long password that is hard to guess.",
   midSet:(id, at) => `Set: ID ${id} · ${at}`, midUnset:"Not set — choose an ID and password to log in on other devices without the token.",
@@ -1825,7 +1827,9 @@ function drawFx(){
 
 /* ---------- 이벤트 ---------- */
 ["start","months","time","dur","price","alertN","minNotice","rate","rateDate","asof"].forEach(id => $(id).addEventListener("input", () => { render(); if (id !== "asof") queueRemoteSave(); }));
-$("loginBtn").onclick = () => { document.querySelector('#loginTabs [data-v="sub"]').click(); const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
+$("loginBtn").onclick = () => { const tokMode = /^#master$/.test(location.hash);
+  $("loginTabs").style.display = tokMode ? "" : "none";
+  document.querySelector(`#loginTabs [data-v="${tokMode ? "master" : "sub"}"]`).click(); const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
 $("doLogin").onclick = doLogin;
 $("logoutBtn").onclick = () => { state = {}; log = []; extras = []; requests = []; try { ["eng-class-state-v4","eng-class-log-v4","eng-class-extras-v1"].forEach(k => localStorage.removeItem(k)); } catch(e) {} archive = null; auth = null; payments = []; payLoaded = false; renderPayments(); try { localStorage.removeItem(AUTHKEY); } catch(e) {} selectSession(null); renderAcct(); loadRemote(); };
 $("linkBtn").onclick = () => copy(teacherLink(), t("linkCopied")(teacherLink()));
@@ -1868,4 +1872,5 @@ $("copyLog").addEventListener("click", () => copy(log.map(l => `${l.at}  ${l[lan
 applyStatic();
 renderAcct();
 render();
+if (/^#master$/.test(location.hash) && !isEditor()) setTimeout(() => $("loginBtn").click(), 300);
 loadRemote().then(() => { loadPayments(); loadArchive(); checkReq(); checkInvite(); checkRegReq(); checkPendingReg(); loadRequests(); });

@@ -550,13 +550,14 @@ input:disabled{opacity:.75;background:#f3f2ee}
       <div class="hint"><a href="#" id="regReqLink" data-i18n="rrLink"></a></div>
     </div>
     <div id="loginMaster" style="display:none">
+    <label data-i18n="ghToken"></label><input id="ghToken" type="password" autocomplete="off" placeholder="github_pat_…">
+    <details class="hint"><summary data-i18n="advRepo"></summary>
     <div class="row2">
       <div><label data-i18n="ghOwner"></label><input id="ghOwner"></div>
       <div><label data-i18n="ghRepo"></label><input id="ghRepo"></div>
     </div>
     <label data-i18n="privRepoL"></label><input id="ghPriv">
-    <label data-i18n="ghToken"></label><input id="ghToken" type="password" autocomplete="off" placeholder="github_pat_…">
-    <div class="hint" data-i18n-html="tokenHelp"></div>
+    </details>
     <div class="btns"><button id="doLogin" data-i18n="doLogin"></button></div>
     </div>
     <div class="hint" id="loginMsg"></div>
@@ -601,6 +602,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
         <div><label data-i18n="midPw2"></label><input id="midPw2" type="password" autocomplete="new-password"></div></div>
       <div class="btns"><button id="midSave" data-i18n="midSave"></button><button class="ghost danger sm" id="midDel" data-i18n="midDel"></button></div>
       <div class="hint" id="midMsg"></div>
+      <div class="hint" data-i18n="midTokNote"></div>
       <div class="hint" data-i18n="midHelp"></div>
     </div>
     <div class="masteronly subbox">
