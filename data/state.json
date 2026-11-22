@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updatedAt": "2026-11-22T04:10:20.261Z",
+ "updatedAt": "2026-11-22T04:10:32.926Z",
  "settings": {
   "start": "2026-11-22",
   "months": "3",
@@ -73,6 +73,11 @@
    "at": "2026-11-22 13:10",
    "ko": "2027.02.28(일) 보강(#1): 이동 · 사전 합의 사유 → 예정 · 기존 보강(보강(#1)) 2027.03.14(일) 해제",
    "en": "Sun, Feb 28, 2027 Makeup(#1): Moved · by mutual agreement → Scheduled · removed Makeup(Makeup(#1)) Sun, Mar 14, 2027"
+  },
+  {
+   "at": "2026-11-22 13:10",
+   "ko": "2027.02.28(일) 보강(#1): 예정 → 예정",
+   "en": "Sun, Feb 28, 2027 Makeup(#1): Scheduled → Scheduled"
   }
  ]
 }
