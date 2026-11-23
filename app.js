@@ -129,7 +129,7 @@ let confirming = false, confirmedUntil = 0;
 async function confirmedSave(){
   if ($("settingsModal").classList.contains("on")){ saveTimer = setTimeout(confirmedSave, 800); return; }
   if (!(await confirmMaster())){ await loadRemote(); render(); setSync(t("pwCancelled"), true); return; }
-  await saveRemote();
+  await saveRemote(); reconcilePayments();
 }
 function confirmMaster(){
   if (!isMaster()) return Promise.resolve(false);
@@ -336,6 +336,7 @@ ko: {
   fixHist:"정정 기록", fixDone:"정정했어요. 저장할 때 마스터 비밀번호를 확인합니다.",
   logFix:(a,b,e1,e2) => `🛠 수업 조건 정정: 선불 ${a}회 → ${b}회 · 마지막 수업 ${e1} → ${e2} (자세한 내용은 마스터 정정 기록)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1}회 = $${u1} → $${p2} × ${c2}회 = $${u2} · ${r}`,
+  payWas:(n,e) => `정정 전 ${n}회 · ~${e}`,
   hSettings:"나의 수업 설정", sStart:"시작일", sMonths:"선불 기간(개월)", sCount:"선불 수업 수 (빈칸 = 기간 안 일요일 전부)", sTime:"수업 시각", sDur:"수업 길이(분)", sPrice:"1 Class 가격 (USD)",
   sAlert:"알림: 남은 수업 몇 회", sNotice:"이동·Hold 사전 합의 기준 (수업 며칠 전까지)", sRateDate:"환율 고시일",
   cbuHint:'결제 전에 <a href="https://cbu.uz/en/arkhiv-kursov-valyut/" target="_blank" rel="noopener">CBU 환율 아카이브</a>에서 최신 값을 확인해 입력하세요.',
@@ -363,7 +364,7 @@ ko: {
   inPrepaid:"선불 포함",
   listFoot:(p,b,m) => `선불 합계 (정규 ${p}회 · 보너스 ${b}회 무료 · 보강 ${m}회는 선불분)`,
   basis:(o) => [
-    `① 선불 기간: ${o.ps} ~ ${o.pe}${o.ext ? "" : ` (시작일 + ${o.months}개월 − 1일)`}`,
+    `① 선불 기간: ${o.ps} ~ ${o.pe}${o.count ? ` (시작일부터 매주 일요일 ${o.count}회)` : o.ext ? "" : ` (시작일 + ${o.months}개월 − 1일)`}`,
     `② 선불 수업 <b>${o.prepaid}회</b> — 매주 일요일 ${o.slot} (${o.dur}분 = 1 Class)`,
     `③ 선불액: ${o.prepaid}회 × ${o.price} = <b>${o.usd}</b> × ${o.rate} UZS (CBU ${o.rateDate}) = <b>${o.uzs} UZS</b>`,
     `④ 내 사유 취소·No-show ${o.consumed}회 → 선불 차감, 보강 없음`,
@@ -371,7 +372,7 @@ ko: {
     `⑥ 사전 합의·내 사유 이동 ${o.relocated}회 · Hold ${o.holds}회 → 선불분 유지, 차감 없음`,
     `⑦ 실제 마지막 수업: ${o.last} · 정산 알림: 남은 수업 ${o.N}회가 되는 ${o.alert}`],
   next:(o) => [
-    `기간: ${o.a} ~ ${o.b} (마지막 수업 다음 날부터 ${o.months}개월)`,
+    `기간: ${o.a} ~ ${o.b} (${o.count ? `마지막 수업 다음 일요일부터 ${o.count}회` : `마지막 수업 다음 날부터 ${o.months}개월`})`,
     `일요일 ${o.n}회: ${o.list}`,
     `${o.n}회 × ${o.price} = <b>${o.usd}</b> → × ${o.rate} = <b>${o.uzs} UZS</b>`],
   nextHint:h => `현재 입력된 환율로 계산한 예상값입니다.${h?" 보류 수업이 남아 있으면 날짜를 정한 뒤 다시 확인하세요.":""}`,
@@ -542,6 +543,7 @@ en: {
   fixHist:"Correction history", fixDone:"Corrected. The master password is confirmed when saving.",
   logFix:(a,b,e1,e2) => `🛠 Class terms corrected: prepaid ${a} → ${b} classes · last class ${e1} → ${e2} (details in the master correction history)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1} = $${u1} → $${p2} × ${c2} = $${u2} · ${r}`,
+  payWas:(n,e) => `was ${n} · to ${e}`,
   hSettings:"My class settings", sStart:"Start date", sMonths:"Prepaid period (months)", sCount:"Prepaid classes (blank = every Sunday in the period)", sTime:"Class time", sDur:"Length (min)", sPrice:"Price per class (USD)",
   sAlert:"Alert when this many classes are left", sNotice:"Notice needed to move / hold (days before class)", sRateDate:"Rate date",
   cbuHint:'Check the latest rate in the <a href="https://cbu.uz/en/arkhiv-kursov-valyut/" target="_blank" rel="noopener">CBU rate archive</a> before paying.',
@@ -569,7 +571,7 @@ en: {
   inPrepaid:"In prepaid",
   listFoot:(p,b,m) => `Prepaid total (${p} regular · ${b} bonus free · ${m} makeup from prepaid)`,
   basis:(o) => [
-    `① Prepaid period: ${o.ps} – ${o.pe}${o.ext ? "" : ` (start date + ${o.months} months − 1 day)`}`,
+    `① Prepaid period: ${o.ps} – ${o.pe}${o.count ? ` (${o.count} Sundays from the start date)` : o.ext ? "" : ` (start date + ${o.months} months − 1 day)`}`,
     `② <b>${o.prepaid} prepaid classes</b> — every Sunday ${o.slot} (${o.dur} min = 1 class)`,
     `③ Prepaid: ${o.prepaid} × ${o.price} = <b>${o.usd}</b> × ${o.rate} UZS (CBU ${o.rateDate}) = <b>${o.uzs} UZS</b>`,
     `④ My cancellations / no-shows: ${o.consumed} → used from prepaid, no makeup`,
@@ -577,7 +579,7 @@ en: {
     `⑥ Moves by me or by agreement: ${o.relocated} · On hold: ${o.holds} → stays prepaid, nothing used`,
     `⑦ Actual last class: ${o.last} · Payment alert on ${o.alert}, when ${o.N} classes are left`],
   next:(o) => [
-    `Period: ${o.a} – ${o.b} (${o.months} months from the day after the last class)`,
+    `Period: ${o.a} – ${o.b} (${o.count ? `${o.count} Sundays after the last class` : `${o.months} months from the day after the last class`})`,
     `${o.n} Sundays: ${o.list}`,
     `${o.n} × ${o.price} = <b>${o.usd}</b> → × ${o.rate} = <b>${o.uzs} UZS</b>`],
   nextHint:h => `Estimate at the rate entered now.${h?" If classes are still on hold, check again after setting their dates.":""}`,
@@ -947,13 +949,13 @@ function render(){
   // 근거
   const cnt = f => S.filter(f).length;
   $("basis").innerHTML = t("basis")({
-    ps:kdate(P.start), pe:kdate(Pend), ext: paidDates.length > 0, months:C.months, prepaid, slot:tEnd(C.time), dur:C.dur,
+    ps:kdate(P.start), pe:kdate(Pend), ext: paidDates.length > 0, months:C.months, count:C.count, prepaid, slot:tEnd(C.time), dur:C.dur,
     price:usd(C.price), usd:usd(prepaidUsd), rate:uzs2(C.rate), rateDate:C.rateDate, uzs:uzs2(prepaidUzs),
     consumed:cnt(s => klass(s)==="consumed"), teacher:cnt(s => klass(s)==="teacher"), bonus:bonusCount,
     relocated:cnt(s => klass(s)==="relocated"), holds:holds.length, last:kdate(lastSession), N:C.N, alert:alertItem?kdate(alertItem.d):"–"
   }).map((x,i) => `<div${i===2?' class="money"':""}>${isMaster() ? x : x.replace(/ \(\$0\)/, "")}</div>`)
     .map((x,i,arr) => (i === 1 && freeX) ? x + `<div>${t("basisExtra")(freeX)}</div>` : x).join("");
-  $("nextBasis").innerHTML = t("next")({a:kdate(NP.start), b:kdate(NP.end), months:C.months, n:nCount, list:NP.list.map(sdate).join(", "),
+  $("nextBasis").innerHTML = t("next")({a:kdate(NP.start), b:kdate(NP.end), months:C.months, count:C.count, n:nCount, list:NP.list.map(sdate).join(", "),
     price:usd(C.price), usd:usd(nUsd), rate:uzs2(C.rate), uzs:uzs2(nUzs)}).map((x,i) => `<div${i===2?' class="money"':""}>${x}</div>`).join("")
     + `<div class="hint">${t("nextHint")(holds.length)}</div>`;
 
@@ -1875,7 +1877,16 @@ async function loadPayments(){
     } else if (!r.ok) throw new Error("norepo");
     else { const j = await r.json(); paySha = j.sha; payments = JSON.parse(b64dec(j.content)); }
   } catch(e) { payErr = e.message; }
-  payLoaded = true; renderPayments(); render();
+  payLoaded = true; renderPayments(); render(); reconcilePayments();
+}
+// 정정이 있으면 그 기간의 납부 기록도 새 횟수·가격·종료일로 맞춤 (원래 값은 orig에 보관)
+async function reconcilePayments(){
+  if (!isMaster() || !payLoaded || payErr || !fixes.length || !lastCalc) return;
+  const f = fixes[fixes.length-1], start = fmt(lastCalc.P.start); let changed = false;
+  payments.forEach(p => { if (p.periodStart === start && !p.orig && (+p.classes !== f.c2 || +p.priceUsd !== f.p2)){
+    p.orig = {classes: p.classes, priceUsd: p.priceUsd, periodEnd: p.periodEnd, fixedAt: f.at};
+    p.classes = f.c2; p.priceUsd = f.p2; p.periodEnd = f.e2; changed = true; } });
+  if (changed){ try { await savePayments("Align payment record with class-terms correction"); } catch(e) {} renderPayments(); }
 }
 async function savePayments(msg){ paySha = await privPut("payments.json", b64enc(JSON.stringify(payments, null, 1)), msg, paySha); }
 async function receiptUrl(path){
@@ -1895,7 +1906,7 @@ function renderPayments(){
   const sumU = list.reduce((a,p) => a + (+p.totalUsd||0), 0), sumZ = list.reduce((a,p) => a + (+p.paidUzs||0), 0);
   box.innerHTML = `<table class="paytable"><thead><tr><th>${t("pthDate")}</th><th>${t("pthPeriod")}</th><th class="r">${t("pthCls")}</th><th class="r">USD</th><th class="r">UZS</th><th>${t("pthRcpt")}</th><th></th></tr></thead><tbody>` +
     list.map(p => `<tr><td>${p.paidOn}</td><td>${kdate(parse(p.periodStart))}<br><span class="hint">~ ${kdate(parse(p.periodEnd))}</span></td>
-      <td class="r">${p.classes}</td><td class="r mono">${usd(+p.totalUsd)}</td>
+      <td class="r">${p.classes}${p.orig ? `<br><span class="hint">(${t("payWas")(p.orig.classes, kdate(parse(p.orig.periodEnd)))})</span>` : ""}</td><td class="r mono">${usd(+p.totalUsd)}</td>
       <td class="r mono">${Math.round(+p.paidUzs).toLocaleString("en-US")}<br><span class="hint">@ ${uzs2(+p.rate)}</span></td>
       <td><div class="thumbs">${(p.receipts||[]).map(r => `<img data-path="${r}" alt="">`).join("")}</div>${p.memo?`<div class="hint">${p.memo.replace(/</g,"&lt;")}</div>`:""}</td>
       <td><button class="ghost sm paydel" data-id="${p.id}">${delArm === p.id ? t("payDelQ") : "🗑"}</button></td></tr>`).join("") +
