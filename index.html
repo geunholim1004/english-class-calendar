@@ -182,6 +182,8 @@ body.viewer .masteronly{display:none}
 #logDetails .chev{color:var(--muted);transition:transform .15s}
 #logDetails[open] .chev{transform:rotate(180deg)}
 .logcount{font-size:12px;font-weight:500;color:var(--muted)}
+.fixrow{background:#fff7e8;border-radius:8px;padding:4px 6px}
+.fxtable{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}.fxtable th,.fxtable td{padding:6px;border-bottom:1px solid #e6ece9;text-align:left}
 .logrow{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
 .log .logrow > div{padding:0;border:0}
 .logdel{background:none;border:none;color:var(--muted);font-size:16px;line-height:1;padding:2px 4px;opacity:.5}
@@ -540,6 +542,20 @@ input:disabled{opacity:.75;background:#f3f2ee}
 </div>
 
 <!-- 납부 기록 입력 -->
+<div class="modal" id="fixModal">
+  <div class="sheet narrow">
+    <header><h2 data-i18n="fixH"></h2><button class="x" data-close>×</button></header>
+    <div class="hint" data-i18n="fixHint"></div>
+    <div class="row2"><div><label data-i18n="fixPrice"></label><input id="fxPrice" type="number" step="0.01" min="0"></div>
+      <div><label data-i18n="fixCount"></label><input id="fxCount" type="number" min="1"></div></div>
+    <table class="fxtable" id="fxTable"></table>
+    <div class="hint" id="fxNote"></div>
+    <label data-i18n="fixReason"></label><input id="fxReason" data-i18n-ph="fixReasonPh" maxlength="300">
+    <div class="btns"><button id="fxApply" data-i18n="fixApply"></button><button class="ghost" data-close data-i18n="close"></button></div>
+    <div class="hint" id="fxMsg"></div>
+    <div id="fxHist" style="margin-top:10px"></div>
+  </div>
+</div>
 <div class="modal" id="payModal">
   <div class="sheet narrow">
     <header><h2 data-i18n="hPayForm"></h2><button class="x" data-close>×</button></header>
@@ -604,6 +620,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
       <div><label data-i18n="sStart"></label><input id="start" type="date" value="2026-11-22"></div>
       <div><label data-i18n="sMonths"></label><input id="months" type="number" min="1" max="12" value="3"></div>
     </div>
+    <label data-i18n="sCount"></label><input id="count" type="number" min="0" placeholder="—">
     <div class="row2">
       <div><label data-i18n="sTime"></label><input id="time" type="time" value="17:00"></div>
       <div><label data-i18n="sDur"></label><input id="dur" type="number" value="25"></div>
@@ -623,6 +640,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
     <input id="asof" type="date">
     <div class="btns"><button data-close data-i18n="sDone"></button></div>
     <div class="hint" data-i18n="sHint"></div>
+    <div class="masteronly money subbox"><button class="ghost" id="fixBtn" data-i18n="fixBtn"></button></div>
     <div class="masteronly subbox">
       <h4 data-i18n="hRepos"></h4><div class="hint" id="repoStatus"></div>
     </div>

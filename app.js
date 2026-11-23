@@ -22,7 +22,7 @@ function cleanReq(r){
 // 사용자가 입력한 글자는 화면에 그릴 때 반드시 이스케이프 (악성 코드 실행 방지)
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const KEY = "eng-class-state-v4", LOGKEY = "eng-class-log-v4", LANGKEY = "eng-class-lang";
-let state = {}, log = [], extras = [], selected = null, lang = "ko", addDate = null, addPaid = "paid", calExpanded = false;
+let state = {}, log = [], extras = [], fixes = [], selected = null, lang = "ko", addDate = null, addPaid = "paid", calExpanded = false;
 try { extras = JSON.parse(localStorage.getItem("eng-class-extras-v1") || "[]"); } catch(e) {}
 try { calExpanded = localStorage.getItem("eng-class-cal6") === "1"; } catch(e) {}
 try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e) {}
@@ -45,13 +45,13 @@ const isMaster = () => !!(auth && auth.token && auth.role !== "sub");
 const isSub = () => !!(auth && auth.token && auth.role === "sub");
 const isEditor = () => isMaster() || isSub();
 let remoteSha = null, lastUpdated = null, syncStatus = "", saveTimer = null, loadingRemote = false;
-const SETTING_IDS = ["start","months","time","dur","price","alertN","minNotice","rate","rateDate"];
+const SETTING_IDS = ["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate"];
 function snapshot(){ const settings = {}; SETTING_IDS.forEach(id => settings[id] = $(id).value);
-  return {version:1, updatedAt:new Date().toISOString(), settings, state, log, extras}; }
+  return {version:1, updatedAt:new Date().toISOString(), settings, state, log, extras, fixes}; }
 function applySnapshot(d){
   if (!d) return;
   if (d.settings) SETTING_IDS.forEach(id => { if (d.settings[id] !== undefined) $(id).value = d.settings[id]; });
-  state = d.state || {}; log = d.log || []; extras = d.extras || []; lastUpdated = d.updatedAt || null;
+  state = d.state || {}; log = d.log || []; extras = d.extras || []; fixes = Array.isArray(d.fixes) ? d.fixes : []; lastUpdated = d.updatedAt || null;
   try { localStorage.setItem(KEY, JSON.stringify(state)); localStorage.setItem(LOGKEY, JSON.stringify(log)); } catch(e) {}
 }
 const b64enc = s => btoa(unescape(encodeURIComponent(s)));
@@ -88,7 +88,7 @@ async function ghDelete(repo, path, message){
 }
 // 선생님용 사본: 금액(가격·환율) 빼고 저장
 const MONEY_KEYS = ["price","rate","rateDate"];
-function shareView(snap){ const settings = {...snap.settings}; MONEY_KEYS.forEach(k => delete settings[k]); return {...snap, settings}; }
+function shareView(snap){ const settings = {...snap.settings}; MONEY_KEYS.forEach(k => delete settings[k]); const v = {...snap, settings}; delete v.fixes; return v; }
 function lockView(on){ document.body.classList.toggle("locked", on); }
 async function loadRemote(){
   if (!isEditor()){ lockView(true); setSync(""); render(); return; }       // 로그인 안 한 사람: 아무 데이터도 불러오지 않음
@@ -329,7 +329,14 @@ ko: {
   lAgreed:"합의(연락)한 날 (한국 날짜)", lTo:"새 날짜", lToTime:"새 시각", lMemo:"사유 입력", memoPh:"예: 선생님 출장, 가족 행사, 인터넷 장애 …",
   apply:"적용", calHint:"수업을 누르면 완료·수정·이동·Hold·취소·No-show, 빈 날짜를 누르면 그날 수업 추가.",
   hBasis:"계산 근거", hList:"수업 목록", thDate:"날짜", thType:"구분", thStatus:"상태", thNotes:"비고 / 사유", hNext:"다음 선불 기간 미리 계산",
-  hSettings:"나의 수업 설정", sStart:"시작일", sMonths:"선불 기간(개월)", sTime:"수업 시각", sDur:"수업 길이(분)", sPrice:"1 Class 가격 (USD)",
+  fixBtn:"✏️ 수업 조건 정정 (강제 수정)", fixH:"수업 조건 정정", fixHint:"잘못 입력된 가격·수업 수를 바로잡습니다. 달력·기간·정산 알림이 새 조건으로 다시 계산되고, 정정 전후 내용은 기록으로 남습니다.",
+  fixNow:"현재", fixNew:"정정 후", fixPrice:"1 Class 가격 (USD)", fixCount:"선불 수업 수", fixTotal:"선불액", fixEnd:"마지막 수업", fixReason:"정정 사유 (필수)", fixReasonPh:"예: 가격 오기 — 실제 1 Class $9",
+  fixExtra:n => `유료 추가 수업 ${n}개는 선불 수업 수에 포함해 정리합니다 (달력에서 따로 표시되지 않음).`, fixApply:"정정 적용", fixNeed:"사유를 입력하고, 가격이나 수업 수를 바꿔 주세요.",
+  fixOrphan:n => `새 수업 수 밖으로 빠지는 수업 ${n}개에 기록(이동·취소 등)이 있어요. 기록은 남지만 달력에서는 보이지 않습니다.`,
+  fixHist:"정정 기록", fixDone:"정정했어요. 저장할 때 마스터 비밀번호를 확인합니다.",
+  logFix:(a,b,e1,e2) => `🛠 수업 조건 정정: 선불 ${a}회 → ${b}회 · 마지막 수업 ${e1} → ${e2} (자세한 내용은 마스터 정정 기록)`,
+  fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1}회 = $${u1} → $${p2} × ${c2}회 = $${u2} · ${r}`,
+  hSettings:"나의 수업 설정", sStart:"시작일", sMonths:"선불 기간(개월)", sCount:"선불 수업 수 (빈칸 = 기간 안 일요일 전부)", sTime:"수업 시각", sDur:"수업 길이(분)", sPrice:"1 Class 가격 (USD)",
   sAlert:"알림: 남은 수업 몇 회", sNotice:"이동·Hold 사전 합의 기준 (수업 며칠 전까지)", sRateDate:"환율 고시일",
   cbuHint:'결제 전에 <a href="https://cbu.uz/en/arkhiv-kursov-valyut/" target="_blank" rel="noopener">CBU 환율 아카이브</a>에서 최신 값을 확인해 입력하세요.',
   sAsof:"기준일 (알림 미리보기용, 비우면 오늘)", sDone:"완료", sHint:"입력 즉시 달력과 금액이 다시 계산됩니다.",
@@ -528,7 +535,14 @@ en: {
   lAgreed:"Date contacted (Korea date)", lTo:"New date", lToTime:"New time", lMemo:"Reason", memoPh:"e.g. teacher travelling, family event, internet outage …",
   apply:"Apply", calHint:"Click a class to mark it done, edit, move, hold, cancel or no-show; click an empty day to add a class there.",
   hBasis:"How it’s calculated", hList:"Class list", thDate:"Date", thType:"Type", thStatus:"Status", thNotes:"Notes / reason", hNext:"Next prepaid period (estimate)",
-  hSettings:"My class settings", sStart:"Start date", sMonths:"Prepaid period (months)", sTime:"Class time", sDur:"Length (min)", sPrice:"Price per class (USD)",
+  fixBtn:"✏️ Correct class terms (override)", fixH:"Correct class terms", fixHint:"Fix a wrong price or class count. The calendar, period and payment alert are recalculated, and the before/after is kept in the history.",
+  fixNow:"Current", fixNew:"Corrected", fixPrice:"Price per class (USD)", fixCount:"Prepaid classes", fixTotal:"Prepaid amount", fixEnd:"Last class", fixReason:"Reason (required)", fixReasonPh:"e.g. wrong price — actually $9 per class",
+  fixExtra:n => `${n} paid extra class(es) will be folded into the prepaid count (no longer shown separately).`, fixApply:"Apply correction", fixNeed:"Enter a reason and change the price or class count.",
+  fixOrphan:n => `${n} class(es) beyond the new count have records (moves, cancellations…). They are kept but no longer shown on the calendar.`,
+  fixHist:"Correction history", fixDone:"Corrected. The master password is confirmed when saving.",
+  logFix:(a,b,e1,e2) => `🛠 Class terms corrected: prepaid ${a} → ${b} classes · last class ${e1} → ${e2} (details in the master correction history)`,
+  fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1} = $${u1} → $${p2} × ${c2} = $${u2} · ${r}`,
+  hSettings:"My class settings", sStart:"Start date", sMonths:"Prepaid period (months)", sCount:"Prepaid classes (blank = every Sunday in the period)", sTime:"Class time", sDur:"Length (min)", sPrice:"Price per class (USD)",
   sAlert:"Alert when this many classes are left", sNotice:"Notice needed to move / hold (days before class)", sRateDate:"Rate date",
   cbuHint:'Check the latest rate in the <a href="https://cbu.uz/en/arkhiv-kursov-valyut/" target="_blank" rel="noopener">CBU rate archive</a> before paying.',
   sAsof:"As-of date (to preview alerts; blank = today)", sDone:"Done", sHint:"The calendar and amounts update as you type.",
@@ -639,6 +653,7 @@ function cfg(){
   return {
     start: parse($("start").value || "2026-11-22"),
     months: Math.max(1, +$("months").value || 3),
+    count: Math.max(0, Math.floor(+$("count").value || 0)),   // 선불 수업 수 (0 = 기간 안의 일요일 전부)
     price: +$("price").value || 0,
     rate: +$("rate").value || 0,
     rateDate: $("rateDate").value,
@@ -649,11 +664,13 @@ function cfg(){
     asof: parse($("asof").value || todayStr()),
   };
 }
-function sundays(start, months){
-  const end = addDays(addMonths(start, months), -1);
+// 선불 기간의 일요일 목록. count가 있으면 시작일부터 정확히 count회 (기간 끝 = 마지막 수업일)
+function sundays(start, months, count){
   let d = new Date(start);
   while (d.getUTCDay() !== 0) d = addDays(d,1);
   const list = [];
+  if (count > 0){ for (let i = 0; i < count; i++, d = addDays(d,7)) list.push(new Date(d)); return {start, end: list[list.length-1], list}; }
+  const end = addDays(addMonths(start, months), -1);
   for (; d <= end; d = addDays(d,7)) list.push(new Date(d));
   return {start, end, list};
 }
@@ -733,10 +750,47 @@ function setLang(l){
 }
 document.querySelectorAll("[data-lang]").forEach(b => b.onclick = () => setLang(b.dataset.lang));
 
+
+/* ---------- 수업 조건 정정 (마스터 강제 수정 + 기록) ---------- */
+function termsOf(C, ex){
+  const P = sundays(C.start, C.months, C.count), paid = ex.filter(x => x.paid && DATE_RE.test(x.date || ""));
+  const prepaid = P.list.length + paid.length;
+  const last = new Date(Math.max(P.list.length ? +P.list[P.list.length-1] : 0, ...paid.map(x => +parse(x.date))));
+  return {P, prepaid, usd: prepaid * C.price, last};
+}
+function openFix(){
+  if (!isMaster()) return;
+  const C = cfg(), cur = termsOf(C, extras), paidN = extras.filter(x => x.paid).length;
+  $("fxPrice").value = C.price; $("fxCount").value = cur.prepaid; $("fxReason").value = ""; $("fxMsg").textContent = "";
+  $("fxHist").innerHTML = fixes.length ? `<h4>${t("fixHist")}</h4>` + fixes.slice().reverse().map(f => `<div class="hint">${esc(t("fixRow")(f.at, f.p1, f.p2, f.c1, f.c2, f.u1, f.u2, f.reason))}</div>`).join("") : "";
+  const pv = () => {
+    const np = +$("fxPrice").value || 0, nc = Math.max(1, Math.floor(+$("fxCount").value || 0));
+    const nx = termsOf({...C, price: np, count: nc}, extras.filter(x => !x.paid));
+    const orphan = Object.keys(state).filter(k => /^R\d+$/.test(k) && +k.slice(1) > nc).length;
+    const row = (l, a, b) => `<tr><th>${l}</th><td class="mono">${a}</td><td class="mono"><b>${b}</b></td></tr>`;
+    $("fxTable").innerHTML = `<tr><th></th><th>${t("fixNow")}</th><th>${t("fixNew")}</th></tr>`
+      + row(t("fixPrice"), usd(C.price), usd(np)) + row(t("fixCount"), cur.prepaid, nc) + row(t("fixTotal"), usd(cur.usd), usd(np * nc)) + row(t("fixEnd"), kdate(cur.last), kdate(nx.last));
+    $("fxNote").innerHTML = (paidN ? `<div>${esc(t("fixExtra")(paidN))}</div>` : "") + (orphan ? `<div class="bad">${esc(t("fixOrphan")(orphan))}</div>` : "");
+  };
+  ["fxPrice","fxCount"].forEach(id => $(id).oninput = pv); pv();
+  $("fxApply").onclick = () => {
+    const np = +$("fxPrice").value || 0, nc = Math.max(1, Math.floor(+$("fxCount").value || 0)), reason = $("fxReason").value.trim().slice(0, 300);
+    if (!reason || (np === C.price && nc === cur.prepaid)){ $("fxMsg").className = "hint bad"; $("fxMsg").textContent = t("fixNeed"); return; }
+    const nx = termsOf({...C, price: np, count: nc}, extras.filter(x => !x.paid));
+    fixes.push({at: nowStamp(), p1: C.price, p2: np, c1: cur.prepaid, c2: nc, u1: +cur.usd.toFixed(2), u2: +(np * nc).toFixed(2), e1: fmt(cur.last), e2: fmt(nx.last), removedExtras: extras.filter(x => x.paid), reason});
+    addLog({...bothLangs(() => t("logFix")(cur.prepaid, nc, kdate(cur.last), kdate(nx.last))), fix: true}, "fix");
+    extras = extras.filter(x => !x.paid);
+    $("price").value = np; $("count").value = nc;
+    $("fixModal").classList.remove("on"); save(); render(); setSync(t("fixDone"));
+  };
+  openModal("fixModal");
+}
+$("fixBtn").onclick = openFix;
+
 /* ---------- 렌더링 ---------- */
 function render(){
   const C = cfg();
-  const P = sundays(C.start, C.months);
+  const P = sundays(C.start, C.months, C.count);
   const S = buildSessions(P, C);
   const paidX = extras.filter(x => x.paid).length, freeX = extras.length - paidX;
   const prepaid = P.list.length + paidX;
@@ -752,7 +806,7 @@ function render(){
   const left = timeline.filter(s => s.act === "plan" && s.d >= C.asof).length;
   const alertItem = timeline.length > C.N ? timeline[timeline.length-C.N-1] : timeline[0];
 
-  const NP = sundays(addDays(lastSession,1), C.months);
+  const NP = sundays(addDays(lastSession,1), C.months, C.count);
   const nCount = NP.list.length, nUsd = nCount*C.price, nUzs = nUsd*C.rate;
   lastCalc = {C, P, Pend, NP, prepaid, nCount};
 
@@ -905,7 +959,7 @@ function render(){
 
   // 기록
   $("logCount").textContent = log.length ? "(" + t("logCountTxt")(log.length) + ")" : "";
-  $("log").innerHTML = log.length ? log.slice().reverse().map(l => `<div class="logrow"><div><time>${esc(l.at)}${l.by ? ` · <span class="bytag">${esc(l.by)}</span>` : ""}</time>${esc(l[lang] || l.ko || l.text || "")}</div>${isMaster() ? `<button class="logdel" data-id="${esc(logId(l))}" title="${t("logDel")}">×</button>` : ""}</div>`).join("")
+  $("log").innerHTML = log.length ? log.slice().reverse().map(l => `<div class="logrow${l.fix ? " fixrow" : ""}"><div><time>${esc(l.at)}${l.by ? ` · <span class="bytag">${esc(l.by)}</span>` : ""}</time>${esc(l[lang] || l.ko || l.text || "")}</div>${isMaster() ? `<button class="logdel" data-id="${esc(logId(l))}" title="${t("logDel")}">×</button>` : ""}</div>`).join("")
     : `<div class="empty">${t("noLog")}</div>`;
 
   $("log").querySelectorAll(".logdel").forEach(btn => btn.onclick = () => removeLogs([btn.dataset.id]));
@@ -1298,7 +1352,7 @@ let rqDraft = null;
 // 1) 변경 요청 보내기 → 확인 창 (아직 저장 안 함)
 $("reqSend").onclick = () => {
   if (!isSub()) return;
-  const C = cfg(), sel = buildSessions(sundays(C.start, C.months), C).find(x => x.id === reqSid);
+  const C = cfg(), sel = buildSessions(sundays(C.start, C.months, C.count), C).find(x => x.id === reqSid);
   if (!sel || !rq.act) return;
   if (rq.act === "move" && !rq.cause){ $("reqPreview").textContent = t("rqNeedCause"); return; }
   const needDate = rq.act === "edit" || (rq.act === "move" && rq.how === "date");
@@ -1342,7 +1396,7 @@ function checkReq(){
 function clearReqHash(){ incoming = null; try { history.replaceState(null, "", location.pathname + location.search); } catch(e) { location.hash = ""; } }
 function showReq(){
   const r = incoming; if (!r) return;
-  const C = cfg(), s = buildSessions(sundays(C.start, C.months), C).find(x => x.id === r.id);
+  const C = cfg(), s = buildSessions(sundays(C.start, C.months, C.count), C).find(x => x.id === r.id);
   const lines = [[t("rqTarget"), s ? `${kdate(parse(r.d))} ${labelOf(s)}` : kdate(parse(r.d))], [t("rqWhat"), reqWhat(r, C)],
     [t("rqWhy"), (r.cause ? t("cause")[r.cause] + " · " : "") + (r.reason || "")], [t("rqWhen"), r.at]];
   $("reqInBody").innerHTML = lines.map(([k,v]) => `<div><b>${k}</b> · ${String(v).replace(/</g,"&lt;")}</div>`).join("");
@@ -1385,7 +1439,7 @@ async function mutateRequests(fn, message, retry){
   requests = list;
 }
 function reqLines(r, C){
-  const s = buildSessions(sundays(C.start, C.months), C).find(x => x.id === r.id);
+  const s = buildSessions(sundays(C.start, C.months, C.count), C).find(x => x.id === r.id);
   return {s, html: `<div><b>${kdate(parse(r.d))} ${s ? labelOf(s) : ""}</b> · ${reqWhat(r, C)}</div>
     <div class="hint">${(r.cause ? t("cause")[r.cause] + " · " : "") + String(r.reason || "").replace(/</g,"&lt;")}</div>`};
 }
@@ -1521,7 +1575,7 @@ function renderFb(sel){
 }
 $("fbSave").onclick = async () => {
   if (!isSub() || !fbSid) return;
-  const C = cfg(), s = buildSessions(sundays(C.start, C.months), C).find(x => x.id === fbSid); if (!s) return;
+  const C = cfg(), s = buildSessions(sundays(C.start, C.months, C.count), C).find(x => x.id === fbSid); if (!s) return;
   const v = {}; FB_KEYS.forEach(k => v[k] = $("fb_" + k).value.trim());
   if (!v.topics && !v.expr && !v.good && !v.hw){ $("fbMsg").className = "hint bad"; $("fbMsg").textContent = t("fbEmpty"); return; }
   $("fbSave").disabled = true; $("fbMsg").className = "hint"; $("fbMsg").textContent = t("rqdSaving");
@@ -1589,7 +1643,7 @@ function renderAdd(C){
 $("segPaid").querySelectorAll("button").forEach(b => b.onclick = () => { addPaid = b.dataset.v; render(); });
 $("xAdd").onclick = $("addClose").onclick = () => { addDate = null; render(); };
 $("addBtn").onclick = () => {
-  const C = cfg(), S = buildSessions(sundays(C.start, C.months), C);
+  const C = cfg(), S = buildSessions(sundays(C.start, C.months, C.count), C);
   const last = S.filter(occupies).reduce((m,x) => x.d > m ? x.d : m, C.start);
   openAdd(fmt(nextSundayAfter(last)));
 };
@@ -1598,7 +1652,7 @@ $("addApply").onclick = () => {
   if (!addDate) return;
   const x = {id:"X"+Date.now().toString(36), date:addDate, time:$("addTime").value || $("time").value || "17:00", paid: addPaid === "paid", memo: $("addMemo").value.trim() || undefined};
   extras.push(x);
-  const C = cfg(), sx = buildSessions(sundays(C.start, C.months), C).find(s => s.id === x.id);
+  const C = cfg(), sx = buildSessions(sundays(C.start, C.months, C.count), C).find(s => s.id === x.id);
   const entry = bothLangs(() => t("logAdd")(kdate(sx.d), sx.time, labelOf(sx), x.paid) + (x.memo ? " · " + t("nReason")(x.memo) : ""));
   addLog(entry, x.id);
   addDate = null; save(); render();
@@ -1668,7 +1722,7 @@ $("xAct").onclick = () => selectSession(null);
 $("segCause").querySelectorAll("button").forEach(b => b.onclick = () => { pick.cause = b.dataset.v; render(); });
 $("segHow").querySelectorAll("button").forEach(b => b.onclick = () => { pick.how = b.dataset.v; render(); });
 ["agreed","toDate","toTime"].forEach(id => $(id).addEventListener("input", () => {
-  const C = cfg(); const s = buildSessions(sundays(C.start,C.months), C).find(x => x.id === selected); if (s) updatePreview(s, C);
+  const C = cfg(); const s = buildSessions(sundays(C.start, C.months, C.count), C).find(x => x.id === selected); if (s) updatePreview(s, C);
 }));
 $("closeAct").onclick = () => selectSession(null);
 
@@ -1677,7 +1731,7 @@ function bothLangs(fn){ const keep = lang; const out = {}; for (const l of ["ko"
 
 $("applyBtn").onclick = () => {
   const a = pick.act; if (!a || !selected) return;
-  const C = cfg(), P = sundays(C.start, C.months);
+  const C = cfg(), P = sundays(C.start, C.months, C.count);
   if (a === "plan"){
     const cur = buildSessions(P, C).find(x => x.id === selected);
     if (cur && cur.kind === "extra"){                                // 추가 수업 삭제
@@ -2009,7 +2063,7 @@ function drawFx(){
 }
 
 /* ---------- 이벤트 ---------- */
-["start","months","time","dur","price","alertN","minNotice","rate","rateDate","asof"].forEach(id => $(id).addEventListener("input", () => { render(); if (id !== "asof") queueRemoteSave(); }));
+["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate","asof"].forEach(id => $(id).addEventListener("input", () => { render(); if (id !== "asof") queueRemoteSave(); }));
 $("loginBtn").onclick = () => { const tokMode = /^#master$/.test(location.hash);
   $("loginTabs").style.display = tokMode ? "" : "none";
   document.querySelector(`#loginTabs [data-v="${tokMode ? "master" : "sub"}"]`).click(); const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
