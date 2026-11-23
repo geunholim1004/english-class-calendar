@@ -339,6 +339,10 @@ ko: {
   logFix:(a,b,e1,e2) => `🛠 수업 조건 정정: 선불 ${a}회 → ${b}회 · 마지막 수업 ${e1} → ${e2} (자세한 내용은 마스터 정정 기록)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1}회 = $${u1} → $${p2} × ${c2}회 = $${u2} · ${r}`,
   payWas:(n,e) => `정정 전 ${n}회 · ~${e}`,
+  actBtn:"👀 선생님 활동 보기", actH:"선생님 활동 (마스터만 볼 수 있음)", actUser:"아이디", actLast:"마지막 활동", actVisits:"접속", actReqs:"요청", actFbs:"피드백", actList:"활동 기록 (최근 순)",
+  actKind:{login:"로그인",visit:"사이트 열람",request:"변경 요청",reqCancel:"요청 취소",feedback:"피드백 작성",fbDelete:"피드백 삭제",register:"가입 완료"},
+  actNever:"기록 없음", actNone:"아직 기록이 없어요.", actGit:"GitHub 저장 기록",
+  actNote:"접속(열람)은 이번 업데이트부터 기록됩니다. 그 전의 가입·요청·피드백은 GitHub 저장 기록에서 찾아 보여 줍니다. 같은 기기에서 30분 안에 다시 열면 한 번으로 셉니다.",
   fbEditB:"✏️ 편집", fbDelB:"🗑 초기화(삭제)", fbDelAsk:"이 수업의 피드백을 지울까요? 학생 답장도 함께 지워집니다.", fbDeleted:"피드백을 지웠어요.", fbEditSave:"편집 저장", fbEdited:"피드백을 고쳤어요.",
   hSettings:"나의 수업 설정", sStart:"시작일", sMonths:"선불 기간(개월)", sCount:"선불 수업 수 (빈칸 = 기간 안 일요일 전부)", sTime:"수업 시각", sDur:"수업 길이(분)", sPrice:"1 Class 가격 (USD)",
   sAlert:"알림: 남은 수업 몇 회", sNotice:"이동·Hold 사전 합의 기준 (수업 며칠 전까지)", sRateDate:"환율 고시일",
@@ -547,6 +551,10 @@ en: {
   logFix:(a,b,e1,e2) => `🛠 Class terms corrected: prepaid ${a} → ${b} classes · last class ${e1} → ${e2} (details in the master correction history)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1} = $${u1} → $${p2} × ${c2} = $${u2} · ${r}`,
   payWas:(n,e) => `was ${n} · to ${e}`,
+  actBtn:"👀 Teacher activity", actH:"Teacher activity (master only)", actUser:"ID", actLast:"Last activity", actVisits:"Visits", actReqs:"Requests", actFbs:"Feedback", actList:"Activity log (newest first)",
+  actKind:{login:"Logged in",visit:"Opened the site",request:"Change request",reqCancel:"Cancelled request",feedback:"Wrote feedback",fbDelete:"Deleted feedback",register:"Registered"},
+  actNever:"No record", actNone:"No records yet.", actGit:"from GitHub history",
+  actNote:"Visits are recorded from this update. Earlier sign-ups, requests and feedback come from the GitHub save history. Re-opening on the same device within 30 minutes counts once.",
   fbEditB:"✏️ Edit", fbDelB:"🗑 Reset (delete)", fbDelAsk:"Delete the feedback for this class? The student reply is deleted too.", fbDeleted:"Feedback deleted.", fbEditSave:"Save edits", fbEdited:"Feedback updated.",
   hSettings:"My class settings", sStart:"Start date", sMonths:"Prepaid period (months)", sCount:"Prepaid classes (blank = every Sunday in the period)", sTime:"Class time", sDur:"Length (min)", sPrice:"Price per class (USD)",
   sAlert:"Alert when this many classes are left", sNotice:"Notice needed to move / hold (days before class)", sRateDate:"Rate date",
@@ -792,6 +800,75 @@ function openFix(){
   openModal("fixModal");
 }
 $("fixBtn").onclick = openFix;
+$("actBtn").onclick = openActivity;
+
+
+/* ---------- 선생님 활동 기록 (마스터만 봄) ----------
+   선생님 화면 → share/activity.json 에 잠깐 쌓임 → 마스터가 열면 비공개 저장소 activity-log.json 으로 옮기고 share 쪽은 비움.
+   과거 기록은 GitHub 저장 기록(커밋 메시지)에서 읽어 옴. */
+const ACT_INBOX = "activity.json", ACT_LOG = "activity-log.json", ACT_MAX = 3000, VISIT_GAP = 30 * 60e3;
+async function logActivity(kind, detail){
+  if (!isSub()) return;
+  try {
+    if (kind === "visit"){ const k = "eng-class-lastvisit-" + auth.login, last = +(localStorage.getItem(k) || 0); if (Date.now() - last < VISIT_GAP) return; localStorage.setItem(k, Date.now()); }
+  } catch(e) {}
+  const ev = {at: nowStamp(), by: auth.login, name: auth.name, kind, detail: String(detail || "").slice(0, 120), dev: /Mobi|Android|iPhone/i.test(navigator.userAgent) ? "mobile" : "pc"};
+  try { const g = await ghGet(SHARE_REPO, ACT_INBOX); const items = (g.data && Array.isArray(g.data.items)) ? g.data.items.slice(-200) : []; items.push(ev);
+    await ghPut(SHARE_REPO, ACT_INBOX, {items}, `Activity: ${kind} by ${auth.login}`, g.sha); } catch(e) {}
+}
+let actLog = [], actSha = null;
+async function drainActivity(){
+  if (!isMaster()) return;
+  try {
+    const r = await fetch(privUrl(ACT_LOG) + `?t=${Date.now()}`, {headers: apiHeaders(), cache:"no-store"});
+    if (r.ok){ const j = await r.json(); actSha = j.sha; actLog = JSON.parse(b64dec(j.content)); } else { actLog = []; actSha = null; }
+    const g = await ghGet(SHARE_REPO, ACT_INBOX);
+    const inbox = (g.data && Array.isArray(g.data.items)) ? g.data.items : [];
+    if (inbox.length){
+      inbox.forEach(e => { if (e && typeof e === "object") actLog.push({at: String(e.at || "").slice(0,20), by: String(e.by || "").slice(0,40), name: String(e.name || "").slice(0,40), kind: String(e.kind || "").slice(0,20), detail: String(e.detail || "").slice(0,120), dev: e.dev === "mobile" ? "mobile" : "pc"}); });
+      actLog = actLog.slice(-ACT_MAX);
+      actSha = await privPut(ACT_LOG, b64enc(JSON.stringify(actLog)), "Move teacher activity to private log", actSha);
+      await ghDelete(SHARE_REPO, ACT_INBOX, "Clear activity inbox");
+    }
+  } catch(e) {}
+}
+// GitHub 저장 기록에서 과거 활동 찾기 (가입·요청·피드백)
+async function commitActivity(){
+  const out = [];
+  for (const repo of [SHARE_REPO, ACCESS_REPO]){
+    try { const r = await fetch(`https://api.github.com/repos/${ownerOf()}/${repo}/commits?per_page=100`, {headers: apiHeaders(), cache:"no-store"});
+      if (!r.ok) continue;
+      (await r.json()).forEach(c => { const msg = (c.commit && c.commit.message || "").split("\n")[0], at = fmtStamp(c.commit.author.date);
+        let m;
+        if ((m = msg.match(/^User registered: (\S+)/))) out.push({at, by:m[1], kind:"register", src:"git"});
+        else if ((m = msg.match(/^Request from (\S+): (.*)/))) out.push({at, by:m[1], kind:"request", detail:m[2], src:"git"});
+        else if ((m = msg.match(/^Feedback (.*) by (\S+)$/))) out.push({at, by:m[2], kind:"feedback", detail:m[1], src:"git"});
+        else if ((m = msg.match(/^Delete feedback (\S+) by (\S+)$/))) out.push({at, by:m[2], kind:"fbDelete", detail:m[1], src:"git"}); });
+    } catch(e) {}
+  }
+  return out;
+}
+async function openActivity(){
+  if (!isMaster()) return;
+  $("actBody").innerHTML = `<div class="hint">${t("loginChecking")}</div>`; openModal("actModal");
+  await drainActivity();
+  const git = await commitActivity();
+  // 같은 사건이 활동 기록과 GitHub 기록 양쪽에 있으면 하나만 (3분 안, 같은 사람·종류)
+  const mins = at => Date.parse(String(at).replace(" ", "T") + ":00+09:00") / 60e3;
+  const all = actLog.slice();
+  git.forEach(g => { if (!all.some(e => e.by === g.by && e.kind === g.kind && Math.abs(mins(e.at) - mins(g.at)) <= 3)) all.push(g); });
+  all.sort((a,b) => a.at < b.at ? 1 : -1);
+  let users = []; try { users = (await fetchUsers()).users.map(u => u.id); } catch(e) {}
+  const ids = [...new Set([...users, ...all.map(e => e.by)])].filter(Boolean);
+  const K = t("actKind");
+  const sum = ids.map(id => { const es = all.filter(e => e.by === id), last = es[0];
+    const cnt = k => es.filter(e => e.kind === k).length;
+    return `<tr><td><b>${esc(id)}</b></td><td>${last ? esc(last.at) : t("actNever")}</td><td class="r">${cnt("login") + cnt("visit")}</td><td class="r">${cnt("request")}</td><td class="r">${cnt("feedback")}</td></tr>`; }).join("");
+  $("actBody").innerHTML = `<table class="mini"><tr><th>${t("actUser")}</th><th>${t("actLast")}</th><th class="r">${t("actVisits")}</th><th class="r">${t("actReqs")}</th><th class="r">${t("actFbs")}</th></tr>${sum}</table>
+    <h4 style="margin-top:14px">${t("actList")}</h4>
+    ${all.length ? `<div class="actlist">${all.slice(0, 300).map(e => `<div class="logrow"><div><b>${esc(e.at)}</b> · ${esc(e.by)} · ${esc(K[e.kind] || e.kind)}${e.detail ? ` · <span class="hint">${esc(e.detail)}</span>` : ""}${e.dev ? ` <span class="hint">(${e.dev === "mobile" ? "📱" : "💻"})</span>` : ""}${e.src === "git" ? ` <span class="hint">· ${t("actGit")}</span>` : ""}</div></div>`).join("")}</div>` : `<div class="hint">${t("actNone")}</div>`}
+    <div class="hint" style="margin-top:10px">${t("actNote")}</div>`;
+}
 
 /* ---------- 렌더링 ---------- */
 function render(){
@@ -1121,7 +1198,7 @@ async function doSubLogin(){
     let token; try { token = await unlockToken(u.box, pw); } catch(e) { throw new Error(t("subBadPw")); }
     becomeUser(u, token);
     $("loginModal").classList.remove("on"); $("subPw").value = "";
-    renderAcct(); await loadRemote(); loadRequests(); loadFeedback();
+    renderAcct(); await loadRemote(); loadRequests(); loadFeedback(); logActivity("login");
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 // 초대 링크로 등록 (#invite=아이디)
@@ -1141,7 +1218,7 @@ async function doRegister(){
     becomeUser(u, token);
     $("regModal").classList.remove("on");
     try { history.replaceState(null, "", location.pathname); } catch(e) {}
-    renderAcct(); await loadRemote(); loadRequests(); loadFeedback();
+    renderAcct(); await loadRemote(); loadRequests(); loadFeedback(); logActivity("login");
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 function checkInvite(){
@@ -1381,7 +1458,7 @@ $("rqdSend").onclick = async () => {
   const r = Object.assign({}, rqDraft.r, {at: nowStamp()});
   $("rqdSend").disabled = true; $("rqdMsg").className = "hint"; $("rqdMsg").textContent = t("rqdSaving");
   try {
-    await mutateRequests(list => { if (list.some(x => x.id === r.id && x.status === "pending")) throw new Error(t("rqAlready")); list.push(r); }, `Request from ${r.by}: ${r.d} ${r.act}`);
+    await mutateRequests(list => { if (list.some(x => x.id === r.id && x.status === "pending")) throw new Error(t("rqAlready")); list.push(r); }, `Request from ${r.by}: ${r.d} ${r.act}`); logActivity("request", `${r.d} ${r.act}`);
   } catch(e){ $("rqdSend").disabled = false; $("rqdMsg").className = "hint bad"; $("rqdMsg").textContent = t("rqSaveFail")(e.message); return; }
   rqDraft = null; reqSid = null; render(); renderPending();
   $("rqdTitle").textContent = t("rqdDoneTitle"); $("rqdHint").textContent = t("rqdDoneHint");
@@ -1518,7 +1595,7 @@ function renderMyRequests(){
     : `<div class="empty">${t("myNone")}</div>`;
   box.querySelectorAll("[data-cancel]").forEach(a => a.onclick = async e => {
     e.preventDefault();
-    try { await mutateRequests(list => { const i = list.findIndex(y => y.rid === a.dataset.cancel && y.status === "pending"); if (i >= 0) list.splice(i, 1); }, "Cancel request"); }
+    try { await mutateRequests(list => { const i = list.findIndex(y => y.rid === a.dataset.cancel && y.status === "pending"); if (i >= 0) list.splice(i, 1); }, "Cancel request"); logActivity("reqCancel"); }
     catch(err){ setSync(t("rqSaveFail")(err.message), true); }
     render(); renderPending();
   });
@@ -1587,7 +1664,7 @@ $("fbSave").onclick = async () => {
   if (!v.topics && !v.expr && !v.good && !v.hw){ $("fbMsg").className = "hint bad"; $("fbMsg").textContent = t("fbEmpty"); return; }
   $("fbSave").disabled = true; $("fbMsg").className = "hint"; $("fbMsg").textContent = t("rqdSaving");
   try {
-    await mutateFeedback(items => { const old = items[fbSid] || {}; items[fbSid] = Object.assign({}, old, v, {by: auth.login, name: auth.name, at: nowStamp()}); }, `Feedback ${fmt(s.d)} ${labelOf(s)} by ${auth.login}`);
+    await mutateFeedback(items => { const old = items[fbSid] || {}; items[fbSid] = Object.assign({}, old, v, {by: auth.login, name: auth.name, at: nowStamp()}); }, `Feedback ${fmt(s.d)} ${labelOf(s)} by ${auth.login}`); logActivity("feedback", `${fmt(s.d)} ${labelOf(s)}`);
     $("fbText").value = fbText(s, feedback[fbSid]); $("fbShareRow").style.display = "";
     $("fbShare").style.display = navigator.share ? "" : "none";
     $("fbMsg").textContent = t("fbSaved"); render();
@@ -2152,4 +2229,4 @@ applyStatic();
 renderAcct();
 render();
 if (/^#master$/.test(location.hash) && !isEditor()) setTimeout(() => $("loginBtn").click(), 300);
-loadRemote().then(() => { loadFeedback(); loadPayments(); loadArchive(); checkReq(); checkInvite(); checkRegReq(); checkPendingReg(); loadRequests(); });
+loadRemote().then(() => { if (isSub()) logActivity("visit"); if (isMaster()) drainActivity(); loadFeedback(); loadPayments(); loadArchive(); checkReq(); checkInvite(); checkRegReq(); checkPendingReg(); loadRequests(); });

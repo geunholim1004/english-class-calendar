@@ -182,6 +182,7 @@ body.viewer .masteronly{display:none}
 #logDetails .chev{color:var(--muted);transition:transform .15s}
 #logDetails[open] .chev{transform:rotate(180deg)}
 .logcount{font-size:12px;font-weight:500;color:var(--muted)}
+.actlist{max-height:50vh;overflow:auto}table.mini{width:100%;border-collapse:collapse;font-size:14px}table.mini th,table.mini td{padding:5px 6px;border-bottom:1px solid #e6ece9;text-align:left}table.mini .r{text-align:right}
 .fixrow{background:#fff7e8;border-radius:8px;padding:4px 6px}
 .fxtable{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}.fxtable th,.fxtable td{padding:6px;border-bottom:1px solid #e6ece9;text-align:left}
 .logrow{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
@@ -542,6 +543,12 @@ input:disabled{opacity:.75;background:#f3f2ee}
 </div>
 
 <!-- 납부 기록 입력 -->
+<div class="modal" id="actModal">
+  <div class="sheet">
+    <header><h2 data-i18n="actH"></h2><button class="x" data-close>×</button></header>
+    <div id="actBody"></div>
+  </div>
+</div>
 <div class="modal" id="fixModal">
   <div class="sheet narrow">
     <header><h2 data-i18n="fixH"></h2><button class="x" data-close>×</button></header>
@@ -656,6 +663,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
       <div class="hint" data-i18n="midHelp"></div>
     </div>
     <div class="masteronly subbox">
+      <div class="btns" style="margin-bottom:10px"><button class="ghost" id="actBtn" data-i18n="actBtn"></button></div>
       <h4 data-i18n="hUsers"></h4>
       <div class="hint" id="uTokState"></div>
       <div id="uTokWrap">
