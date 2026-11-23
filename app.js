@@ -337,6 +337,7 @@ ko: {
   logFix:(a,b,e1,e2) => `🛠 수업 조건 정정: 선불 ${a}회 → ${b}회 · 마지막 수업 ${e1} → ${e2} (자세한 내용은 마스터 정정 기록)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1}회 = $${u1} → $${p2} × ${c2}회 = $${u2} · ${r}`,
   payWas:(n,e) => `정정 전 ${n}회 · ~${e}`,
+  fbEditB:"✏️ 편집", fbDelB:"🗑 초기화(삭제)", fbDelAsk:"이 수업의 피드백을 지울까요? 학생 답장도 함께 지워집니다.", fbDeleted:"피드백을 지웠어요.", fbEditSave:"편집 저장", fbEdited:"피드백을 고쳤어요.",
   hSettings:"나의 수업 설정", sStart:"시작일", sMonths:"선불 기간(개월)", sCount:"선불 수업 수 (빈칸 = 기간 안 일요일 전부)", sTime:"수업 시각", sDur:"수업 길이(분)", sPrice:"1 Class 가격 (USD)",
   sAlert:"알림: 남은 수업 몇 회", sNotice:"이동·Hold 사전 합의 기준 (수업 며칠 전까지)", sRateDate:"환율 고시일",
   cbuHint:'결제 전에 <a href="https://cbu.uz/en/arkhiv-kursov-valyut/" target="_blank" rel="noopener">CBU 환율 아카이브</a>에서 최신 값을 확인해 입력하세요.',
@@ -544,6 +545,7 @@ en: {
   logFix:(a,b,e1,e2) => `🛠 Class terms corrected: prepaid ${a} → ${b} classes · last class ${e1} → ${e2} (details in the master correction history)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1} = $${u1} → $${p2} × ${c2} = $${u2} · ${r}`,
   payWas:(n,e) => `was ${n} · to ${e}`,
+  fbEditB:"✏️ Edit", fbDelB:"🗑 Reset (delete)", fbDelAsk:"Delete the feedback for this class? The student reply is deleted too.", fbDeleted:"Feedback deleted.", fbEditSave:"Save edits", fbEdited:"Feedback updated.",
   hSettings:"My class settings", sStart:"Start date", sMonths:"Prepaid period (months)", sCount:"Prepaid classes (blank = every Sunday in the period)", sTime:"Class time", sDur:"Length (min)", sPrice:"Price per class (USD)",
   sAlert:"Alert when this many classes are left", sNotice:"Notice needed to move / hold (days before class)", sRateDate:"Rate date",
   cbuHint:'Check the latest rate in the <a href="https://cbu.uz/en/arkhiv-kursov-valyut/" target="_blank" rel="noopener">CBU rate archive</a> before paying.',
@@ -1574,6 +1576,7 @@ function renderFb(sel){
   $("fbTitle").innerHTML = `<b>${t("fbTitle")(kdate(sel.d) + " " + sel.time, labelOf(sel))}</b>`;
   $("fbReplyView").innerHTML = f && f.reply ? `<div class="fbreply"><b>${t("fbReplyL")}</b> ${esc(f.reply).replace(/\n/g,"<br>")}<div class="hint">${esc(f.replyAt)}</div></div>` : "";
   $("fbSave").textContent = f ? t("fbUpdate") : t("fbSave");
+  $("fbDel").textContent = t("fbDelB"); $("fbDel").style.display = f ? "" : "none";
 }
 $("fbSave").onclick = async () => {
   if (!isSub() || !fbSid) return;
@@ -1589,6 +1592,12 @@ $("fbSave").onclick = async () => {
   } catch(e){ $("fbMsg").className = "hint bad"; $("fbMsg").textContent = t("rqSaveFail")(e.message); }
   $("fbSave").disabled = false;
 };
+$("fbDel").onclick = async () => {
+  if (!isSub() || !fbSid || !feedback[fbSid] || !confirm(t("fbDelAsk"))) return;
+  try { await mutateFeedback(items => { delete items[fbSid]; }, `Delete feedback ${fbSid} by ${auth.login}`);
+    FB_KEYS.forEach(k => $("fb_" + k).value = ""); $("fbShareRow").style.display = "none"; $("fbMsg").className = "hint"; $("fbMsg").textContent = t("fbDeleted"); render(); }
+  catch(e){ $("fbMsg").className = "hint bad"; $("fbMsg").textContent = t("rqSaveFail")(e.message); }
+};
 $("fbShare").onclick = async () => { try { await navigator.share({text: $("fbText").value}); } catch(e) {} };
 $("fbCopy").onclick = () => copy($("fbText").value, t("copied"));
 $("xFb").onclick = $("fbClose").onclick = () => { fbSid = null; render(); };
@@ -1599,7 +1608,11 @@ function renderFbBox(sel){
   box.style.display = ""; const f = feedback[sel.id];
   box.innerHTML = `<h4>📝 ${t("fbHead")}</h4>` + (f ? fbHtml(f) + `
     <label>${t("fbReplyL")}</label><textarea id="fbReplyIn" rows="2" placeholder="${t("fbReplyPh")}">${esc(f.reply || "")}</textarea>
-    <div class="btns"><button class="sm" id="fbReplySave">${t("fbReplySave")}</button><button class="ghost sm" id="fbMCopy">${t("fbCopyMsg")}</button></div><div class="hint" id="fbReplyMsg"></div>`
+    <div class="btns"><button class="sm" id="fbReplySave">${t("fbReplySave")}</button><button class="ghost sm" id="fbMCopy">${t("fbCopyMsg")}</button></div>
+    <div class="btns"><button class="ghost sm" id="fbMEdit">${t("fbEditB")}</button><button class="ghost sm danger" id="fbMDel">${t("fbDelB")}</button></div>
+    <div id="fbMEditBox" style="display:none">${FB_KEYS.map(k => `<label>${t("fbL")[k]}</label><textarea id="fbm_${k}" rows="2">${esc(f[k] || "")}</textarea>`).join("")}
+      <div class="btns"><button class="sm" id="fbMEditSave">${t("fbEditSave")}</button></div></div>
+    <div class="hint" id="fbReplyMsg"></div>`
     : `<div class="hint">${t("fbNone")}</div>`);
   if (!f) return;
   $("fbReplySave").onclick = async () => {
@@ -1609,6 +1622,22 @@ function renderFbBox(sel){
     catch(e){ out.className = "hint bad"; out.textContent = t("rqSaveFail")(e.message); }
   };
   $("fbMCopy").onclick = () => copy(fbText(sel, f), t("copied"));
+  const out = $("fbReplyMsg");
+  $("fbMEdit").onclick = () => { const b = $("fbMEditBox"); b.style.display = b.style.display === "none" ? "" : "none"; };
+  $("fbMEditSave").onclick = async () => {
+    const v = {}; FB_KEYS.forEach(k => v[k] = $("fbm_" + k).value.trim().slice(0, 2000));
+    if (!(await confirmMaster())) return;
+    out.className = "hint"; out.textContent = t("rqdSaving");
+    try { await mutateFeedback(items => { if (items[sel.id]) Object.assign(items[sel.id], v, {editedBy: auth.login, editedAt: nowStamp()}); }, `Edit feedback ${fmt(sel.d)} (master)`);
+      out.textContent = t("fbEdited"); render(); }
+    catch(e){ out.className = "hint bad"; out.textContent = t("rqSaveFail")(e.message); }
+  };
+  $("fbMDel").onclick = async () => {
+    if (!confirm(t("fbDelAsk"))) return;
+    if (!(await confirmMaster())) return;
+    try { await mutateFeedback(items => { delete items[sel.id]; }, `Delete feedback ${fmt(sel.d)} (master)`); render(); }
+    catch(e){ out.className = "hint bad"; out.textContent = t("rqSaveFail")(e.message); }
+  };
 }
 // 피드백 카드 (선생님: 작성 대기 + 최근 / 마스터: 최근 피드백)
 function renderFbCard(S){
