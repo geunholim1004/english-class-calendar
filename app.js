@@ -167,9 +167,11 @@ async function saveRemote(){
 }
 function setSync(msg, bad){ const el = $("syncStatus"); if (!el) return; el.textContent = msg; el.classList.toggle("bad", !!bad); }
 function teacherLink(){ const {owner, repo} = isMaster() ? auth : repoCoords(); return `https://${owner}.github.io/${repo}/`; }
+// 제목 아래 한 줄: 설정의 가격·시각·길이를 그대로 표시 (선생님 화면은 금액 없이)
+function renderSub(){ const C = cfg(); document.querySelector(".sub").textContent = t(isMaster() ? "sub" : "subV")(usd(C.price), C.time, C.dur); }
 function renderAcct(){
   const m = isMaster();
-  document.querySelector(".sub").textContent = m ? t("sub") : t("subV");
+  renderSub();
   const sb = isSub();
   document.querySelector(".calHintEl").textContent = m ? t("calHint") : sb ? t("calHintS") : t("calHintV");
   document.body.classList.toggle("viewer", !m);
@@ -314,8 +316,8 @@ ko: {
   doLogin:"로그인", loginChecking:"확인 중…", loginNoRepo:s => `저장소에 접근할 수 없어요 (HTTP ${s}). 계정·저장소 이름·토큰을 확인하세요.`, loginNoPush:"이 토큰에는 쓰기 권한이 없어요. Contents = Read and write로 만들어 주세요.",
   docTitle:"영어 수업 달력 & 수업료 계산기 (USD→UZS)",
   title:"영어 수업 달력 & 수업료 계산기",
-  sub:"선불제 · 매주 일요일 17:00 · 25분 = 1 Class · $6 · CBU 공식 환율로 UZS 환산 · 취소·이동·보류·No-show를 사유와 함께 기록",
-  subV:"매주 일요일 17:00 · 25분 = 1 Class · 취소·이동·보류·No-show를 사유와 함께 기록",
+  sub:(p,tm,d) => `선불제 · 매주 일요일 ${tm} · ${d}분 = 1 Class · ${p} · CBU 공식 환율로 UZS 환산 · 취소·이동·보류·No-show를 사유와 함께 기록`,
+  subV:(p,tm,d) => `매주 일요일 ${tm} · ${d}분 = 1 Class · 취소·이동·보류·No-show를 사유와 함께 기록`,
   hHolds:"보류 중인 수업", hKakao:"카카오톡 알림 메시지", copyMsg:"메시지 복사",
   kakaoHint:"복사 후 카카오톡 ‘나와의 채팅’이나 선생님 채팅방에 붙여넣으세요.",
   hLog:"변경 기록", copyLog:"기록 복사",
@@ -522,8 +524,8 @@ en: {
   doLogin:"Log in", loginChecking:"Checking…", loginNoRepo:s => `Can’t access the repository (HTTP ${s}). Check the account, repo name and token.`, loginNoPush:"This token can’t write. Create it with Contents = Read and write.",
   docTitle:"English Class Calendar & Fee Calculator (USD→UZS)",
   title:"English Class Calendar & Fee Calculator",
-  subV:"Every Sunday 17:00 · 25 min = 1 class · Cancellations, moves, holds and no-shows logged with reasons",
-  sub:"Prepaid · Every Sunday 17:00 · 25 min = 1 class · $6 · Converted to UZS at the official CBU rate · Cancellations, moves, holds and no-shows logged with reasons",
+  subV:(p,tm,d) => `Every Sunday ${tm} · ${d} min = 1 class · Cancellations, moves, holds and no-shows logged with reasons`,
+  sub:(p,tm,d) => `Prepaid · Every Sunday ${tm} · ${d} min = 1 class · ${p} · Converted to UZS at the official CBU rate · Cancellations, moves, holds and no-shows logged with reasons`,
   hHolds:"Classes on hold", hKakao:"KakaoTalk message", copyMsg:"Copy message",
   kakaoHint:"Paste it into your KakaoTalk ‘Chat with myself’ or the teacher’s chat room.",
   hLog:"Change log", copyLog:"Copy log",
@@ -793,7 +795,7 @@ $("fixBtn").onclick = openFix;
 
 /* ---------- 렌더링 ---------- */
 function render(){
-  const C = cfg();
+  const C = cfg(); renderSub();
   const P = sundays(C.start, C.months, C.count);
   const S = buildSessions(P, C);
   const paidX = extras.filter(x => x.paid).length, freeX = extras.length - paidX;
