@@ -166,6 +166,8 @@ textarea#msg{color:var(--ink);background:#fcfcfa}
 .badge.master{background:var(--ink);color:#fff}
 .badge.viewer{background:var(--move-soft);color:var(--move)}
 button.sm{font-size:12px;padding:4px 10px}
+a.btnlink{display:inline-block;font-size:12px;padding:4px 10px;border:1px solid var(--accent);border-radius:8px;color:var(--accent);background:#fff;text-decoration:none;line-height:1.55}
+a.btnlink:hover{background:var(--accent-soft)}
 .sync{font-size:11.5px;color:var(--muted);min-height:16px}
 .sync.bad,.hint.bad{color:var(--tc)}
 body.viewer .fx, body.viewer .usdcol, body.viewer .money{display:none}   /* 선생님 화면: 금액·환율 숨김 */
@@ -298,6 +300,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
         <a class="ghost sm hublink masteronly" href="hub.html">🤝 허브 Hub</a>
         <button class="ghost sm" id="loginBtn" data-i18n="login"></button>
         <button class="ghost sm" id="linkBtn" data-i18n="teacherLinkBtn"></button>
+        <a class="btnlink sm masteronly" id="coachLink" href="coach.html" data-i18n="coachBtn"></a>
         <button class="ghost sm" id="logoutBtn" data-i18n="logout"></button></div>
       <div id="syncStatus" class="sync"></div>
     </div></div>
