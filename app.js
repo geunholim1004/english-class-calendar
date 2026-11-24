@@ -801,6 +801,7 @@ function openFix(){
 }
 $("fixBtn").onclick = openFix;
 $("actBtn").onclick = openActivity;
+$("actBtn2").onclick = openActivity;
 
 
 /* ---------- 선생님 활동 기록 (마스터만 봄) ----------
