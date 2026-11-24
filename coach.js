@@ -239,9 +239,9 @@ function addSession(s){
 /* ============ AI engine (Claude artifact OR own API key) ============ */
 let MODE = "detecting"; // "claude" (artifact) | "github" (calendar site, master) | "standalone"
 let cap = {sample:null, dictation:null, tts:null};
-function aiReady(){ return MODE==="claude" ? !!cap.sample : !!secret.apiKey; }
+function aiReady(){ return !!cap.sample || (MODE!=="claude" && !!secret.apiKey); }
 async function ai(system, messages, opts={}){
-  if(MODE==="claude"){
+  if(cap.sample || MODE==="claude"){
     if(!cap.sample) throw new Error("이 화면에서는 AI를 쓸 수 없어요.");
     const msgs = messages.map((m,i)=>({role:m.role, content: i===0 ? "[COACH INSTRUCTIONS]\n"+system+"\n[/COACH INSTRUCTIONS]\n\n"+m.content : m.content}));
     try{
@@ -697,7 +697,7 @@ async function importFeedback(ids){
     }catch(e){ toast(e.message); break; }
   }
   if(nm||ne) addSession({kind:"daniel", title:"Daniel 피드백 가져오기", summary:"고칠 점 "+nm+"개 · 표현 "+ne+"개"});
-  save(); renderAll(); btn.textContent = old;
+  btn.textContent = old; save(); renderAll();
   toast("고칠 점 "+nm+"개, 표현 "+ne+"개를 넣었어요");
 }
 $("#fbImportAll").addEventListener("click", ()=>{ const done=new Set(state.importedFb||[]); importFeedback((fbItems||[]).filter(f=>!done.has(f.id)).map(f=>f.id)); });
@@ -762,10 +762,10 @@ function renderSettings(){
       "<br><br>같은 파일을 GitHub Pages에 올리면 <b>독립 모드</b>로 바뀌어 내 API 키로 동작해요.";
     $("#apiCard").style.display="none";
   } else if(MODE==="github"){
-    pill.textContent = secret.apiKey ? "● 마스터 · AI 연결됨" : "● 마스터 · API 키 필요";
-    pill.className = "mode-pill "+(secret.apiKey?"on":"off");
-    $("#modeExplain").innerHTML = "수업 달력에 <b>마스터로 로그인된 상태</b>예요. 실수 노트와 기록은 비공개 저장소("+esc(ghPriv())+"/coach.json)에 저장돼 다른 기기에서도 이어지고, Daniel이 달력에 남긴 피드백을 바로 가져올 수 있어요. AI 기능은 아래 API 키로 동작해요.";
-    $("#apiCard").style.display="";
+    pill.textContent = aiReady() ? "● 마스터 · AI 연결됨" : "● 마스터 · API 키 필요";
+    pill.className = "mode-pill "+(aiReady()?"on":"off");
+    $("#modeExplain").innerHTML = "수업 달력에 <b>마스터로 로그인된 상태</b>예요. 실수 노트와 기록은 비공개 저장소("+esc(ghPriv())+"/coach.json)에 저장돼 다른 기기에서도 이어지고, Daniel이 달력에 남긴 피드백을 바로 가져올 수 있어요. "+(cap.sample?"AI 기능은 <b>Claude</b>로 동작해요(키 불필요).":"AI 기능은 아래 API 키로 동작해요.")+"";
+    $("#apiCard").style.display = cap.sample ? "none" : "";
   } else if(MODE==="standalone"){
     pill.textContent = secret.apiKey ? "● 독립 모드 · AI 연결됨" : "● 독립 모드 · 키 필요";
     pill.className = "mode-pill "+(secret.apiKey?"on":"off");
@@ -820,6 +820,18 @@ tabs.forEach((t,i)=>{
 function renderAll(){ renderStats(); renderSettings(); renderSessions(); renderNotes(); renderFeedback(); renderExpressions(); if(drill.phase==="idle") renderDrill(); }
 
 /* ============ Boot ============ */
+async function bootGithub(){
+  MODE="github"; renderAll(); setSync("비공개 저장소에서 불러오는 중…");
+    try{
+      const g = await ghGetJSON(ghPriv(), COACH_FILE);
+      GH.sha = g.sha;
+      if(g.data){ state = mergeStates(state, Object.assign(blankState(), g.data)); try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
+      setSync(g.data ? "비공개 저장소와 동기화됨 ✓" : "첫 저장 때 비공개 저장소에 coach.json이 만들어져요");
+      if(!g.data || (state.updatedAt||0) > (g.data.updatedAt||0)){ dirty = true; save(); }
+    }catch(e){ setSync("비공개 저장소를 읽지 못했어요 ("+e.message+"). 이 기기에만 저장돼요.", true); MODE="standalone"; }
+    renderAll(); loadDanielFeedback();
+}
+
 renderChatTopics(); renderRoles(); renderAll();
 
 (async function boot(){
@@ -828,18 +840,17 @@ renderChatTopics(); renderRoles(); renderAll();
   for(let i=0;i<15;i++){ if(window.claude && typeof window.claude.use==="function"){ inClaude=true; break; } await new Promise(r=>setTimeout(r,100)); }
   if(!inClaude){
     if(!ghMaster()){ MODE="standalone"; renderAll(); return; }
-    MODE="github"; renderAll(); setSync("비공개 저장소에서 불러오는 중…");
-    try{
-      const g = await ghGetJSON(ghPriv(), COACH_FILE);
-      GH.sha = g.sha;
-      if(g.data){ state = mergeStates(state, Object.assign(blankState(), g.data)); try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
-      setSync(g.data ? "비공개 저장소와 동기화됨 ✓" : "첫 저장 때 비공개 저장소에 coach.json이 만들어져요");
-      if(!g.data || (state.updatedAt||0) > (g.data.updatedAt||0)){ dirty = true; save(); }
-    }catch(e){ setSync("비공개 저장소를 읽지 못했어요 ("+e.message+"). 이 기기에만 저장돼요.", true); MODE="standalone"; }
-    renderAll(); loadDanielFeedback(); return;
+    return bootGithub();
+  }
+
+  const use = n => window.claude.use(n).catch(()=>null);
+  if(ghMaster()){
+    // Calendar master inside Claude: progress stays in the GitHub private repo, AI and voice come from Claude
+    const [sample, dictation, tts] = await Promise.all([use("sample"), use("dictation"), use("tts")]);
+    cap.sample=sample; cap.dictation=dictation; cap.tts=tts;
+    return bootGithub();
   }
   MODE="claude"; renderAll();
-  const use = n => window.claude.use(n).catch(()=>null);
   const [sample, dictation, tts, db, user] = await Promise.all([use("sample"), use("dictation"), use("tts"), use("db"), use("user")]);
   cap.sample=sample; cap.dictation=dictation; cap.tts=tts;
   renderAll();
