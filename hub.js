@@ -87,23 +87,28 @@ const GOAL_EN = {talk:"Conversation", biz:"Business", tech:"Semiconductor · Tec
 const BLOCK_EN = {m:"Morning", a:"Late morning", p:"Afternoon", e:"Evening", n:"Night"};
 const OPT_EN = {"입문":"Beginner","초급":"Elementary","중급":"Intermediate","상급":"Advanced","본인":"Myself","자녀":"My child","회사 동료":"Coworker","지인":"Friend","미국 US":"US","영국 UK":"UK","호주 AU":"Australia","캐나다 CA":"Canada","기타 Other":"Other"};
 const LEVELS = ["입문","초급","중급","상급"], WHO = ["본인","자녀","회사 동료","지인"], ACCENTS = ["미국 US","영국 UK","호주 AU","캐나다 CA","기타 Other"];
-// 가능한 시간: 요일-시각(1시간 칸) "0-19" = 일요일 19:00–20:00 (한국 시간). 예전 5칸 값(0-e 등)은 시간 칸으로 바꿔 읽음
-const HOURS = Array.from({length: 18}, (_, i) => String(i + 6).padStart(2, "0"));   // 06 … 23
+// 가능한 시간: 요일-시각(30분 칸) "0-1930" = 일요일 19:30–20:00 (한국 시간). 25분 수업 + 5분 여유
+// 예전 값도 그대로 읽음: 1시간 칸 "0-19" → 19:00·19:30, 5칸 "0-e" → 18:00–21:00
+const hm = m => String(Math.floor(m / 60)).padStart(2, "0") + String(m % 60).padStart(2, "0");
+const HOURS = Array.from({length: 36}, (_, i) => hm(360 + i * 30));   // 0600 … 2330
 const OLD_BLOCK = {m:[6,9], a:[9,12], p:[12,18], e:[18,21], n:[21,24]};
 function normSlots(list){
-  const out = new Set();
+  const out = new Set(), addH = (d, a, b) => { for (let m = a * 60; m < b * 60; m += 30) out.add(`${d}-${hm(m)}`); };
   (Array.isArray(list) ? list : []).forEach(k => { let m;
-    if ((m = /^([0-6])-([0-2]\d)$/.exec(k)) && +m[2] >= 6 && +m[2] <= 23) out.add(k);
-    else if ((m = /^([0-6])-([mapen])$/.exec(k))){ const [a, b] = OLD_BLOCK[m[2]]; for (let h = a; h < b; h++) out.add(`${m[1]}-${String(h).padStart(2, "0")}`); } });
+    if ((m = /^([0-6])-([0-2]\d)([03]0)$/.exec(k)) && +m[2] >= 6 && +m[2] <= 23) out.add(k);
+    else if ((m = /^([0-6])-([0-2]\d)$/.exec(k)) && +m[2] >= 6 && +m[2] <= 23) addH(m[1], +m[2], +m[2] + 1);
+    else if ((m = /^([0-6])-([mapen])$/.exec(k))){ const [a, b] = OLD_BLOCK[m[2]]; addH(m[1], a, b); } });
   return [...out].sort((x, y) => x.localeCompare(y));
 }
-// 요일별로 이어진 시간 묶어서 보여 주기: "일 19–21시, 수 20–22시"
+const slotMin = k => { const t = k.split("-")[1]; return +t.slice(0, 2) * 60 + +t.slice(2); };
+const hhmm = m => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+// 요일별로 이어진 시간 묶어서 보여 주기: "일 19:00–21:30, 수 20:00–22:00"
 function slotsText(list, en){
-  const by = {}; normSlots(list).forEach(k => { const [d, h] = k.split("-"); (by[d] = by[d] || []).push(+h); });
+  const by = {}; normSlots(list).forEach(k => { const d = k.split("-")[0]; (by[d] = by[d] || []).push(slotMin(k)); });
   const parts = [];
-  Object.keys(by).sort().forEach(d => { const hs = by[d].sort((a, b) => a - b); let a = hs[0], b = a;
-    const push = () => parts.push(`${en ? DOW_EN[+d] : DOW[+d]} ${String(a).padStart(2,"0")}–${String(b + 1).padStart(2,"0")}${en ? "" : "시"}`);
-    for (let i = 1; i < hs.length; i++){ if (hs[i] === b + 1) b = hs[i]; else { push(); a = b = hs[i]; } } push(); });
+  Object.keys(by).sort().forEach(d => { const ms = by[d].sort((a, b) => a - b); let a = ms[0], b = a;
+    const push = () => parts.push(`${en ? DOW_EN[+d] : DOW[+d]} ${hhmm(a)}–${hhmm(b + 30)}`);
+    for (let i = 1; i < ms.length; i++){ if (ms[i] === b + 30) b = ms[i]; else { push(); a = b = ms[i]; } } push(); });
   return parts.join(", ");
 }
 const slotName = k => slotsText([k]);
@@ -218,7 +223,7 @@ function scorePair(s, t){
   if (!ov.length) why.push("시간 안 맞음");
   if ((+s.budget || 0) < (+t.rate || 0)) why.push(`예산 부족 (${usd(s.budget)} < ${usd(t.rate)})`);
   if (t.status !== "active") why.push("선생님 활동 중지");
-  const time = Math.min(ov.length, 3) / 3 * 40;
+  const time = Math.min(ov.length, 6) / 6 * 40;   // 30분 칸 6개(3시간) 이상 겹치면 만점
   const g = (s.goals || []).length ? (s.goals || []).filter(k => (t.goals || []).includes(k)).length / s.goals.length * 25 : 12.5;
   const ts = (t.score == null ? 60 : +t.score) / 100 * 20;
   const pr = s.budget > 0 ? Math.max(0, Math.min(1, (s.budget - (t.rate || 0)) / s.budget * 3)) * 15 : 0;
@@ -310,11 +315,11 @@ function slotGrid(selected, overlap, teacher){
   selected = normSlots(selected);
   let h = `<div class="slots hourly"><div class="c0"></div>${DOW.map((d,i) => `<button type="button" class="h ${i === 0 ? "sun" : ""}" data-col="${i}" title="${L("이 요일 전체 선택/해제", "Select / clear the whole day")}">${L(d, DOW_EN[i])}</button>`).join("")}`;
   for (const hh of HOURS){
-    const tas = String((+hh + 20) % 24).padStart(2, "0");
-    h += `<button type="button" class="b" data-row="${hh}" title="${L("이 시간 전체 요일 선택/해제", "Select / clear this hour on every day")}">${hh}:00${teacher ? `<small>${L("타슈켄트", "Tashkent")} ${tas}:00</small>` : ""}</button>`;
-    for (let d = 0; d < 7; d++){ const k = `${d}-${hh}`; h += `<button type="button" data-k="${k}" class="cell ${selected.includes(k) ? "on" : ""} ${overlap && overlap.includes(k) ? "ov" : ""}" aria-label="${L(DOW[d], DOW_EN[d])} ${hh}:00"></button>`; }
+    const mn = +hh.slice(0, 2) * 60 + +hh.slice(2), t = hhmm(mn), half = hh.endsWith("30");
+    h += `<button type="button" class="b ${half ? "half" : ""}" data-row="${hh}" title="${L("이 시간 전체 요일 선택/해제", "Select / clear this time on every day")}">${t}${teacher ? `<small>${L("타슈켄트", "Tashkent")} ${hhmm(mn + 20 * 60)}</small>` : ""}</button>`;
+    for (let d = 0; d < 7; d++){ const k = `${d}-${hh}`; h += `<button type="button" data-k="${k}" class="cell ${half ? "half" : ""} ${selected.includes(k) ? "on" : ""} ${overlap && overlap.includes(k) ? "ov" : ""}" aria-label="${L(DOW[d], DOW_EN[d])} ${t}–${hhmm(mn + 30)}"></button>`; }
   }
-  return h + `</div><div class="hint" id="slotSum">${selected.length ? "✓ " + esc(slotsText(selected, HL === "en")) : L("칸을 누르거나 (PC는 끌어서) 가능한 시간을 고르세요. 요일·시각 이름을 누르면 줄 전체가 선택돼요.", "Tap cells (or drag on a computer) to choose your times. Tap a day or an hour to select the whole line.")}</div>`;
+  return h + `</div><div class="hint" id="slotSum">${selected.length ? "✓ " + esc(slotsText(selected, HL === "en")) : L("한 칸 = 30분 (25분 수업 + 5분 여유). 칸을 누르거나 (PC는 끌어서) 가능한 시간을 고르세요. 요일·시각 이름을 누르면 줄 전체가 선택돼요.", "One cell = 30 min (25-min class + 5 min spare). Tap cells (or drag on a computer). Tap a day or a time to select the whole line.")}</div>`;
 }
 // 시간 격자: 누르기 / 마우스로 끌기 / 요일·시각 줄 전체
 let slotDrag = null, lastMouse = 0;
@@ -701,9 +706,9 @@ async function savePerson(id){
 }
 function newMatchSheet(sid, tid, prev){
   const s = person(sid), t = person(tid), S = D.settings, r = scorePair(s, t);
-  const slot = (r.ov[0] || normSlots(s.slots)[0] || "0-19"), [d0, h0] = slot.split("-");
+  const slot = (r.ov[0] || normSlots(s.slots)[0] || "0-1900"), [d0, h0] = slot.split("-");
   const price = Math.min(+s.budget || Infinity, Math.round((+t.rate || 0) * (1 + (+S.margin || 0) / 100) * 100) / 100);
-  const P = prev || {dow: +d0, time: `${h0}:00`, dur: S.dur || 25, start: nextDow(+d0), months: S.months || 3, price, pay: +t.rate || 0};
+  const P = prev || {dow: +d0, time: `${h0.slice(0, 2)}:${h0.slice(2)}`, dur: S.dur || 25, start: nextDow(+d0), months: S.months || 3, price, pay: +t.rate || 0};
   openSheet(`<h2>🤝 ${esc(s.name)} ↔ ${esc(t.name)}</h2>
     <p class="hint">겹치는 시간: ${esc(slotsText(r.ov)) || "없음"}</p>
     <div class="row2"><div><label>요일</label><select id="mDow">${DOW.map((d, i) => `<option value="${i}" ${i === +P.dow ? "selected" : ""}>${d}요일</option>`).join("")}</select></div>
