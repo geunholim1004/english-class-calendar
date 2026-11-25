@@ -341,7 +341,7 @@ ko: {
   payWas:(n,e) => `정정 전 ${n}회 · ~${e}`,
   zCardT:(live) => live ? "🎥 Zoom 수업 · 지금 입장할 수 있어요" : "🎥 Zoom 수업", zNextL:"다음 수업",
   zIn:(m) => m < 60 ? `${m}분 후 시작` : m < 1440 ? `${Math.floor(m/60)}시간 ${m%60}분 후` : `${Math.floor(m/1440)}일 후`, zLeftL:(m) => `수업 중 · ${m}분 남음`,
-  zBig:"🎥 Zoom 수업 입장하기", zOpensAt2:(d, hm) => `🔒 ${d} ${hm}부터 입장할 수 있어요`,
+  zBig:"🎥 Zoom 수업 입장하기", zSetLink:"⚙ Zoom 링크 넣기 (한 번만)", zNoLinkT:"Edward가 Zoom 링크를 넣으면 여기서 입장할 수 있어요", zOpensAt2:(d, hm) => `🔒 ${d} ${hm}부터 입장할 수 있어요`,
   zTeacherL:"👨‍🏫 선생님", zStudentL:"🧑 학생 Edward", zOnS:"📷 ON", zOffS:"📷 OFF", zJoinedAt:(hm) => `${hm} 입장`, zNotYet:"아직 입장 안 함", zLateL:(m) => `${m}분 지났는데 아직 입장 안 함`,
   zLegend:"🔒 = 아직 입장 시간 전 · 파란 칸 = 지금 누르면 Zoom 입장 · 칸 안의 점 🟢 = 상대방 입장함(ON), 회색 = 아직(OFF)",
   zJoinChip:(l) => `🎥 ${l} 입장`, zLock:"16:55부터 Zoom 입장 버튼이 켜져요", zBarHead:(l, m) => m < 0 ? `${l} 수업 · ${-m}분 후 시작` : `${l} 수업 중 · ${m}분 남음`,
@@ -561,7 +561,7 @@ en: {
   payWas:(n,e) => `was ${n} · to ${e}`,
   zCardT:(live) => live ? "🎥 Zoom class · you can join now" : "🎥 Zoom class", zNextL:"Next class",
   zIn:(m) => m < 60 ? `starts in ${m} min` : m < 1440 ? `in ${Math.floor(m/60)} h ${m%60} min` : `in ${Math.floor(m/1440)} days`, zLeftL:(m) => `In class · ${m} min left`,
-  zBig:"🎥 Join the Zoom class", zOpensAt2:(d, hm) => `🔒 You can join from ${d} ${hm}`,
+  zBig:"🎥 Join the Zoom class", zSetLink:"⚙ Add the Zoom link (once)", zNoLinkT:"You can join here once Edward adds the Zoom link", zOpensAt2:(d, hm) => `🔒 You can join from ${d} ${hm}`,
   zTeacherL:"👨‍🏫 Teacher", zStudentL:"🧑 Student Edward", zOnS:"📷 ON", zOffS:"📷 OFF", zJoinedAt:(hm) => `joined ${hm}`, zNotYet:"Not joined yet", zLateL:(m) => `${m} min past start, not joined yet`,
   zLegend:"🔒 = not open yet · blue = tap to join Zoom · dot 🟢 = the other person has joined (ON), grey = not yet (OFF)",
   zJoinChip:(l) => `🎥 Join ${l}`, zLock:"The Zoom join button turns on 5 min before class", zBarHead:(l, m) => m < 0 ? `Class ${l} · starts in ${-m} min` : `Class ${l} · ${m} min left`,
@@ -919,8 +919,8 @@ function zWho(role){ const cur = zCurrent(); if (!cur || !zLive || zLive.key !==
 function zDay(s){ return `${sdate(s.d)}(${t("dow")[s.d.getUTCDay()]})`; }
 function renderZCard(){
   const box = $("zCard"); if (!box) return;
-  if (!isEditor() || !zoomUrl() || !zC){ box.style.display = "none"; return; }
-  const cur = zCurrent(), s = cur || zNext();
+  if (!isEditor() || !zC){ box.style.display = "none"; return; }
+  const hasUrl = !!zoomUrl(), cur = hasUrl ? zCurrent() : null, s = cur || zNext();
   if (!s){ box.style.display = "none"; return; }
   box.style.display = ""; box.classList.toggle("live", !!cur);
   const st = zStart(s), dur = zC.dur || 25, el = (Date.now() - st) / 60e3;
@@ -928,7 +928,8 @@ function renderZCard(){
   const when = !cur ? `${t("zNextL")} · ${labelOf(s)} · ${range} · ${t("zIn")(Math.ceil(-el))}`
     : el < 0 ? `${labelOf(s)} · ${range} · ${t("zIn")(Math.ceil(-el))}` : `${labelOf(s)} · ${range} · ${t("zLeftL")(dur - Math.floor(el))}`;
   const opens = new Date(st - 5*60e3), op = kstParts(opens);
-  const btn = cur ? `<button class="zbig" id="zBigBtn">${t("zBig")}</button>` : `<button class="zbig" disabled>${esc(t("zOpensAt2")(zDay(s), `${op.hour}:${op.minute}`))}</button>`;
+  const btn = !hasUrl ? (isMaster() ? `<button class="zbig" id="zSetBtn">${t("zSetLink")}</button>` : `<button class="zbig" disabled>${t("zNoLinkT")}</button>`)
+    : cur ? `<button class="zbig" id="zBigBtn">${t("zBig")}</button>` : `<button class="zbig" disabled>${esc(t("zOpensAt2")(zDay(s), `${op.hour}:${op.minute}`))}</button>`;
   let pres = "";
   if (cur){
     const m = Math.floor(el);
@@ -939,6 +940,7 @@ function renderZCard(){
   }
   box.innerHTML = `<h3>${t("zCardT")(!!cur)}</h3><div class="zwhen">${esc(when)}</div>${btn}${pres}<div class="zlegend">${t("zLegend")}</div>`;
   if (cur) $("zBigBtn").onclick = () => joinZoom(cur);
+  if (!hasUrl && isMaster()) $("zSetBtn").onclick = () => { $("openSettings").click(); setTimeout(() => { $("zoom").scrollIntoView({block:"center"}); $("zoom").focus(); }, 300); };
 }
 // 상단 카드가 화면에 보이면 하단 바는 숨김 (둘 다 같은 내용이라)
 let zCardVisible = false;
