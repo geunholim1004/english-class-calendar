@@ -287,7 +287,7 @@ async function doLogin(){
       if (cu.status !== "active") throw new Error(L("아직 등록이 끝나지 않았어요. 카톡으로 받은 초대 링크에서 먼저 등록하세요.", "Registration isn't finished. Register first from your invite link."));
       let token; try { token = await unlockBox(cu.box, pw); } catch(e) { throw new Error(L("비밀번호가 맞지 않아요.", "Wrong password.")); }
       const c = coords();
-      try { localStorage.setItem(AUTHKEY, JSON.stringify({token, owner: c.owner, repo: c.repo, role: "sub", login: cu.id, name: cu.name})); } catch(e) {}
+      try { localStorage.setItem(AUTHKEY, JSON.stringify({token, owner: c.owner, repo: c.repo, role: "sub", kind: cu.role === "student" ? "student" : "teacher", login: cu.id, name: cu.name})); } catch(e) {}
       location.href = "./"; return;
     }
     let pend = null; try { pend = JSON.parse(localStorage.getItem(PENDKEY) || "null"); } catch(e) {}
