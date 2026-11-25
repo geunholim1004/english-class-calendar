@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://api.anthropic.com; media-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://api.anthropic.com https://generativelanguage.googleapis.com; media-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
 <title>Edward English Coach</title>
@@ -350,14 +350,19 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
       <div id="modeExplain" class="hint"></div>
     </div>
     <div class="card" id="apiCard">
-      <h2>AI 연결 (Anthropic API 키)</h2>
-      <div class="hint">키는 이 브라우저(localStorage)에만 저장되고 저장소에는 올라가지 않아요. 기기마다 한 번씩 넣어 주세요. Anthropic 콘솔에서 월 사용 한도를 꼭 걸어 두세요.</div>
-      <label for="apiKey">Anthropic API 키
-        <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+      <h2>AI 연결</h2>
+      <div class="hint">쓰고 있는 AI의 키를 넣으면 문장 채점·교정을 AI가 해요. 키는 이 브라우저(localStorage)에만 저장되고 저장소에는 올라가지 않아요. 기기마다 한 번씩 넣어 주세요.</div>
+      <div class="row" role="radiogroup" aria-label="AI 고르기">
+        <label class="row" style="flex-direction:row;font-weight:500"><input type="radio" name="aiProv" value="gemini"> Google Gemini (무료)</label>
+        <label class="row" style="flex-direction:row;font-weight:500"><input type="radio" name="aiProv" value="anthropic"> Claude (Anthropic 키)</label>
+      </div>
+      <label for="apiKey"><span id="apiKeyLbl">API 키</span>
+        <input type="password" id="apiKey" autocomplete="off">
       </label>
       <label for="apiModel">모델
-        <input type="text" id="apiModel" placeholder="claude-sonnet-5-5">
+        <input type="text" id="apiModel">
       </label>
+      <div class="hint" id="apiHelp"></div>
       <div class="row"><button class="btn primary" id="apiSave" type="button">저장</button><button class="btn" id="apiClear" type="button">키 지우기</button></div>
     </div>
     <div class="card">
@@ -379,6 +384,6 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
 </div>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="coach.js"></script>
+<script src="coach.js?v=2"></script>
 </body>
 </html>

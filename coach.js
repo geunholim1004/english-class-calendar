@@ -89,9 +89,13 @@ const LS_KEY = "edward-coach-state-v1";
 const LS_SECRET = "edward-coach-secret-v1"; // API key + model, never synced
 function blankState(){ return {v:1, updatedAt:0, progress:{}, custom:[], sessions:[], days:{}, importedFb:[], expressions:[], settings:{autoSpeak:false, rate:1}}; }
 let state = blankState();
-let secret = {apiKey:"", model:"claude-sonnet-5-5"};
+let secret = {provider:"", apiKey:"", model:"claude-sonnet-5-5", geminiKey:"", geminiModel:"gemini-flash-latest"};
 try{ const raw=localStorage.getItem(LS_KEY); if(raw) state=Object.assign(blankState(), JSON.parse(raw)); }catch(e){}
 try{ const raw=localStorage.getItem(LS_SECRET); if(raw) secret=Object.assign(secret, JSON.parse(raw)); }catch(e){}
+if(!secret.provider) secret.provider = secret.apiKey ? "anthropic" : "gemini";   // 키가 없으면 무료 Gemini를 기본으로
+const isGem = () => secret.provider==="gemini";
+const curKey = () => isGem() ? secret.geminiKey : secret.apiKey;
+const hasKey = () => !!curKey();
 
 /* --- GitHub storage (calendar site): coach.json in the private repo, master token only --- */
 const AUTHKEY = "eng-class-gh-auth", SHARE_REPO = "english-class-share", COACH_FILE = "coach.json", BRANCH = "main";
@@ -245,7 +249,7 @@ function addSession(s){
 /* ============ AI engine (Claude artifact OR own API key) ============ */
 let MODE = "detecting"; // "claude" (artifact) | "github" (calendar site, master) | "standalone"
 let cap = {sample:null, dictation:null, tts:null};
-function aiReady(){ return !!cap.sample || (MODE!=="claude" && !!secret.apiKey); }
+function aiReady(){ return !!cap.sample || (MODE!=="claude" && hasKey()); }
 async function ai(system, messages, opts={}){
   if(cap.sample || MODE==="claude"){
     if(!cap.sample) throw new Error("이 화면에서는 AI를 쓸 수 없어요.");
@@ -259,7 +263,25 @@ async function ai(system, messages, opts={}){
       throw new Error((e && e.message) || "AI 호출 실패");
     }
   }
-  if(!secret.apiKey) throw new Error("설정 탭에서 API 키를 넣어 주세요.");
+  if(!hasKey()) throw new Error("설정 탭에서 AI 키를 넣어 주세요 (Google Gemini 키는 무료).");
+  if(isGem()){
+    const model = (secret.geminiModel||"gemini-flash-latest").replace(/^models\//,"");
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent", {
+      method:"POST", headers:{"content-type":"application/json","x-goog-api-key":secret.geminiKey},
+      body: JSON.stringify({systemInstruction:{parts:[{text:system}]}, contents: messages.map(m=>({role: m.role==="assistant"?"model":"user", parts:[{text: String(m.content)}]}))})
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){
+      const msg = (data.error && data.error.message) || ("Gemini 오류 "+res.status);
+      if(res.status===429) throw new Error("무료 사용량을 잠시 넘었어요. 1분쯤 뒤 다시 해 주세요.");
+      if(res.status===400 && /API key/i.test(msg)) throw new Error("Gemini 키가 맞지 않아요. 설정 탭에서 다시 넣어 주세요.");
+      throw new Error(msg);
+    }
+    const parts = (((data.candidates||[])[0]||{}).content||{}).parts||[];
+    const out = parts.filter(x=>x.text && !x.thought).map(x=>x.text).join("");
+    if(!out) throw new Error("AI 답이 비어 있어요. 다시 눌러 주세요.");
+    return out;
+  }
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method:"POST",
     headers:{"content-type":"application/json","x-api-key":secret.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
@@ -387,7 +409,7 @@ function makeConvo(o){
   C.submit = async ()=>{
     const text = C.input.value.trim();
     if(!text || C.busy) return;
-    if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 API 키를 넣어 주세요."); return; }
+    if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 AI 키를 넣어 주세요 (Google Gemini 키는 무료)."); return; }
     stopMic();
     C.busy=true; C.send.disabled=true; C.input.value="";
     const me = C.addMe(text);
@@ -446,7 +468,7 @@ $("#roleChips").addEventListener("click", e=>{
   scenario = SCENARIOS.find(s=>s.id===b.dataset.sc); renderRoles();
 });
 $("#roleStart").addEventListener("click", async ()=>{
-  if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 API 키를 넣어 주세요."); return; }
+  if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 AI 키를 넣어 주세요 (Google Gemini 키는 무료)."); return; }
   role.reset(); $("#roleReport").innerHTML="";
   const btn=$("#roleStart"); btn.disabled=true; btn.textContent="상대방 입장 중…";
   try{
@@ -517,7 +539,7 @@ function renderDrill(){
           '<div class="drill-q">'+(drill.ko?esc(drill.ko):'<span class="typing">문제 만드는 중…</span>')+'</div>';
   if(drill.phase==="ask"){
     h += '<div class="composer"><textarea id="drillInput" class="grow" placeholder="영어로 말하거나 써 보세요" aria-label="영어 답"></textarea><button class="btn icon mic" id="drillMic" type="button" aria-label="말하기" title="말하기" hidden>🎙</button></div>'+
-         '<div class="row"><button class="btn primary" id="drillCheck" type="button">'+(aiReady()?"채점":"정답 보기")+'</button><button class="btn ghost" id="drillSkip" type="button">건너뛰기</button></div>';
+         '<div class="row"><button class="btn primary" id="drillCheck" type="button">'+"채점"+'</button><button class="btn ghost" id="drillSkip" type="button">건너뛰기</button></div>';
   }
   if(drill.phase==="graded"){ h += drill.resultHTML; }
   body.innerHTML = h;
@@ -559,14 +581,19 @@ async function checkDrill(){
   const inp=$("#drillInput"); const ans=(inp?.value||"").trim();
   const it=drill.item;
   stopMic();
-  if(!aiReady()){
-    drill.phase="graded";
-    drill.resultHTML = (ans?'<div class="bubble" style="background:var(--accent-soft)">'+esc(ans)+'</div>':"")+
-      '<div class="fix clean"><div class="better"><b>MODEL</b>'+esc(drill.answer)+' '+speakerBtn(drill.answer)+'</div><div class="why">'+esc(it.why)+'</div></div>'+
-      '<div class="row"><span class="hint">스스로 채점:</span><button class="btn good" id="selfOk" type="button">맞았어요</button><button class="btn bad" id="selfNo" type="button">틀렸어요</button></div>';
-    renderDrill(); return;
-  }
   if(!ans){ toast("답을 먼저 말하거나 써 주세요."); return; }
+  if(!aiReady()){
+    // AI 없이도 자동 판정: 목표 표현을 썼고 틀린 표현이 없으면 통과
+    const r = ruleJudge(it, ans);
+    recordAttempt(it.id, r.pass); drill.done++; if(r.pass) drill.ok++; save();
+    drill.phase="graded";
+    drill.resultHTML = '<div class="bubble" style="background:var(--accent-soft)">'+esc(ans)+'</div>'+
+      '<div class="fix '+(r.pass?"clean":"")+'"><div class="fix-line"><span class="'+(r.pass?"ins":"del")+'">'+(r.pass?"✓ 통과":"✗ 다시 연습")+'</span><span class="why">자동 판정 · '+esc(r.why)+'</span></div>'+
+      '<div class="better"><b>MODEL</b>'+esc(drill.answer)+' '+speakerBtn(drill.answer)+'</div><div class="why">'+esc(it.why)+'</div></div>'+
+      '<div class="hint">설정 탭에서 무료 Gemini 키를 넣으면 AI가 문장 전체의 문법·철자까지 채점해요.</div>'+
+      '<div class="row"><button class="btn primary" id="drillNext" type="button">다음 →</button></div>';
+    renderDrill(); renderStats(); return;
+  }
   const btn=$("#drillCheck"); btn.disabled=true; btn.textContent="채점 중…";
   try{
     const r = await aiJSON(LEARNER+' Grade a translation drill. Target pattern: correct form "'+it.right+'" (common error: "'+it.wrong+'"). Korean prompt: "'+drill.ko+'". Model answer: "'+drill.answer+'". Pass = the learner used the target pattern correctly AND the sentence has no serious grammar error (small wording differences from the model are fine; ignore punctuation/capitalization). Respond with ONLY JSON: {"pass":true|false,"corrected":"learner sentence minimally fixed (same as input if perfect)","why":"한국어 1~2문장 설명","other":[{"wrong":"","right":"","why":"한국어"}]}  (other = other errors not about the target, max 2)',
@@ -585,6 +612,16 @@ async function checkDrill(){
     renderDrill(); renderStats();
   }catch(e){ toast(e.message); btn.disabled=false; btn.textContent="채점"; }
 }
+// AI가 없을 때 쓰는 규칙 판정 (목표 표현 포함 + 흔한 틀린 표현 없음)
+function ruleJudge(it, ans){
+  const nz = t => " "+String(t||"").toLowerCase().replace(/[’']/g,"'").replace(/[^a-z0-9' ]+/g," ").replace(/\s+/g," ").trim()+" ";
+  const forms = t => String(t||"").split("/").map(x=>x.replace(/\(.*?\)/g," ").replace(/…|\.\.\./g," ")).map(nz).filter(x=>x.trim());
+  const a = nz(ans), rights = forms(it.right), wrongs = forms(it.wrong);
+  const hasRight = rights.some(r => a.includes(r)), hasWrong = wrongs.some(w => a.includes(w));
+  if(hasWrong) return {pass:false, why:"‘"+it.wrong+"’ 표현이 그대로 들어 있어요"};
+  if(!hasRight) return {pass:false, why:"‘"+it.right+"’ 표현이 안 보여요"};
+  return {pass:true, why:"‘"+it.right+"’를 맞게 썼어요"};
+}
 function nextDrill(){
   drill.i++;
   if(drill.i>=drill.queue.length){
@@ -599,7 +636,7 @@ function nextDrill(){
 $("#prepGo").addEventListener("click", async ()=>{
   const topic=$("#prepTopic").value.trim();
   if(!topic){ toast("주제를 먼저 적어 주세요."); return; }
-  if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 API 키를 넣어 주세요."); return; }
+  if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 AI 키를 넣어 주세요 (Google Gemini 키는 무료)."); return; }
   const btn=$("#prepGo"); btn.disabled=true; btn.textContent="만드는 중…";
   try{
     const r = await aiJSON(LEARNER+" He has a 25-minute online class once a week with his tutor Daniel. Help him prepare so the class is dense and useful. Topic: "+topic+
@@ -770,32 +807,45 @@ function renderSettings(){
     $("#apiCard").style.display="none";
   } else if(MODE==="github"){
     const who = ghMaster() ? "마스터" : "학생 · " + (GH.auth.name || GH.auth.login);
-    pill.textContent = aiReady() ? "● "+who+" · AI 연결됨" : "● "+who+" · API 키 필요";
+    pill.textContent = aiReady() ? "● "+who+" · AI 연결됨"+(cap.sample?"":isGem()?" (Gemini)":" (Claude)") : "● "+who+" · AI 키 필요";
     pill.className = "mode-pill "+(aiReady()?"on":"off");
-    $("#modeExplain").innerHTML = "수업 달력에 <b>"+(ghMaster()?"마스터":"학생")+"로 로그인된 상태</b>예요. 실수 노트와 기록은 "+esc(coachLoc().repo+"/"+coachLoc().path)+"에 저장돼 다른 기기에서도 이어지고, Daniel이 달력에 남긴 피드백을 바로 가져올 수 있어요. "+(cap.sample?"AI 기능은 <b>Claude</b>로 동작해요(키 불필요).":"AI 기능은 아래 API 키로 동작해요.")+"";
+    $("#modeExplain").innerHTML = "수업 달력에 <b>"+(ghMaster()?"마스터":"학생")+"로 로그인된 상태</b>예요. 실수 노트와 기록은 "+esc(coachLoc().repo+"/"+coachLoc().path)+"에 저장돼 다른 기기에서도 이어지고, Daniel이 달력에 남긴 피드백을 바로 가져올 수 있어요. "+(cap.sample?"AI 기능은 <b>Claude</b>로 동작해요(키 불필요).":"AI 기능은 아래에서 고른 AI(무료 Gemini 또는 Claude) 키로 동작해요. 키가 없어도 반복 실수 훈련은 자동 판정돼요.")+"";
     $("#apiCard").style.display = cap.sample ? "none" : "";
   } else if(MODE==="standalone"){
-    pill.textContent = secret.apiKey ? "● 독립 모드 · AI 연결됨" : "● 독립 모드 · 키 필요";
-    pill.className = "mode-pill "+(secret.apiKey?"on":"off");
-    $("#modeExplain").innerHTML = "지금은 <b>로그인 전</b>이라 기록이 이 브라우저에만 저장돼요. <a href=\"./\">수업 달력</a>에서 마스터나 학생으로 로그인하고 다시 열면 비공개 저장소에 저장되고 Daniel 피드백도 가져올 수 있어요. 키가 없어도 반복 실수 훈련은 정답 보기·자가 채점으로 쓸 수 있어요.";
+    pill.textContent = hasKey() ? "● 독립 모드 · AI 연결됨 ("+(isGem()?"Gemini":"Claude")+")" : "● 독립 모드 · 키 필요";
+    pill.className = "mode-pill "+(hasKey()?"on":"off");
+    $("#modeExplain").innerHTML = "지금은 <b>로그인 전</b>이라 기록이 이 브라우저에만 저장돼요. <a href=\"./\">수업 달력</a>에서 마스터나 학생으로 로그인하고 다시 열면 비공개 저장소에 저장되고 Daniel 피드백도 가져올 수 있어요. 키가 없어도 반복 실수 훈련은 자동 판정으로 쓸 수 있어요.";
     $("#apiCard").style.display="";
   } else {
     pill.textContent="연결 확인 중…"; pill.className="mode-pill";
   }
-  $("#apiKey").value = secret.apiKey ? "••••••••"+secret.apiKey.slice(-4) : "";
-  $("#apiModel").value = secret.model||"claude-sonnet-5-5";
+  renderApiCard();
   $("#autoSpeak").checked = !!state.settings.autoSpeak;
   $("#rate").value = state.settings.rate||1; $("#rateVal").textContent = "×"+Number(state.settings.rate||1).toFixed(2);
   $("#voiceNote").textContent = (canListen()?"🎙 음성 입력 사용 가능. ":"🎙 이 화면에선 음성 입력이 안 돼요(크롬 권장). ")+(canSpeak()?"🔊 읽어주기 사용 가능.":"🔊 이 화면에선 읽어주기가 안 돼요.");
   ["#chatMic","#roleMic"].forEach((s,i)=>wireMic($(s), $(i?"#roleInput":"#chatInput")));
 }
+function renderApiCard(){
+  const g = isGem(), k = curKey();
+  document.querySelectorAll("input[name=aiProv]").forEach(r => r.checked = (r.value===secret.provider));
+  $("#apiKeyLbl").textContent = g ? "Google Gemini API 키 (무료)" : "Anthropic API 키";
+  $("#apiKey").placeholder = g ? "AIza..." : "sk-ant-...";
+  $("#apiKey").value = k ? "••••••••"+k.slice(-4) : "";
+  $("#apiModel").value = g ? (secret.geminiModel||"gemini-flash-latest") : (secret.model||"claude-sonnet-5-5");
+  $("#apiModel").placeholder = g ? "gemini-flash-latest" : "claude-sonnet-5-5";
+  $("#apiHelp").innerHTML = g
+    ? '무료 키 받기: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> → 구글 계정으로 로그인 → <b>API 키 만들기</b> → 복사해서 위에 붙여 넣기. 카드 등록 없이 무료 한도 안에서 쓸 수 있어요. 무료 등급은 입력 내용이 구글 서비스 개선에 쓰일 수 있어요.'
+    : 'Anthropic 콘솔에서 만든 키를 넣어 주세요. 사용한 만큼 요금이 나가니 월 사용 한도를 꼭 걸어 두세요.';
+}
+document.addEventListener("change", e=>{ if(e.target && e.target.name==="aiProv"){ secret.provider=e.target.value; try{ localStorage.setItem(LS_SECRET, JSON.stringify(secret)); }catch(err){} renderAll(); } });
 $("#apiSave").addEventListener("click", ()=>{
-  const k=$("#apiKey").value.trim(); if(k && !k.startsWith("••")) secret.apiKey=k;
-  secret.model=$("#apiModel").value.trim()||"claude-sonnet-5-5";
+  const k=$("#apiKey").value.trim();
+  if(k && !k.startsWith("••")){ if(isGem()) secret.geminiKey=k; else secret.apiKey=k; }
+  const m=$("#apiModel").value.trim(); if(isGem()) secret.geminiModel=m||"gemini-flash-latest"; else secret.model=m||"claude-sonnet-5-5";
   try{ localStorage.setItem(LS_SECRET, JSON.stringify(secret)); }catch(e){}
   toast("저장했어요"); renderAll();
 });
-$("#apiClear").addEventListener("click", ()=>{ secret.apiKey=""; try{ localStorage.setItem(LS_SECRET, JSON.stringify(secret)); }catch(e){} renderAll(); toast("키를 지웠어요"); });
+$("#apiClear").addEventListener("click", ()=>{ if(isGem()) secret.geminiKey=""; else secret.apiKey=""; try{ localStorage.setItem(LS_SECRET, JSON.stringify(secret)); }catch(e){} renderAll(); toast("키를 지웠어요"); });
 $("#autoSpeak").addEventListener("change", e=>{ state.settings.autoSpeak=e.target.checked; save(); });
 $("#rate").addEventListener("input", e=>{ state.settings.rate=Number(e.target.value); $("#rateVal").textContent="×"+Number(e.target.value).toFixed(2); });
 $("#rate").addEventListener("change", ()=>save());
