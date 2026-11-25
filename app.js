@@ -1295,7 +1295,13 @@ async function doSubLogin(){
     if (await tryMasterLogin(id, pw)) return;
     const {users} = await fetchUsers();
     const u = users.find(x => x.id === id);
-    if (!u) throw new Error(t("uNoId"));
+    if (!u){   // 허브(새 선생님·학생) 계정이면 허브로 로그인시켜 보냄
+      let acc = null; try { const g = await ghGet(ACCESS_REPO, "hub/accounts.json"); acc = ((g.data && g.data.accounts) || []).find(a => a.id === id); } catch(e) {}
+      if (!acc) throw new Error(t("uNoId"));
+      let K; try { K = await unlockToken(acc.box, pw); } catch(e) { throw new Error(t("subBadPw")); }
+      try { localStorage.setItem("eng-hub-session", JSON.stringify({id, role: acc.role, K})); } catch(e) {}
+      location.href = "hub.html"; return;
+    }
     if (u.status !== "active") throw new Error(t("uNotRegistered"));
     let token; try { token = await unlockToken(u.box, pw); } catch(e) { throw new Error(t("subBadPw")); }
     becomeUser(u, token);

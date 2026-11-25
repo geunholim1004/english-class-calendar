@@ -65,6 +65,9 @@ button:disabled{opacity:.45;cursor:default}
 .choose button span{font-size:13px}
 .choose button:hover{border-color:var(--accent)}
 
+.langsw{display:flex;justify-content:flex-end;gap:4px;margin-bottom:10px}
+.langsw button{background:#fff;color:var(--ink);border:1px solid var(--line);padding:5px 12px;font-size:13px;border-radius:99px;font-weight:500}
+.langsw button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 /* 신청 시간 격자 */
 .slots{display:grid;grid-template-columns:54px repeat(7,1fr);gap:3px;font-size:11.5px}
 .slots .h{color:var(--muted);text-align:center;padding:3px 0}
@@ -73,6 +76,13 @@ button:disabled{opacity:.45;cursor:default}
 .slots .b small{font-size:10px;color:#a0a5aa}
 .slots button{padding:0;height:34px;border-radius:7px;background:#f3f2ee;border:1px solid var(--line);color:transparent}
 .slots button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.slots.hourly{grid-template-columns:78px repeat(7,1fr);gap:2px;user-select:none}
+.slots.hourly .cell{height:24px;border-radius:5px}
+.slots.hourly .h,.slots.hourly .b{background:none;border:0;color:var(--muted);font-size:11.5px;padding:2px 0;border-radius:6px;font-weight:500;height:auto;display:block;text-align:center}
+.slots.hourly .h.sun{color:var(--bad)}
+.slots.hourly .b{text-align:left;padding-left:2px;line-height:1.1;font-variant-numeric:tabular-nums}
+.slots.hourly .b small{display:block;font-size:9.5px;color:#a0a5aa}
+.slots.hourly .h:hover,.slots.hourly .b:hover{background:var(--accent-soft);color:var(--accent)}
 .slots button.ov{box-shadow:inset 0 0 0 2px var(--warn)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chips button{background:#fff;color:var(--ink);border:1px solid var(--line);padding:6px 11px;font-size:13px;border-radius:99px;font-weight:400}
@@ -147,6 +157,6 @@ nav.tabs button .dot{position:absolute;margin:-2px 0 0 22px;min-width:16px;heigh
 <nav class="tabs" id="tabs"><div class="in" id="tabsIn"></div></nav>
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
-<script src="hub.js?v=1"></script>
+<script src="hub.js?v=3"></script>
 </body>
 </html>

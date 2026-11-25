@@ -52,7 +52,7 @@ const usd = v => "$" + (+v || 0).toLocaleString("en-US", {maximumFractionDigits:
 const krw = v => "₩" + Math.round(+v || 0).toLocaleString("ko-KR");
 const uzs = v => Math.round(+v || 0).toLocaleString("en-US") + " UZS";
 function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2200); }
-async function copy(text, msg){ try { await navigator.clipboard.writeText(text); } catch(e) { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch(_) {} ta.remove(); } toast(msg || "복사했어요"); }
+async function copy(text, msg){ try { await navigator.clipboard.writeText(text); } catch(e) { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch(_) {} ta.remove(); } toast(msg || L("복사했어요", "Copied")); }
 async function share(text){
   if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){ try { await navigator.share({text}); return; } catch(e) { if (e.name === "AbortError") return; } }
   copy(text, "복사했어요 — 카카오톡에 붙여넣어 보내세요");
@@ -61,16 +61,56 @@ function openSheet(html){ $("sheet").innerHTML = html; $("modal").classList.add(
 function closeSheet(){ $("modal").classList.remove("on"); }
 $("modal").addEventListener("click", e => { if (e.target === $("modal")) closeSheet(); });
 
+/* ---------- 등록 화면 언어 (한국어 / English) ---------- */
+let HL = "ko"; try { HL = localStorage.getItem("hub-lang") || (/^ko/i.test(navigator.language || "") ? "ko" : "en"); } catch(e) {}
+const L = (ko, en) => HL === "en" ? en : ko;
+function langToggle(){ return `<div class="langsw" role="group" aria-label="Language"><button type="button" data-act="hubLang" data-l="ko" class="${HL === "ko" ? "on" : ""}">한국어</button><button type="button" data-act="hubLang" data-l="en" class="${HL === "en" ? "on" : ""}">English</button></div>`; }
+let curScreen = "login";
+function setHubLang(l){
+  HL = l === "en" ? "en" : "ko"; try { localStorage.setItem("hub-lang", HL); } catch(e) {}
+  document.documentElement.lang = HL;
+  if (curScreen === "apply"){
+    const keep = {}; $("view").querySelectorAll("input,select,textarea").forEach(el => { if (el.id) keep[el.id] = el.type === "checkbox" ? el.checked : el.value; });
+    const f = {...form}; renderApply(f.role, true); form = f;
+    $("view").querySelectorAll(".slots [data-k]").forEach(b => b.classList.toggle("on", form.slots.includes(b.dataset.k))); slotSum();
+    $("view").querySelectorAll("[data-act=goal]").forEach(b => b.classList.toggle("on", form.goals.includes(b.dataset.k)));
+    Object.entries(keep).forEach(([id, v]) => { const el = $(id); if (!el) return; if (el.type === "checkbox") el.checked = v; else el.value = v; });
+    if ($("fWho")) $("fWho").onchange();
+  } else renderLogin();
+}
+
 /* ---------- 신청 양식 항목 ---------- */
 const BLOCKS = [["m","아침","06–09","07:00"],["a","오전","09–12","10:00"],["p","오후","12–18","14:00"],["e","저녁","18–21","19:00"],["n","밤","21–24","21:30"]];
 const GOALS = [["talk","회화 Conversation"],["biz","비즈니스 Business"],["tech","반도체·기술 Tech"],["exam","시험 IELTS·TOEFL"],["pron","발음 Pronunciation"],["kids","어린이 Kids"]];
 const GOAL_NAME = Object.fromEntries(GOALS.map(([k,v]) => [k, v.split(" ")[0]]));
+const GOAL_EN = {talk:"Conversation", biz:"Business", tech:"Semiconductor · Tech", exam:"Exams IELTS·TOEFL", pron:"Pronunciation", kids:"Kids"};
+const BLOCK_EN = {m:"Morning", a:"Late morning", p:"Afternoon", e:"Evening", n:"Night"};
+const OPT_EN = {"입문":"Beginner","초급":"Elementary","중급":"Intermediate","상급":"Advanced","본인":"Myself","자녀":"My child","회사 동료":"Coworker","지인":"Friend","미국 US":"US","영국 UK":"UK","호주 AU":"Australia","캐나다 CA":"Canada","기타 Other":"Other"};
 const LEVELS = ["입문","초급","중급","상급"], WHO = ["본인","자녀","회사 동료","지인"], ACCENTS = ["미국 US","영국 UK","호주 AU","캐나다 CA","기타 Other"];
-const slotName = k => { const [d, b] = k.split("-"); const B = BLOCKS.find(x => x[0] === b); return `${DOW[+d]} ${B ? B[1] : b}`; };
+// 가능한 시간: 요일-시각(1시간 칸) "0-19" = 일요일 19:00–20:00 (한국 시간). 예전 5칸 값(0-e 등)은 시간 칸으로 바꿔 읽음
+const HOURS = Array.from({length: 18}, (_, i) => String(i + 6).padStart(2, "0"));   // 06 … 23
+const OLD_BLOCK = {m:[6,9], a:[9,12], p:[12,18], e:[18,21], n:[21,24]};
+function normSlots(list){
+  const out = new Set();
+  (Array.isArray(list) ? list : []).forEach(k => { let m;
+    if ((m = /^([0-6])-([0-2]\d)$/.exec(k)) && +m[2] >= 6 && +m[2] <= 23) out.add(k);
+    else if ((m = /^([0-6])-([mapen])$/.exec(k))){ const [a, b] = OLD_BLOCK[m[2]]; for (let h = a; h < b; h++) out.add(`${m[1]}-${String(h).padStart(2, "0")}`); } });
+  return [...out].sort((x, y) => x.localeCompare(y));
+}
+// 요일별로 이어진 시간 묶어서 보여 주기: "일 19–21시, 수 20–22시"
+function slotsText(list, en){
+  const by = {}; normSlots(list).forEach(k => { const [d, h] = k.split("-"); (by[d] = by[d] || []).push(+h); });
+  const parts = [];
+  Object.keys(by).sort().forEach(d => { const hs = by[d].sort((a, b) => a - b); let a = hs[0], b = a;
+    const push = () => parts.push(`${en ? DOW_EN[+d] : DOW[+d]} ${String(a).padStart(2,"0")}–${String(b + 1).padStart(2,"0")}${en ? "" : "시"}`);
+    for (let i = 1; i < hs.length; i++){ if (hs[i] === b + 1) b = hs[i]; else { push(); a = b = hs[i]; } } push(); });
+  return parts.join(", ");
+}
+const slotName = k => slotsText([k]);
 function cleanProfile(p, role){
   const o = {}, s = (v, n) => String(v ?? "").trim().slice(0, n);
   o.name = s(p.name, 40); o.contact = s(p.contact, 60); o.memo = s(p.memo, 600);
-  o.slots = (Array.isArray(p.slots) ? p.slots : []).filter(k => /^[0-6]-[mapen]$/.test(k)).slice(0, 35);
+  o.slots = normSlots(p.slots).slice(0, 126);
   o.goals = (Array.isArray(p.goals) ? p.goals : []).filter(k => GOAL_NAME[k]);
   if (role === "teacher"){ o.country = s(p.country, 40); o.rate = Math.max(0, Math.min(500, +p.rate || 0)); o.years = Math.max(0, Math.min(60, +p.years || 0)); o.accent = s(p.accent, 20); o.sample = /^https:\/\/\S+$/.test(p.sample || "") ? s(p.sample, 300) : ""; }
   else { o.who = WHO.includes(p.who) ? p.who : "본인"; o.level = LEVELS.includes(p.level) ? p.level : "초급"; o.budget = Math.max(0, Math.min(500, +p.budget || 0)); o.guardian = s(p.guardian, 40); }
@@ -173,7 +213,7 @@ function progress(m){ const s = sessionsOf(m), t = today(); const done = s.filte
 // 거르기: 시간 1칸 이상 겹침 · 학생 예산 ≥ 선생님 희망 수업료 · 선생님 활동 중
 // 점수(100): 시간 겹침 40 · 목표 일치 25 · 선생님 평가 20 · 가격 여유 15  (같으면 담당 학생 적은 순)
 function scorePair(s, t){
-  const ov = (s.slots || []).filter(k => (t.slots || []).includes(k));
+  const ts0 = normSlots(t.slots), ov = normSlots(s.slots).filter(k => ts0.includes(k));
   const why = [];
   if (!ov.length) why.push("시간 안 맞음");
   if ((+s.budget || 0) < (+t.rate || 0)) why.push(`예산 부족 (${usd(s.budget)} < ${usd(t.rate)})`);
@@ -195,35 +235,35 @@ function setChrome(title, who, tabsOn){
   $("tabs").classList.toggle("on", !!tabsOn); document.body.style.paddingBottom = tabsOn ? "" : "20px";
 }
 function renderLogin(msg){
-  setChrome("", "", false);
+  setChrome("", "", false); curScreen = "login"; if (msg) renderLogin.msg = msg; else msg = renderLogin.msg;
   let pend = null; try { pend = JSON.parse(localStorage.getItem(PENDKEY) || "null"); } catch(e) {}
   $("view").innerHTML = `<div class="hero">
-    <div class="logo">🗓️</div><h1>영어 수업 허브</h1><p class="sub">English Class Hub · 등록 · 매칭 · 결제</p>
+    ${langToggle()}
+    <div class="logo">🗓️</div><h1>${L("영어 수업 허브", "English Class Hub")}</h1><p class="sub">${L("등록 · 매칭 · 결제", "Sign-up · Matching · Payments")}</p>
     <div class="card">
-      <label>아이디 <small>ID</small></label><input id="lgId" autocomplete="username" autocapitalize="none">
-      <label>비밀번호 <small>Password</small></label><input id="lgPw" type="password" autocomplete="current-password">
-      <div class="btns"><button class="block" data-act="login">로그인 · Log in</button></div>
+      <label>${L("아이디", "ID")}</label><input id="lgId" autocomplete="username" autocapitalize="none">
+      <label>${L("비밀번호", "Password")}</label><input id="lgPw" type="password" autocomplete="current-password">
+      <div class="btns"><button class="block" data-act="login">${L("로그인", "Log in")}</button></div>
       <div class="hint ${msg && msg.bad ? "bad" : ""}" id="lgMsg">${esc(msg ? msg.text : "")}</div>
-      ${pend ? `<div class="hint">⏳ <b>${esc(pend.id)}</b> 신청이 마스터 확인을 기다리고 있어요. 승인되면 위에서 바로 로그인됩니다. <a href="#" data-act="resend">신청 링크 다시 보내기</a></div>` : ""}
+      ${pend ? `<div class="hint">⏳ ${L(`<b>${esc(pend.id)}</b> 신청이 마스터 확인을 기다리고 있어요. 승인되면 위에서 바로 로그인됩니다.`, `Your sign-up <b>${esc(pend.id)}</b> is waiting for the master's approval. Once approved, log in above.`)} <a href="#" data-act="resend">${L("신청 링크 다시 보내기", "Send the link again")}</a></div>` : ""}
     </div>
-    <div class="divider">처음이신가요? · New here?</div>
+    <div class="divider">${L("처음이신가요?", "New here?")}</div>
     <div class="choose">
-      <button data-act="apply" data-role="teacher"><b>🧑‍🏫</b><span>선생님 등록<br><small class="muted">Teacher sign-up</small></span></button>
-      <button data-act="apply" data-role="student"><b>🎓</b><span>학생 등록<br><small class="muted">Student sign-up</small></span></button>
+      <button data-act="apply" data-role="teacher"><b>🧑‍🏫</b><span>${L("선생님 등록", "Teacher sign-up")}</span></button>
+      <button data-act="apply" data-role="student"><b>🎓</b><span>${L("학생 등록", "Student sign-up")}</span></button>
     </div>
-    <p class="hint" style="text-align:center;margin-top:18px">기존 수업 달력은 <a href="./">여기</a>에서 열 수 있어요.</p>
   </div>`;
   $("lgPw").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
 }
 async function doLogin(){
   const id = String($("lgId").value || "").trim().toLowerCase(), pw = $("lgPw").value, out = $("lgMsg");
-  out.className = "hint"; out.textContent = "확인 중… Checking…";
+  out.className = "hint"; out.textContent = L("확인 중…", "Checking…");
   try {
-    if (!ID_RE.test(id) || !pw) throw new Error("아이디와 비밀번호를 입력하세요.");
+    if (!ID_RE.test(id) || !pw) throw new Error(L("아이디와 비밀번호를 입력하세요.", "Enter your ID and password."));
     // 1) 마스터 (기존 달력 앱의 마스터 아이디와 동일)
     const mg = await ghGet(ACCESS, "master.json", false);
     if (mg.data && mg.data.id === id){
-      let token; try { token = await unlockBox(mg.data.box, pw); } catch(e) { throw new Error("비밀번호가 맞지 않아요."); }
+      let token; try { token = await unlockBox(mg.data.box, pw); } catch(e) { throw new Error(L("비밀번호가 맞지 않아요.", "Wrong password.")); }
       const c = coords(), pr = mg.data.privRepo || PRIV_DEFAULT;
       const r = await fetch(`https://api.github.com/repos/${c.owner}/${pr}`, {headers:{Accept:"application/vnd.github+json", Authorization:"Bearer " + token}});
       if (!r.ok) throw new Error("마스터 토큰이 비공개 저장소를 열 수 없어요. 달력 앱 설정에서 마스터 아이디를 다시 저장하세요.");
@@ -236,16 +276,23 @@ async function doLogin(){
     const ag = await ghGet(ACCESS, "hub/accounts.json", false);
     const a = ((ag.data && ag.data.accounts) || []).find(x => x.id === id);
     if (a){
-      let K; try { K = await unlockBox(a.box, pw); } catch(e) { throw new Error("비밀번호가 맞지 않아요. · Wrong password."); }
+      let K; try { K = await unlockBox(a.box, pw); } catch(e) { throw new Error(L("비밀번호가 맞지 않아요.", "Wrong password.")); }
       sess = {id, role: a.role, K}; try { localStorage.setItem(SESSKEY, JSON.stringify(sess)); localStorage.removeItem(PENDKEY); } catch(e) {}
       return route();
     }
     // 3) 기존 달력 앱 계정
     const ug = await ghGet(ACCESS, "users.json", false);
-    if (((ug.data && ug.data.users) || []).some(u => u.id === id)) throw new Error("수업 달력 계정이에요. 달력 앱(첫 화면)에서 로그인하세요.");
+    const cu = ((ug.data && ug.data.users) || []).find(u => u.id === id);
+    if (cu){   // 수업 달력 계정(예: t.danel) → 달력에 로그인시켜 원래 화면으로 보냄
+      if (cu.status !== "active") throw new Error(L("아직 등록이 끝나지 않았어요. 카톡으로 받은 초대 링크에서 먼저 등록하세요.", "Registration isn't finished. Register first from your invite link."));
+      let token; try { token = await unlockBox(cu.box, pw); } catch(e) { throw new Error(L("비밀번호가 맞지 않아요.", "Wrong password.")); }
+      const c = coords();
+      try { localStorage.setItem(AUTHKEY, JSON.stringify({token, owner: c.owner, repo: c.repo, role: "sub", login: cu.id, name: cu.name})); } catch(e) {}
+      location.href = "./"; return;
+    }
     let pend = null; try { pend = JSON.parse(localStorage.getItem(PENDKEY) || "null"); } catch(e) {}
-    if (pend && pend.id === id) throw new Error("아직 마스터 승인 전이에요. · Waiting for approval.");
-    throw new Error("등록된 아이디가 없어요. · ID not found.");
+    if (pend && pend.id === id) throw new Error(L("아직 마스터 승인 전이에요.", "Waiting for the master's approval."));
+    throw new Error(L("등록된 아이디가 없어요.", "ID not found."));
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
 function logout(){
@@ -259,40 +306,58 @@ function logout(){
    화면: 등록 신청 (선생님·학생)
    ===================================================================== */
 let form = {role:"student", slots:[], goals:[]};
-function slotGrid(selected, overlap){
-  let h = `<div class="slots"><div></div>${DOW.map((d,i) => `<div class="h ${i === 0 ? "sun" : ""}">${d}<br><small>${DOW_EN[i]}</small></div>`).join("")}`;
-  for (const [b, n, r] of BLOCKS){
-    h += `<div class="b">${n}<small>${r}</small></div>`;
-    for (let d = 0; d < 7; d++){ const k = `${d}-${b}`; h += `<button type="button" data-act="slot" data-k="${k}" class="${selected.includes(k) ? "on" : ""} ${overlap && overlap.includes(k) ? "ov" : ""}" aria-label="${DOW[d]} ${n}">✓</button>`; }
+function slotGrid(selected, overlap, teacher){
+  selected = normSlots(selected);
+  let h = `<div class="slots hourly"><div class="c0"></div>${DOW.map((d,i) => `<button type="button" class="h ${i === 0 ? "sun" : ""}" data-col="${i}" title="${L("이 요일 전체 선택/해제", "Select / clear the whole day")}">${L(d, DOW_EN[i])}</button>`).join("")}`;
+  for (const hh of HOURS){
+    const tas = String((+hh + 20) % 24).padStart(2, "0");
+    h += `<button type="button" class="b" data-row="${hh}" title="${L("이 시간 전체 요일 선택/해제", "Select / clear this hour on every day")}">${hh}:00${teacher ? `<small>${L("타슈켄트", "Tashkent")} ${tas}:00</small>` : ""}</button>`;
+    for (let d = 0; d < 7; d++){ const k = `${d}-${hh}`; h += `<button type="button" data-k="${k}" class="cell ${selected.includes(k) ? "on" : ""} ${overlap && overlap.includes(k) ? "ov" : ""}" aria-label="${L(DOW[d], DOW_EN[d])} ${hh}:00"></button>`; }
   }
-  return h + "</div>";
+  return h + `</div><div class="hint" id="slotSum">${selected.length ? "✓ " + esc(slotsText(selected, HL === "en")) : L("칸을 누르거나 (PC는 끌어서) 가능한 시간을 고르세요. 요일·시각 이름을 누르면 줄 전체가 선택돼요.", "Tap cells (or drag on a computer) to choose your times. Tap a day or an hour to select the whole line.")}</div>`;
 }
-function goalChips(selected){ return `<div class="chips">${GOALS.map(([k, v]) => `<button type="button" data-act="goal" data-k="${k}" class="${selected.includes(k) ? "on" : ""}">${v}</button>`).join("")}</div>`; }
-const opts = (list, v) => list.map(x => `<option ${x === v ? "selected" : ""}>${esc(x)}</option>`).join("");
+// 시간 격자: 누르기 / 마우스로 끌기 / 요일·시각 줄 전체
+let slotDrag = null, lastMouse = 0;
+function slotSet(k, on){ const i = form.slots.indexOf(k); if (on && i < 0) form.slots.push(k); if (!on && i >= 0) form.slots.splice(i, 1);
+  const b = document.querySelector(`.slots [data-k="${k}"]`); if (b) b.classList.toggle("on", on); }
+function slotSum(){ const el = $("slotSum"); if (el) el.textContent = form.slots.length ? "✓ " + slotsText(form.slots, HL === "en") : L("가능한 시간을 골라 주세요.", "Choose your available times."); }
+document.addEventListener("pointerdown", e => { const c = e.target.closest(".slots .cell"); if (!c || e.pointerType !== "mouse") return;
+  lastMouse = Date.now(); slotDrag = !c.classList.contains("on"); slotSet(c.dataset.k, slotDrag); slotSum(); e.preventDefault(); });
+document.addEventListener("pointerover", e => { if (slotDrag === null) return; const c = e.target.closest(".slots .cell"); if (c){ slotSet(c.dataset.k, slotDrag); slotSum(); } });
+document.addEventListener("pointerup", () => { slotDrag = null; });
+document.addEventListener("click", e => {
+  const c = e.target.closest(".slots .cell, .slots [data-row], .slots [data-col]"); if (!c || !c.closest("#view .slots")) return;
+  if (c.classList.contains("cell")){ if (Date.now() - lastMouse < 600) return; slotSet(c.dataset.k, !c.classList.contains("on")); }
+  else { const keys = c.dataset.row ? [0,1,2,3,4,5,6].map(d => `${d}-${c.dataset.row}`) : HOURS.map(hh => `${c.dataset.col}-${hh}`);
+    const allOn = keys.every(k => form.slots.includes(k)); keys.forEach(k => slotSet(k, !allOn)); }
+  slotSum();
+});
+function goalChips(selected){ return `<div class="chips">${GOALS.map(([k, v]) => `<button type="button" data-act="goal" data-k="${k}" class="${selected.includes(k) ? "on" : ""}">${L(v.split(" ")[0], GOAL_EN[k])}</button>`).join("")}</div>`; }
+const opts = (list, v) => list.map(x => `<option value="${esc(x)}" ${x === v ? "selected" : ""}>${esc(L(x.replace(/ [A-Z][A-Za-z]*$/, ""), OPT_EN[x] || x))}</option>`).join("");
 function profileFields(role, p, withAccount){
   p = p || {};
   const T = role === "teacher";
   return `
-    <label>이름 <small>Name</small></label><input id="fName" value="${esc(p.name)}" maxlength="40">
-    ${withAccount ? `<label>아이디 <small>ID · 영문 소문자·숫자 2–20자</small></label><input id="fId" autocapitalize="none" maxlength="20">
-    <div class="row2"><div><label>비밀번호 <small>Password · 8자 이상</small></label><input id="fPw1" type="password" autocomplete="new-password"></div>
-    <div><label>비밀번호 확인 <small>Confirm</small></label><input id="fPw2" type="password" autocomplete="new-password"></div></div>` : ""}
-    <label>연락처 <small>KakaoTalk ID / phone / WhatsApp</small></label><input id="fContact" value="${esc(p.contact)}" maxlength="60">
-    ${T ? `<div class="row2"><div><label>국가 <small>Country</small></label><input id="fCountry" value="${esc(p.country)}" maxlength="40"></div>
-      <div><label>억양 <small>Accent</small></label><select id="fAccent">${opts(ACCENTS, p.accent)}</select></div></div>
-      <div class="row2"><div><label>희망 수업료 <small>Fee per 25-min class (USD)</small></label><input id="fRate" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(p.rate ?? "")}"></div>
-      <div><label>경력 <small>Years teaching</small></label><input id="fYears" type="number" min="0" inputmode="numeric" value="${esc(p.years ?? "")}"></div></div>
-      <label>자기소개 녹음·영상 링크 <small>Sample recording link (Google Drive, YouTube…)</small></label><input id="fSample" value="${esc(p.sample)}" placeholder="https://">`
-    : `<div class="row2"><div><label>누구의 수업인가요?</label><select id="fWho">${opts(WHO, p.who)}</select></div>
-      <div><label>현재 수준</label><select id="fLevel">${opts(LEVELS, p.level)}</select></div></div>
-      <div class="row2"><div><label>1회(25분) 예산 <small>USD</small></label><input id="fBudget" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(p.budget ?? "")}"></div>
-      <div id="guardWrap"><label>보호자 이름 <small>자녀인 경우</small></label><input id="fGuardian" value="${esc(p.guardian)}" maxlength="40"></div></div>`}
-    <h3>가능한 시간 <small class="muted">Available times · 한국 시간 KST (UTC+9)</small></h3>
-    ${slotGrid(form.slots)}
-    <div class="hint">${T ? "우즈베키스탄(UTC+5)은 한국보다 4시간 늦어요. 예: 한국 저녁 19:00 = 타슈켄트 15:00 · Tashkent is 4h behind Korea." : "칸을 눌러 가능한 시간을 모두 고르세요. 겹치는 시간이 많을수록 매칭이 잘 돼요."}</div>
-    <h3>${T ? "가르칠 수 있는 분야 <small class='muted'>Specialties</small>" : "배우고 싶은 것 <small class='muted'>Goals</small>"}</h3>
+    <label>${L("이름", "Name")}</label><input id="fName" value="${esc(p.name)}" maxlength="40">
+    ${withAccount ? `<label>${L("아이디", "ID")} <small>${L("영문 소문자·숫자 2–20자", "2–20 lowercase letters or digits")}</small></label><input id="fId" autocapitalize="none" maxlength="20">
+    <div class="row2"><div><label>${L("비밀번호", "Password")} <small>${L("8자 이상", "8+ characters")}</small></label><input id="fPw1" type="password" autocomplete="new-password"></div>
+    <div><label>${L("비밀번호 확인", "Confirm password")}</label><input id="fPw2" type="password" autocomplete="new-password"></div></div>` : ""}
+    <label>${L("연락처", "Contact")} <small>${L("카카오톡 ID / 전화 / WhatsApp", "KakaoTalk ID / phone / WhatsApp")}</small></label><input id="fContact" value="${esc(p.contact)}" maxlength="60">
+    ${T ? `<div class="row2"><div><label>${L("국가", "Country")}</label><input id="fCountry" value="${esc(p.country)}" maxlength="40"></div>
+      <div><label>${L("억양", "Accent")}</label><select id="fAccent">${opts(ACCENTS, p.accent)}</select></div></div>
+      <div class="row2"><div><label>${L("희망 수업료", "Your fee")} <small>${L("25분 1회 · USD", "per 25-min class · USD")}</small></label><input id="fRate" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(p.rate ?? "")}"></div>
+      <div><label>${L("경력 (년)", "Years teaching")}</label><input id="fYears" type="number" min="0" inputmode="numeric" value="${esc(p.years ?? "")}"></div></div>
+      <label>${L("자기소개 녹음·영상 링크", "Sample recording link")} <small>${L("구글 드라이브, 유튜브 등", "Google Drive, YouTube…")}</small></label><input id="fSample" value="${esc(p.sample)}" placeholder="https://">`
+    : `<div class="row2"><div><label>${L("누구의 수업인가요?", "Who are the classes for?")}</label><select id="fWho">${opts(WHO, p.who)}</select></div>
+      <div><label>${L("현재 수준", "Current level")}</label><select id="fLevel">${opts(LEVELS, p.level)}</select></div></div>
+      <div class="row2"><div><label>${L("1회(25분) 예산", "Budget per 25-min class")} <small>USD</small></label><input id="fBudget" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(p.budget ?? "")}"></div>
+      <div id="guardWrap"><label>${L("보호자 이름", "Parent / guardian name")} <small>${L("자녀인 경우", "for a child")}</small></label><input id="fGuardian" value="${esc(p.guardian)}" maxlength="40"></div></div>`}
+    <h3>${L("가능한 시간", "Available times")} <small class="muted">${L("한국 시간 KST (UTC+9)", "Korea time KST (UTC+9)")}</small></h3>
+    ${slotGrid(form.slots, null, T)}
+    <div class="hint">${T ? L("우즈베키스탄(UTC+5)은 한국보다 4시간 늦어요. 예: 한국 저녁 19:00 = 타슈켄트 15:00", "Tashkent (UTC+5) is 4 hours behind Korea. e.g. 19:00 in Korea = 15:00 in Tashkent.") : L("칸을 눌러 가능한 시간을 모두 고르세요. 겹치는 시간이 많을수록 매칭이 잘 돼요.", "Tap every time you are free. More overlap means a better match.")}</div>
+    <h3>${T ? L("가르칠 수 있는 분야", "What you can teach") : L("배우고 싶은 것", "What you want to learn")}</h3>
     ${goalChips(form.goals)}
-    <label>${T ? "소개 <small>About you</small>" : "남기고 싶은 말 <small>메모</small>"}</label><textarea id="fMemo" maxlength="600">${esc(p.memo)}</textarea>`;
+    <label>${T ? L("소개", "About you") : L("남기고 싶은 말", "Notes")}</label><textarea id="fMemo" maxlength="600">${esc(p.memo)}</textarea>`;
 }
 function readProfile(role){
   const v = id => $(id) ? $(id).value : "";
@@ -300,50 +365,50 @@ function readProfile(role){
     country: v("fCountry"), rate: v("fRate"), years: v("fYears"), accent: v("fAccent"), sample: v("fSample"),
     who: v("fWho"), level: v("fLevel"), budget: v("fBudget"), guardian: v("fGuardian")}, role);
 }
-function renderApply(role){
-  form = {role, slots:[], goals:[]};
-  setChrome(role === "teacher" ? "선생님 등록 · Teacher sign-up" : "학생 등록", "", false);
+function renderApply(role, keepForm){
+  if (!keepForm) form = {role, slots:[], goals:[]};
+  curScreen = "apply"; document.documentElement.lang = HL;
+  setChrome(role === "teacher" ? L("선생님 등록", "Teacher sign-up") : L("학생 등록", "Student sign-up"), "", false);
   $("logoutBtn").style.display = "none";
-  $("view").innerHTML = `<div class="card">
-    <h2>${role === "teacher" ? "🧑‍🏫 선생님 등록 신청" : "🎓 학생 등록 신청"}</h2>
-    <p class="hint">작성하면 <b>마스터만 열 수 있게 암호화된 링크</b>가 만들어져요. 카카오톡으로 마스터에게 보내면, 마스터가 확인(confirm)한 뒤 인력풀에 등록되고 이 아이디로 로그인할 수 있어요.<br>
-    ${role === "teacher" ? "Your form becomes an encrypted link only the master can open. Send it via KakaoTalk; after approval you can log in with this ID." : ""}</p>
+  $("view").innerHTML = `${langToggle()}<div class="card">
+    <h2>${role === "teacher" ? L("🧑‍🏫 선생님 등록 신청", "🧑‍🏫 Teacher sign-up") : L("🎓 학생 등록 신청", "🎓 Student sign-up")}</h2>
+    <p class="hint">${L("작성하면 <b>마스터만 열 수 있게 암호화된 링크</b>가 만들어져요. 카카오톡으로 마스터에게 보내면, 마스터가 확인(confirm)한 뒤 인력풀에 등록되고 이 아이디로 로그인할 수 있어요.", "Your form becomes an <b>encrypted link only the master can open</b>. Send it to the master via KakaoTalk; after approval you can log in with this ID.")}</p>
     ${profileFields(role, null, true)}
-    ${role === "student" ? `<label class="check" id="consentKid" style="display:none"><input type="checkbox" id="fKid"> <span>보호자로서 자녀의 수업 등록과 정보 제공에 동의합니다.</span></label>` : ""}
-    <label class="check"><input type="checkbox" id="fAgree"> <span>입력한 정보는 매칭과 수업 관리에만 쓰이고, 마스터만 볼 수 있다는 데 동의합니다. · I agree my info is used only for matching and class management.</span></label>
-    <div class="btns"><button class="ghost" data-act="home">취소</button><button data-act="submitApply" style="flex:1">신청 링크 만들기 · Create link</button></div>
+    ${role === "student" ? `<label class="check" id="consentKid" style="display:none"><input type="checkbox" id="fKid"> <span>${L("보호자로서 자녀의 수업 등록과 정보 제공에 동의합니다.", "As the parent/guardian, I agree to register my child and share this information.")}</span></label>` : ""}
+    <label class="check"><input type="checkbox" id="fAgree"> <span>${L("입력한 정보는 매칭과 수업 관리에만 쓰이고, 마스터만 볼 수 있다는 데 동의합니다.", "I agree my information is used only for matching and class management, and only the master can see it.")}</span></label>
+    <div class="btns"><button class="ghost" data-act="home">${L("취소", "Cancel")}</button><button data-act="submitApply" style="flex:1">${L("신청 링크 만들기", "Create sign-up link")}</button></div>
     <div class="hint" id="apMsg"></div>
     <div id="apOut"></div>
   </div>`;
-  if ($("fWho")){ const f = () => { const kid = $("fWho").value === "자녀"; $("consentKid").style.display = kid ? "" : "none"; $("guardWrap").style.visibility = kid ? "" : "hidden"; }; $("fWho").onchange = f; f(); }
+  if ($("fWho")){ const f = () => { const kid = $("fWho").value === "자녀"; $("consentKid").style.display = kid ? "" : "none"; $("guardWrap").style.display = kid ? "" : "none"; }; $("fWho").onchange = f; f(); }
 }
 async function submitApply(){
   const out = $("apMsg"), role = form.role; out.className = "hint bad";
   const id = String($("fId").value || "").trim().toLowerCase(), p1 = $("fPw1").value, p2 = $("fPw2").value;
   const p = readProfile(role);
-  if (!p.name) return out.textContent = "이름을 입력하세요. · Enter your name.";
-  if (!ID_RE.test(id)) return out.textContent = "아이디는 영문 소문자·숫자·. - _ 2–20자 · ID: 2–20 lowercase letters/digits.";
-  if (p1.length < 8 || p1 !== p2) return out.textContent = "비밀번호는 8자 이상, 두 칸이 같아야 해요. · Password 8+ chars, both must match.";
-  if (!p.contact) return out.textContent = "연락처를 입력하세요. · Enter a contact.";
-  if (!p.slots.length) return out.textContent = "가능한 시간을 1칸 이상 고르세요. · Pick at least one time.";
-  if (role === "teacher" && !(p.rate > 0)) return out.textContent = "희망 수업료(USD)를 입력하세요. · Enter your fee.";
-  if (role === "student" && !(p.budget > 0)) return out.textContent = "1회 예산(USD)을 입력하세요.";
-  if (role === "student" && p.who === "자녀" && (!p.guardian || !$("fKid").checked)) return out.textContent = "자녀 등록은 보호자 이름과 동의가 필요해요.";
-  if (!$("fAgree").checked) return out.textContent = "정보 이용에 동의해 주세요. · Please agree.";
-  out.className = "hint"; out.textContent = "암호화하는 중… Encrypting…";
+  if (!p.name) return out.textContent = L("이름을 입력하세요.", "Enter your name.");
+  if (!ID_RE.test(id)) return out.textContent = L("아이디는 영문 소문자·숫자·. - _ 2–20자예요.", "ID: 2–20 lowercase letters, digits, . - _");
+  if (p1.length < 8 || p1 !== p2) return out.textContent = L("비밀번호는 8자 이상, 두 칸이 같아야 해요.", "Password must be 8+ characters and both must match.");
+  if (!p.contact) return out.textContent = L("연락처를 입력하세요.", "Enter a contact.");
+  if (!p.slots.length) return out.textContent = L("가능한 시간을 1칸 이상 고르세요.", "Pick at least one time.");
+  if (role === "teacher" && !(p.rate > 0)) return out.textContent = L("희망 수업료(USD)를 입력하세요.", "Enter your fee (USD).");
+  if (role === "student" && !(p.budget > 0)) return out.textContent = L("1회 예산(USD)을 입력하세요.", "Enter your budget (USD).");
+  if (role === "student" && p.who === "자녀" && (!p.guardian || !$("fKid").checked)) return out.textContent = L("자녀 등록은 보호자 이름과 동의가 필요해요.", "A child sign-up needs the guardian's name and consent.");
+  if (!$("fAgree").checked) return out.textContent = L("정보 이용에 동의해 주세요.", "Please tick the agreement.");
+  out.className = "hint"; out.textContent = L("암호화하는 중…", "Encrypting…");
   try {
     const [ag, ug, mg] = await Promise.all([ghGet(ACCESS, "hub/accounts.json", false), ghGet(ACCESS, "users.json", false), ghGet(ACCESS, "master.json", false)]);
     const taken = ((ag.data && ag.data.accounts) || []).some(a => a.id === id) || ((ug.data && ug.data.users) || []).some(u => u.id === id) || (mg.data && mg.data.id === id);
-    if (taken) throw new Error("이미 쓰이는 아이디예요. · ID already taken.");
+    if (taken) throw new Error(L("이미 쓰이는 아이디예요.", "This ID is already taken."));
     const K = b64e(rnd(32));
     const box = await lockBox(K, p1);
     const link = hubUrl() + "#apply=" + await seal({t:"apply", role, id, profile: p, box, K, at: nowStamp()});
     try { localStorage.setItem(PENDKEY, JSON.stringify({id, role, link})); } catch(e) {}
     const text = `[영어 수업 허브] ${role === "teacher" ? "선생님" : "학생"} 등록 신청 · ${p.name} (${id})\n마스터만 열 수 있는 링크입니다:\n${link}`;
     out.textContent = "";
-    $("apOut").innerHTML = `<div class="item todo ok"><b>✅ 신청 링크가 만들어졌어요 · Link ready</b>
-      <div class="meta">아래 버튼으로 마스터에게 카카오톡을 보내세요. 승인되면 첫 화면에서 <b>${esc(id)}</b>로 로그인하세요.<br>Send it to the master; log in with <b>${esc(id)}</b> after approval.</div>
-      <div class="btns"><button data-act="shareText" data-text="${esc(text)}">💬 카카오톡으로 보내기 · Share</button><button class="ghost" data-act="copyText" data-text="${esc(text)}">복사 · Copy</button></div></div>`;
+    $("apOut").innerHTML = `<div class="item todo ok"><b>${L("✅ 신청 링크가 만들어졌어요", "✅ Your sign-up link is ready")}</b>
+      <div class="meta">${L(`아래 버튼으로 마스터에게 카카오톡을 보내세요. 승인되면 첫 화면에서 <b>${esc(id)}</b>로 로그인하세요.`, `Send it to the master with the button below. After approval, log in with <b>${esc(id)}</b>.`)}</div>
+      <div class="btns"><button data-act="shareText" data-text="${esc(text)}">${L("💬 카카오톡으로 보내기", "💬 Send via KakaoTalk")}</button><button class="ghost" data-act="copyText" data-text="${esc(text)}">${L("복사", "Copy")}</button></div></div>`;
     share(text);
   } catch(e) { out.className = "hint bad"; out.textContent = e.message; }
 }
@@ -431,7 +496,7 @@ function profileHtml(p, role, en){
   return `<div class="meta">${T ? (en ? `${esc(p.country || "—")} · ${esc(p.accent || "")} · ${esc(p.years || 0)} yrs · <b>${usd(p.rate)}</b>/class` : `${esc(p.country || "—")} · ${esc(p.accent || "")} · 경력 ${esc(p.years || 0)}년 · <b>${usd(p.rate)}</b>/회`) : `${esc(p.who)}${p.guardian ? ` (보호자 ${esc(p.guardian)})` : ""} · ${esc(p.level)} · 예산 <b>${usd(p.budget)}</b>/회`}</div>
     <div class="meta">📞 ${esc(p.contact)}</div>
     <div style="margin-top:6px">${(p.goals || []).map(g => `<span class="tag violet">${esc(GOAL_NAME[g])}</span>`).join("")}</div>
-    <div class="meta">🕒 ${(p.slots || []).map(slotName).join(", ") || "—"}</div>
+    <div class="meta">🕒 ${esc(slotsText(p.slots, en)) || "—"}</div>
     ${p.sample ? `<div class="meta">🎙 <a href="${esc(p.sample)}" target="_blank" rel="noopener noreferrer">녹음·영상 듣기</a></div>` : ""}
     ${p.memo ? `<div class="meta" style="white-space:pre-wrap">💬 ${esc(p.memo)}</div>` : ""}`;
 }
@@ -516,7 +581,7 @@ function mHome(){
     todos.push(`<div class="item todo blue"><div class="hd"><b>🔔 연장 안내 · ${esc(s.name)} ↔ ${esc(t.name)}</b><span class="tag warn">남은 ${g.left}회</span></div><div class="meta">2회 남았을 때 다음 ${D.settings.months}개월 수업료를 청구하세요.</div><div class="btns"><button class="sm" data-act="renew" data-id="${m.id}">다음 기간 만들기 + 청구</button></div></div>`); } });
   st.filter(s => !act.some(m => m.sid === s.id)).forEach(s => {
     const best = rank(s).filter(r => r.ok)[0];
-    todos.push(`<div class="item todo ok"><div class="hd"><b>🤝 매칭 대기 · ${esc(s.name)}</b>${best ? `<span class="tag">추천 ${esc(best.t.name)} ${best.total}점</span>` : `<span class="tag bad">맞는 선생님 없음</span>`}</div><div class="meta">예산 ${usd(s.budget)} · ${(s.slots || []).length}칸 가능</div><div class="btns"><button class="sm" data-act="pickStudent" data-id="${s.id}">추천 보기</button></div></div>`); });
+    todos.push(`<div class="item todo ok"><div class="hd"><b>🤝 매칭 대기 · ${esc(s.name)}</b>${best ? `<span class="tag">추천 ${esc(best.t.name)} ${best.total}점</span>` : `<span class="tag bad">맞는 선생님 없음</span>`}</div><div class="meta">예산 ${usd(s.budget)} · ${normSlots(s.slots).length}시간 가능</div><div class="btns"><button class="sm" data-act="pickStudent" data-id="${s.id}">추천 보기</button></div></div>`); });
   D.ledger.filter(l => l.kind === "out" && l.status === "due").forEach(l => { const t = person(l.tid) || {};
     todos.push(`<div class="item todo"><div class="hd"><b>🧾 선생님 지급 · ${esc(t.name)}</b><span class="money">${usd(l.usd)}</span></div><div class="meta">${l.uzs ? uzs(l.uzs) + " · " : ""}학생 입금이 확인된 기간입니다.</div><div class="btns"><button class="sm" data-act="paidOut" data-id="${l.id}">지급 완료</button></div></div>`); });
   return `<div class="kpis">
@@ -559,7 +624,7 @@ function mMatch(){
       ${R.length ? R.map(r => `<div class="item" style="${r.ok ? "" : "opacity:.55"}"><div class="hd"><b>${esc(r.t.name)}</b><span class="score">${r.ok ? r.total : "—"}</span></div>
         <div class="bar"><i style="width:${r.ok ? r.total : 0}%"></i></div>
         <div class="breakdown">${r.ok ? `시간 ${r.parts.time} · 목표 ${r.parts.goal} · 평가 ${r.parts.score} · 가격 ${r.parts.price} · 담당 ${r.load}명` : "제외: " + r.why.map(esc).join(", ")}</div>
-        <div class="meta">${usd(r.t.rate)}/회 · 겹치는 시간: ${r.ov.map(slotName).join(", ") || "없음"}</div>
+        <div class="meta">${usd(r.t.rate)}/회 · 겹치는 시간: ${esc(slotsText(r.ov)) || "없음"}</div>
         ${r.ok ? `<div class="btns"><button class="sm" data-act="newMatch" data-sid="${s.id}" data-tid="${r.t.id}">이 선생님으로 매칭</button></div>` : ""}</div>`).join("") : `<div class="empty">등록된 선생님이 없어요.</div>`}</div>`;
   }
   const ms = D.matches.slice().reverse();
@@ -613,7 +678,7 @@ function mSet(){
 
 /* ---------- 마스터 동작 ---------- */
 function personForm(p, role){
-  form = {role, slots: (p && p.slots) ? [...p.slots] : [], goals: (p && p.goals) ? [...p.goals] : []};
+  form = {role, slots: (p && p.slots) ? normSlots(p.slots) : [], goals: (p && p.goals) ? [...p.goals] : []};
   openSheet(`<h2>${p ? "정보 수정" : (role === "teacher" ? "선생님 직접 추가" : "학생 직접 추가")}</h2>
     ${p ? "" : `<div class="seg"><button data-act="addPerson" data-role="student" class="${role === "student" ? "on" : ""}">🎓 학생</button><button data-act="addPerson" data-role="teacher" class="${role === "teacher" ? "on" : ""}">🧑‍🏫 선생님</button></div>
       <label>아이디 <small>구분용 (로그인 계정은 만들지 않음)</small></label><input id="pfId" autocapitalize="none" maxlength="20">`}
@@ -634,12 +699,11 @@ async function savePerson(id){
 }
 function newMatchSheet(sid, tid, prev){
   const s = person(sid), t = person(tid), S = D.settings, r = scorePair(s, t);
-  const slot = (r.ov[0] || (s.slots || [])[0] || "0-e"), [d0, b0] = slot.split("-");
-  const B = BLOCKS.find(b => b[0] === b0) || BLOCKS[3];
+  const slot = (r.ov[0] || normSlots(s.slots)[0] || "0-19"), [d0, h0] = slot.split("-");
   const price = Math.min(+s.budget || Infinity, Math.round((+t.rate || 0) * (1 + (+S.margin || 0) / 100) * 100) / 100);
-  const P = prev || {dow: +d0, time: B[3], dur: S.dur || 25, start: nextDow(+d0), months: S.months || 3, price, pay: +t.rate || 0};
+  const P = prev || {dow: +d0, time: `${h0}:00`, dur: S.dur || 25, start: nextDow(+d0), months: S.months || 3, price, pay: +t.rate || 0};
   openSheet(`<h2>🤝 ${esc(s.name)} ↔ ${esc(t.name)}</h2>
-    <p class="hint">겹치는 시간: ${r.ov.map(slotName).join(", ") || "없음"}</p>
+    <p class="hint">겹치는 시간: ${esc(slotsText(r.ov)) || "없음"}</p>
     <div class="row2"><div><label>요일</label><select id="mDow">${DOW.map((d, i) => `<option value="${i}" ${i === +P.dow ? "selected" : ""}>${d}요일</option>`).join("")}</select></div>
       <div><label>시작 시각 (KST)</label><input id="mTime" type="time" value="${esc(P.time)}"></div></div>
     <div class="row2"><div><label>첫 수업일</label><input id="mStart" type="date" value="${esc(P.start)}"></div>
@@ -833,9 +897,8 @@ async function sendMsg(){
    ===================================================================== */
 const ACT = {
   login: () => doLogin(), home: () => route(), reload: () => route(), close: () => closeSheet(),
-  apply: d => renderApply(d.role),
+  apply: d => renderApply(d.role), hubLang: d => setHubLang(d.l),
   resend: () => { try { const p = JSON.parse(localStorage.getItem(PENDKEY)); share(`[영어 수업 허브] 등록 신청 · ${p.id}\n${p.link}`); } catch(e) {} },
-  slot: (d, b) => { const i = form.slots.indexOf(d.k); i < 0 ? form.slots.push(d.k) : form.slots.splice(i, 1); b.classList.toggle("on"); },
   goal: (d, b) => { const i = form.goals.indexOf(d.k); i < 0 ? form.goals.push(d.k) : form.goals.splice(i, 1); b.classList.toggle("on"); },
   submitApply: () => submitApply(),
   shareText: d => share(d.text), copyText: d => copy(d.text),
@@ -865,6 +928,7 @@ window.addEventListener("hashchange", () => { if (isMaster() && D) handleHash().
 
 async function route(){
   closeSheet();
+  if (auth && auth.token && auth.role === "sub" && !/#(apply|msg)=/.test(location.hash)){ location.replace("./"); return; }
   if (isMaster()) return loadMaster();
   if (sess && sess.id && sess.K) return loadMember();
   if (/#(apply|msg)=/.test(location.hash)){
