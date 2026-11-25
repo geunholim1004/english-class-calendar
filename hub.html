@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.github.com https://open.er-api.com; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
+<title>영어 수업 허브 · 등록·매칭·결제</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f5f1; --card:#fff; --ink:#1d2125; --muted:#6b7177; --line:#e4e1d8;
+  --accent:#1f6f5c; --accent-soft:#e3f1ec; --warn:#b4541a; --warn-soft:#fbeee4;
+  --bad:#c0392b; --bad-soft:#fbe7e5; --blue:#1a6fa8; --blue-soft:#e3eff8; --violet:#6a4fc2; --violet-soft:#eeeafb;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Noto Sans KR",system-ui,sans-serif;font-size:15px;line-height:1.55;padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+.wrap{max-width:860px;margin:0 auto;padding:18px 14px 30px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+.top h1{font-size:19px;margin:0}
+.top .who{font-size:12.5px;color:var(--muted);text-align:right}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+.card h2{font-size:16px;margin:0 0 10px}
+.card h3{font-size:14px;margin:14px 0 6px}
+label{display:block;font-size:12.5px;color:var(--muted);margin:10px 0 4px}
+label small{color:#9aa0a6}
+input,select,textarea{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fcfcfa}
+textarea{min-height:70px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+button,.btn{font:inherit;cursor:pointer;border-radius:11px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;padding:10px 16px;font-weight:500;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+button.ghost,.btn.ghost{background:#fff;color:var(--accent)}
+button.sm,.btn.sm{padding:6px 11px;font-size:13px;border-radius:9px}
+button.danger{border-color:var(--bad);color:var(--bad);background:#fff}
+button.block,.btn.block{width:100%}
+button:disabled{opacity:.45;cursor:default}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:520px){.row2{grid-template-columns:1fr}}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+.hint.bad,.bad{color:var(--bad)}
+.hint.ok{color:var(--accent)}
+.muted{color:var(--muted)}
+.mono{font-family:ui-monospace,Menlo,monospace}
+.empty{color:var(--muted);font-size:13.5px;padding:10px 0}
+.tag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:99px;font-weight:500;background:var(--accent-soft);color:var(--accent);margin:0 4px 4px 0}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.bad{background:var(--bad-soft);color:var(--bad)}
+.tag.blue{background:var(--blue-soft);color:var(--blue)}
+.tag.violet{background:var(--violet-soft);color:var(--violet)}
+.tag.gray{background:#eef0f1;color:#6b7177}
+
+/* 로그인 */
+.hero{max-width:420px;margin:6vh auto 0}
+.hero .logo{font-size:40px;text-align:center}
+.hero h1{text-align:center;font-size:21px;margin:6px 0 2px}
+.hero p.sub{text-align:center;color:var(--muted);margin:0 0 18px;font-size:13.5px}
+.divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12.5px;margin:18px 0 10px}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+.choose{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choose button{flex-direction:column;padding:14px 8px;background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+.choose button b{font-size:22px}
+.choose button span{font-size:13px}
+.choose button:hover{border-color:var(--accent)}
+
+/* 신청 시간 격자 */
+.slots{display:grid;grid-template-columns:54px repeat(7,1fr);gap:3px;font-size:11.5px}
+.slots .h{color:var(--muted);text-align:center;padding:3px 0}
+.slots .h.sun{color:var(--bad)}
+.slots .b{color:var(--muted);display:flex;flex-direction:column;justify-content:center;line-height:1.15}
+.slots .b small{font-size:10px;color:#a0a5aa}
+.slots button{padding:0;height:34px;border-radius:7px;background:#f3f2ee;border:1px solid var(--line);color:transparent}
+.slots button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.slots button.ov{box-shadow:inset 0 0 0 2px var(--warn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{background:#fff;color:var(--ink);border:1px solid var(--line);padding:6px 11px;font-size:13px;border-radius:99px;font-weight:400}
+.chips button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:12px}
+.check input{width:auto;margin-top:3px}
+
+/* 마스터 */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+@media(max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 13px}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:19px;font-weight:700}
+.item{border:1px solid var(--line);border-radius:13px;padding:12px;margin-top:8px;background:#fff}
+.item .hd{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.item .hd b{font-size:15px}
+.item .meta{font-size:12.5px;color:var(--muted);margin-top:3px}
+.todo{border-left:4px solid var(--warn)}
+.todo.ok{border-left-color:var(--accent)}
+.todo.blue{border-left-color:var(--blue)}
+.seg{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.seg button{background:#fff;color:var(--ink);border:1px solid var(--line);padding:7px 13px;font-size:13.5px}
+.seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.bar{height:7px;border-radius:9px;background:#eef0f1;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.score{font-weight:700;font-size:20px;color:var(--accent)}
+.breakdown{font-size:12px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 5px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:500}
+td.r,th.r{text-align:right}
+.money{font-variant-numeric:tabular-nums}
+.big{font-size:24px;font-weight:700}
+
+/* 아래 탭 */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:none;justify-content:center;z-index:30;padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs.on{display:flex}
+nav.tabs .in{display:flex;max-width:860px;width:100%}
+nav.tabs button{flex:1;background:none;border:none;color:var(--muted);flex-direction:column;gap:0;padding:8px 2px 9px;font-size:11.5px;border-radius:0;font-weight:500}
+nav.tabs button b{font-size:19px;line-height:1.3}
+nav.tabs button.on{color:var(--accent)}
+nav.tabs button .dot{position:absolute;margin:-2px 0 0 22px;min-width:16px;height:16px;border-radius:99px;background:var(--bad);color:#fff;font-size:10px;line-height:16px;padding:0 4px}
+
+/* 모달 */
+.modal{position:fixed;inset:0;background:rgba(20,24,28,.45);display:none;align-items:flex-end;justify-content:center;z-index:50}
+.modal.on{display:flex}
+.sheet{background:#fff;width:100%;max-width:600px;max-height:90vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+@media(min-width:700px){.modal{align-items:center}.sheet{border-radius:18px}}
+.sheet h2{font-size:17px;margin:0 0 8px}
+.pay{display:grid;gap:8px;margin-top:10px}
+.pay .btn{justify-content:flex-start;background:#fff;color:var(--ink);border:1.5px solid var(--line);padding:12px 14px}
+.pay .btn b{min-width:26px;text-align:center}
+.pay .btn.toss{border-color:#3182f6}
+.pay .btn.kakao{border-color:#f7e000;background:#fffbe0}
+.acctbox{background:#f6f5f1;border-radius:12px;padding:12px;font-size:14px}
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:99px;font-size:13.5px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60}
+.toast.on{opacity:1}
+.sess{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.sess span{font-size:12px;padding:3px 8px;border-radius:8px;background:var(--accent-soft);color:var(--accent)}
+.sess span.done{background:var(--accent);color:#fff}
+.sess span.next{outline:2px solid var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top" id="topbar" style="display:none">
+    <h1 id="topTitle">영어 수업 허브</h1>
+    <div class="who"><div id="whoName"></div><button class="ghost sm" id="logoutBtn">로그아웃</button></div>
+  </div>
+  <div id="view"></div>
+</div>
+<nav class="tabs" id="tabs"><div class="in" id="tabsIn"></div></nav>
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+<script src="hub.js?v=1"></script>
+</body>
+</html>
