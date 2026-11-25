@@ -44,6 +44,10 @@ try { auth = JSON.parse(localStorage.getItem(AUTHKEY) || "null"); } catch(e) {}
 const isMaster = () => !!(auth && auth.token && auth.role !== "sub");
 const isSub = () => !!(auth && auth.token && auth.role === "sub");
 const isEditor = () => isMaster() || isSub();
+// 사용자 역할: 선생님(피드백 작성) / 학생(AI 코치 사용). 예전 계정은 역할이 없으면 선생님
+const isStudent = () => isSub() && auth.kind === "student";
+const isTeacher = () => isSub() && !isStudent();
+const roleOf = u => (u && u.role === "student") ? "student" : "teacher";
 let remoteSha = null, lastUpdated = null, syncStatus = "", saveTimer = null, loadingRemote = false;
 const SETTING_IDS = ["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate","zoom"];
 function snapshot(){ const settings = {}; SETTING_IDS.forEach(id => settings[id] = $(id).value);
@@ -177,7 +181,8 @@ function renderAcct(){
   document.body.classList.toggle("viewer", !m);
   document.body.classList.toggle("subm", sb);
   if (typeof renderPending === "function") renderPending();
-  $("roleBadge").textContent = m ? t("roleMaster")(auth.login || auth.owner) : sb ? t("roleUser")(auth.name || auth.login) : t("roleViewer");
+  $("roleBadge").textContent = m ? t("roleMaster")(auth.login || auth.owner) : sb ? t(isStudent() ? "roleStudent" : "roleUser")(auth.name || auth.login) : t("roleViewer");
+  $("coachLink").style.display = (m || isStudent()) ? "" : "none";
   $("roleBadge").className = "badge " + (m ? "master" : sb ? "subm" : "viewer");
   $("loginBtn").style.display = (m || sb) ? "none" : "";
   $("logoutBtn").style.display = (m || sb) ? "" : "none";
@@ -227,13 +232,13 @@ ko: {
   rqMsg2:o => `[영어 수업 변경 요청]\n${o.target}\n요청: ${o.what}\n사유: ${o.why}\n요청자: ${o.who}\n\n웹에서 확인·승인해 주세요 👇\n${o.url}`,
 
   rrLink:"아이디가 없나요? 등록 요청", hRR:"사용 등록 요청", rrId:"희망 아이디 (영문 소문자·숫자)", rrName:"이름", rrSend:"📨 등록 요청 보내기", rrNeedName:"이름을 입력하세요.",
-  rrText:o => `[영어 수업 앱 등록 요청]\n이름: ${o.name}\n희망 아이디: ${o.id}\n\n승인 링크 👇\n${o.url}`,
+  rrText:o => `[영어 수업 앱 등록 요청]\n이름: ${o.name}\n역할: ${o.role}\n희망 아이디: ${o.id}\n\n승인 링크 👇\n${o.url}`,
   rrHint:"이 내용을 카카오톡으로 Edward에게 보내세요. 승인되면 이 기기에서 사이트를 다시 열어 비밀번호만 정하면 됩니다.",
   rrWaiting:id => `'${id}' 등록 승인 대기 중`, rrApproved:"승인됐어요! 사용할 비밀번호를 정하면 등록이 끝납니다.",
   hRA:"사용 등록 요청", raApprove:"✓ 승인", raReject:"✕ 거절", raNeedTok:"설정 → 사용자 관리에서 선생님용 토큰을 먼저 저장하세요.",
   raExists:"이미 사용 중인 아이디예요. 승인하면 기존 등록을 덮어씁니다.", raDone:n => `승인했어요. ${n}님이 같은 기기에서 사이트를 다시 열면 비밀번호를 정해 등록이 끝납니다.`,
 
-  roleUser:n => `사용자 · ${n}`, loginTabSub:"아이디 로그인", uIdL:"아이디", subPwL:"비밀번호", subLoginBtn:"로그인",
+  roleUser:n => `선생님 · ${n}`, roleStudent:n => `학생 · ${n}`, uRoleL:"역할", roleT:"선생님", roleS:"학생", loginTabSub:"아이디 로그인", uIdL:"아이디", subPwL:"비밀번호", subLoginBtn:"로그인",
   uNoId:"등록되지 않은 아이디예요.", uNotRegistered:"아직 등록이 끝나지 않았어요. 카톡으로 받은 초대 링크에서 먼저 등록하세요.",
   hReg:"사용자 등록", regCode:"초대 코드 (카톡으로 받은 8자리)", regPw1:"사용할 비밀번호 (8자 이상)", regPw2:"비밀번호 확인", regBtn:"등록하고 시작",
   regPwRule:"비밀번호는 8자 이상, 두 번 똑같이 입력하세요.", regNoInvite:"이 아이디로 대기 중인 초대가 없어요. Edward에게 다시 초대를 요청하세요.", regBadCode:"초대 코드가 맞지 않아요.",
@@ -447,13 +452,13 @@ en: {
   rqMsg2:o => `[English class – change request]\n${o.target}\nRequest: ${o.what}\nReason: ${o.why}\nFrom: ${o.who}\n\nPlease review and approve on the web 👇\n${o.url}`,
 
   rrLink:"No ID yet? Request access", hRR:"Request access", rrId:"Preferred ID (lowercase letters / digits)", rrName:"Name", rrSend:"📨 Send request", rrNeedName:"Enter your name.",
-  rrText:o => `[English class app – access request]\nName: ${o.name}\nPreferred ID: ${o.id}\n\nApprove here 👇\n${o.url}`,
+  rrText:o => `[English class app – access request]\nName: ${o.name}\nRole: ${o.role}\nPreferred ID: ${o.id}\n\nApprove here 👇\n${o.url}`,
   rrHint:"Send this to Edward on KakaoTalk. Once approved, reopen the site on this device and just choose a password.",
   rrWaiting:id => `'${id}' waiting for approval`, rrApproved:"Approved! Choose a password to finish registering.",
   hRA:"Access request", raApprove:"✓ Approve", raReject:"✕ Decline", raNeedTok:"Save the teacher token first under Settings → Users.",
   raExists:"This ID is already in use. Approving will replace the existing registration.", raDone:n => `Approved. When ${n} reopens the site on the same device, they set a password and they’re done.`,
 
-  roleUser:n => `User · ${n}`, loginTabSub:"ID login", uIdL:"ID", subPwL:"Password", subLoginBtn:"Log in",
+  roleUser:n => `Teacher · ${n}`, roleStudent:n => `Student · ${n}`, uRoleL:"Role", roleT:"Teacher", roleS:"Student", loginTabSub:"ID login", uIdL:"ID", subPwL:"Password", subLoginBtn:"Log in",
   uNoId:"This ID isn’t registered.", uNotRegistered:"Registration isn’t finished yet. Register first from the invite link you received.",
   hReg:"Register", regCode:"Invite code (8 characters, from KakaoTalk)", regPw1:"Choose a password (8+ characters)", regPw2:"Confirm password", regBtn:"Register & start",
   regPwRule:"Use 8+ characters and type the same password twice.", regNoInvite:"There’s no pending invite for this ID. Ask Edward to invite you again.", regBadCode:"Wrong invite code.",
@@ -1069,10 +1074,10 @@ function renderMain(){
           it.title = `${labelOf(s)} · ${statusText(s)}${s.meta&&s.meta.memo?" · "+s.meta.memo:""}`;
           const fb = feedback[s.id];
           if (s.act === "done" && fb){ it.textContent += " 📝"; it.title += " · " + t("fbHas"); }
-          else if (s.act === "done" && isSub() && fbDue(s)) { it.textContent += " ✍"; it.classList.add("fbdue"); it.title += " · " + t("fbDue"); }
+          else if (s.act === "done" && isTeacher() && fbDue(s)) { it.textContent += " ✍"; it.classList.add("fbdue"); it.title += " · " + t("fbDue"); }
           if (isMaster()) it.onclick = () => selectSession(selected === s.id ? null : s.id);
           else if (isSub() && s.act === "plan" && s.d >= C.asof && !pendingFor(s.id)) it.onclick = () => openReq(reqSid === s.id ? null : s.id);
-          else if (isSub() && s.act === "done") it.onclick = () => openFb(fbSid === s.id ? null : s.id);
+          else if (isTeacher() && s.act === "done") it.onclick = () => openFb(fbSid === s.id ? null : s.id);
           else it.style.cursor = "default";
           if (pendingFor(s.id)){ it.classList.add("pending"); it.textContent += " ⏳"; it.title += " · " + t("st_pending"); }
           if (reqSid === s.id || fbSid === s.id) it.classList.add("sel");
@@ -1094,7 +1099,7 @@ function renderMain(){
   else { $("actions").className = "actions"; selected = null; }
   const rs = reqSid && isSub() && S.find(x => x.id === reqSid);
   if (rs){ renderReq(rs, C); positionPop($("reqPanel"), $("calcard").querySelector(".it.sel")); } else { $("reqPanel").className = "actions"; reqSid = null; }
-  const fs = fbSid && isSub() && S.find(x => x.id === fbSid);
+  const fs = fbSid && isTeacher() && S.find(x => x.id === fbSid);
   if (fs){ renderFb(fs); positionPop($("fbPanel"), $("calcard").querySelector(".it.sel")); } else { $("fbPanel").className = "actions"; fbSid = null; }
   renderFbCard(S);
   if (addDate && isMaster()){ renderAdd(C); positionPop($("addPanel"), document.querySelector(`.day[data-date="${addDate}"]`)); }
@@ -1237,7 +1242,7 @@ async function fetchUsers(){
 async function saveUsers(users, sha, token, message){ await ghPut(ACCESS_REPO, "users.json", {users}, message, sha, token); }
 function becomeUser(u, token){
   const c = repoCoords();
-  auth = {token, owner: c.owner, repo: c.repo, role: "sub", login: u.id, name: u.name};
+  auth = {token, owner: c.owner, repo: c.repo, role: "sub", kind: roleOf(u), login: u.id, name: u.name};
   try { localStorage.setItem(AUTHKEY, JSON.stringify(auth)); } catch(e) {}
 }
 // 마스터 아이디 로그인: english-class-access/master.json 에 마스터 토큰을 마스터 비밀번호로 암호화해 저장
@@ -1352,7 +1357,7 @@ async function renderUsers(){
   $("uTokState").textContent = teacherToken ? t("uTokSet") : t("uTokUnset");
   $("uTokWrap").style.display = teacherToken ? "none" : "";
   const {users} = await fetchUsers();
-  $("uList").innerHTML = users.length ? users.map(u => `<div class="urow"><span><b>${esc(u.id)}</b> · ${esc(u.name)}<br>
+  $("uList").innerHTML = users.length ? users.map(u => `<div class="urow"><span><b>${esc(u.id)}</b> · ${esc(u.name)} · ${t(roleOf(u) === "student" ? "roleS" : "roleT")}<br>
       <span class="hint">${u.status === "active" ? t("uActive")(fmtStamp(u.registeredAt)) : t("uInvited")(fmtStamp(u.invitedAt))}</span></span>
       <span><button class="ghost sm" data-reinv="${u.id}">${t("uReinvite")}</button> <button class="ghost sm danger" data-udel="${u.id}">${t("uDelete")}</button></span></div>`).join("")
     : `<div class="empty">${t("uNone")}</div>`;
@@ -1384,7 +1389,7 @@ async function setTeacherToken(){
 }
 async function invite(idArg){
   const out = $("uMsg"); out.className = "hint";
-  const id = normId(idArg || $("uNewId").value), name = idArg ? null : $("uNewName").value.trim();
+  const id = normId(idArg || $("uNewId").value), name = idArg ? null : $("uNewName").value.trim(), role = $("uNewRole").value === "student" ? "student" : "teacher";
   if (!teacherToken){ out.className = "hint bad"; out.textContent = t("uNeedTok"); return; }
   if (!/^[a-z0-9._-]{2,20}$/.test(id)){ out.className = "hint bad"; out.textContent = t("uIdRule"); return; }
   try {
@@ -1392,10 +1397,10 @@ async function invite(idArg){
     let u = users.find(x => x.id === id);
     if (u && !idArg){ out.className = "hint bad"; out.textContent = t("uDup"); return; }
     const code = inviteCode();
-    if (!u){ u = {id, name: name || id}; users.push(u); }
+    if (!u){ u = {id, name: name || id, role}; users.push(u); }
     u.box = await lockToken(teacherToken, code); u.status = "invited"; u.invitedAt = new Date().toISOString(); delete u.registeredAt;
     await saveUsers(users, sha, auth.token, `Invite user: ${id}`);
-    $("uNewId").value = $("uNewName").value = "";
+    $("uNewId").value = $("uNewName").value = ""; $("uNewRole").value = "teacher";
     const link = teacherLink() + "#invite=" + id;
     $("uInvite").value = t("uInviteMsg")({name: u.name, id, code, link});
     $("uInviteBox").style.display = "";
@@ -1427,14 +1432,14 @@ const PENDKEY = "eng-class-pending-reg";
 let incomingReg = null;
 $("regReqLink").onclick = e => { e.preventDefault(); $("loginModal").classList.remove("on"); $("rrOut").style.display = "none"; $("rrMsg").textContent = ""; openModal("regReqModal"); };
 $("rrSend").onclick = async () => {
-  const id = normId($("rrId").value), name = $("rrName").value.trim(), out = $("rrMsg");
+  const id = normId($("rrId").value), name = $("rrName").value.trim(), role = $("rrRole").value === "student" ? "student" : "teacher", out = $("rrMsg");
   out.className = "hint";
   if (!/^[a-z0-9._-]{2,20}$/.test(id)){ out.className = "hint bad"; out.textContent = t("uIdRule"); return; }
   if (!name){ out.className = "hint bad"; out.textContent = t("rrNeedName"); return; }
   const s = inviteCode() + inviteCode();                     // 이 기기에만 남는 1회용 비밀값
   try { localStorage.setItem(PENDKEY, JSON.stringify({id, name, s})); } catch(e) {}
-  const url = teacherLink() + "#regreq=" + b64url(JSON.stringify({id, name, s, at: nowStamp()}));
-  const text = t("rrText")({id, name, url});
+  const url = teacherLink() + "#regreq=" + b64url(JSON.stringify({id, name, role, s, at: nowStamp()}));
+  const text = t("rrText")({id, name, role: t(role === "student" ? "roleS" : "roleT"), url});
   $("rrText").value = text; $("rrOut").style.display = "";
   if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){ try { await navigator.share({text}); } catch(e) {} }
 };
@@ -1448,7 +1453,7 @@ function checkRegReq(){
 }
 async function showRegApprove(){
   const r = incomingReg; if (!r) return;
-  $("raBody").innerHTML = `<div><b>${t("uIdL")}</b> · ${String(r.id).replace(/</g,"&lt;")}</div><div><b>${t("uNewName")}</b> · ${String(r.name).replace(/</g,"&lt;")}</div><div><b>${t("rqWhen")}</b> · ${esc(r.at)}</div>`;
+  $("raBody").innerHTML = `<div><b>${t("uIdL")}</b> · ${String(r.id).replace(/</g,"&lt;")}</div><div><b>${t("uNewName")}</b> · ${String(r.name).replace(/</g,"&lt;")}</div><div><b>${t("uRoleL")}</b> · ${t(roleOf(r) === "student" ? "roleS" : "roleT")}</div><div><b>${t("rqWhen")}</b> · ${esc(r.at)}</div>`;
   const msg = $("raMsg"); msg.className = "hint"; msg.textContent = "";
   let ok = isMaster();
   if (!ok) msg.textContent = t("rqNeedLogin");
@@ -1467,7 +1472,7 @@ $("raApprove").onclick = async () => {
   try {
     const {users, sha} = await fetchUsers(), id = normId(r.id);
     let u = users.find(x => x.id === id); if (!u){ u = {id}; users.push(u); }
-    u.name = r.name; u.box = await lockToken(teacherToken, r.s); u.status = "invited"; u.invitedAt = new Date().toISOString(); delete u.registeredAt;
+    u.name = r.name; u.role = roleOf(r); u.box = await lockToken(teacherToken, r.s); u.status = "invited"; u.invitedAt = new Date().toISOString(); delete u.registeredAt;
     await saveUsers(users, sha, auth.token, `Approve registration: ${id}`);
     msg.textContent = t("raDone")(r.name); $("raApprove").style.display = "none";
     try { history.replaceState(null, "", location.pathname); } catch(e) {}
@@ -1766,7 +1771,7 @@ function renderFb(sel){
   $("fbDel").textContent = t("fbDelB"); $("fbDel").style.display = f ? "" : "none";
 }
 $("fbSave").onclick = async () => {
-  if (!isSub() || !fbSid) return;
+  if (!isTeacher() || !fbSid) return;
   const C = cfg(), s = buildSessions(sundays(C.start, C.months, C.count), C).find(x => x.id === fbSid); if (!s) return;
   const v = {}; FB_KEYS.forEach(k => v[k] = $("fb_" + k).value.trim());
   if (!v.topics && !v.expr && !v.good && !v.hw){ $("fbMsg").className = "hint bad"; $("fbMsg").textContent = t("fbEmpty"); return; }
@@ -1780,7 +1785,7 @@ $("fbSave").onclick = async () => {
   $("fbSave").disabled = false;
 };
 $("fbDel").onclick = async () => {
-  if (!isSub() || !fbSid || !feedback[fbSid] || !confirm(t("fbDelAsk"))) return;
+  if (!isTeacher() || !fbSid || !feedback[fbSid] || !confirm(t("fbDelAsk"))) return;
   try { await mutateFeedback(items => { delete items[fbSid]; }, `Delete feedback ${fbSid} by ${auth.login}`);
     FB_KEYS.forEach(k => $("fb_" + k).value = ""); $("fbShareRow").style.display = "none"; $("fbMsg").className = "hint"; $("fbMsg").textContent = t("fbDeleted"); render(); }
   catch(e){ $("fbMsg").className = "hint bad"; $("fbMsg").textContent = t("rqSaveFail")(e.message); }
@@ -1832,17 +1837,17 @@ function renderFbCard(S){
   if (!isEditor()){ card.style.display = "none"; return; }
   card.style.display = "";
   const done = S.filter(s => s.act === "done").sort(byTime).reverse();
-  const due = isSub() ? done.filter(s => !feedback[s.id]) : [];
+  const due = isTeacher() ? done.filter(s => !feedback[s.id]) : [];
   const have = done.filter(s => feedback[s.id]).slice(0, 6);
   const newCnt = isMaster() ? have.filter(s => feedback[s.id].at > (localStorage.getItem("eng-class-fb-seen") || "")).length : 0;
-  $("fbCount").textContent = isSub() ? (due.length ? t("fbDueCnt")(due.length) : "") : (newCnt ? t("fbNewCnt")(newCnt) : "");
+  $("fbCount").textContent = isTeacher() ? (due.length ? t("fbDueCnt")(due.length) : "") : (newCnt ? t("fbNewCnt")(newCnt) : "");
   const row = (s, f) => `<div class="pendrow fbrow" data-fbs="${esc(s.id)}"><div><b>${kdate(s.d)} ${labelOf(s)}</b>${f ? ` · ${esc(f.topics || f.expr || "").slice(0, 60)}` : ""}</div>
     ${f ? `<div class="hint">${f.hw ? `${t("fbL").hw}: ${esc(f.hw).slice(0,60)} · ` : ""}${esc(f.name || f.by)} · ${esc(f.at)}${f.reply ? " · 💬 " + t("fbReplied2") : ""}</div>`
         : `<div class="hint"><b class="st-pending">✍ ${t("fbDue")}</b></div>`}</div>`;
   $("fbList").innerHTML = (due.slice(0, 4).map(s => row(s, null)).join("") + have.map(s => row(s, feedback[s.id])).join("")) || `<div class="empty">${t("fbEmptyList")}</div>`;
   $("fbList").querySelectorAll("[data-fbs]").forEach(r => r.onclick = () => {
     const id = r.dataset.fbs;
-    if (isSub()) openFb(id); else { try { localStorage.setItem("eng-class-fb-seen", nowStamp()); } catch(e) {} selectSession(id); }
+    if (isTeacher()) openFb(id); else { try { localStorage.setItem("eng-class-fb-seen", nowStamp()); } catch(e) {} selectSession(id); }
     const it = [...document.querySelectorAll("#calcard .it.sel")][0]; if (it) it.scrollIntoView({behavior:"smooth", block:"center"});
   });
 }
