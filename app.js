@@ -339,6 +339,11 @@ ko: {
   logFix:(a,b,e1,e2) => `🛠 수업 조건 정정: 선불 ${a}회 → ${b}회 · 마지막 수업 ${e1} → ${e2} (자세한 내용은 마스터 정정 기록)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1}회 = $${u1} → $${p2} × ${c2}회 = $${u2} · ${r}`,
   payWas:(n,e) => `정정 전 ${n}회 · ~${e}`,
+  zCardT:(live) => live ? "🎥 Zoom 수업 · 지금 입장할 수 있어요" : "🎥 Zoom 수업", zNextL:"다음 수업",
+  zIn:(m) => m < 60 ? `${m}분 후 시작` : m < 1440 ? `${Math.floor(m/60)}시간 ${m%60}분 후` : `${Math.floor(m/1440)}일 후`, zLeftL:(m) => `수업 중 · ${m}분 남음`,
+  zBig:"🎥 Zoom 수업 입장하기", zOpensAt2:(d, hm) => `🔒 ${d} ${hm}부터 입장할 수 있어요`,
+  zTeacherL:"👨‍🏫 선생님", zStudentL:"🧑 학생 Edward", zOnS:"📷 ON", zOffS:"📷 OFF", zJoinedAt:(hm) => `${hm} 입장`, zNotYet:"아직 입장 안 함", zLateL:(m) => `${m}분 지났는데 아직 입장 안 함`,
+  zLegend:"🔒 = 아직 입장 시간 전 · 파란 칸 = 지금 누르면 Zoom 입장 · 칸 안의 점 🟢 = 상대방 입장함(ON), 회색 = 아직(OFF)",
   zJoinChip:(l) => `🎥 ${l} 입장`, zLock:"16:55부터 Zoom 입장 버튼이 켜져요", zBarHead:(l, m) => m < 0 ? `${l} 수업 · ${-m}분 후 시작` : `${l} 수업 중 · ${m}분 남음`,
   zJoin:"🎥 Zoom 입장", zOther:(isT) => isT ? "Edward" : "선생님", zOn:"📷 ON · 입장함", zWait:"📷 OFF · 아직 입장 전", zLate:(m) => `📷 OFF · ${m}분 늦음`, zMe:"내 상태: 📷 ON",
   zChipTitle:"지금 누르면 Zoom 수업에 입장 · 점 🟢 = 상대방 입장함", zBadUrl:"Zoom 링크는 https://…zoom.us/… 형식이어야 해요",
@@ -554,6 +559,11 @@ en: {
   logFix:(a,b,e1,e2) => `🛠 Class terms corrected: prepaid ${a} → ${b} classes · last class ${e1} → ${e2} (details in the master correction history)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1} = $${u1} → $${p2} × ${c2} = $${u2} · ${r}`,
   payWas:(n,e) => `was ${n} · to ${e}`,
+  zCardT:(live) => live ? "🎥 Zoom class · you can join now" : "🎥 Zoom class", zNextL:"Next class",
+  zIn:(m) => m < 60 ? `starts in ${m} min` : m < 1440 ? `in ${Math.floor(m/60)} h ${m%60} min` : `in ${Math.floor(m/1440)} days`, zLeftL:(m) => `In class · ${m} min left`,
+  zBig:"🎥 Join the Zoom class", zOpensAt2:(d, hm) => `🔒 You can join from ${d} ${hm}`,
+  zTeacherL:"👨‍🏫 Teacher", zStudentL:"🧑 Student Edward", zOnS:"📷 ON", zOffS:"📷 OFF", zJoinedAt:(hm) => `joined ${hm}`, zNotYet:"Not joined yet", zLateL:(m) => `${m} min past start, not joined yet`,
+  zLegend:"🔒 = not open yet · blue = tap to join Zoom · dot 🟢 = the other person has joined (ON), grey = not yet (OFF)",
   zJoinChip:(l) => `🎥 Join ${l}`, zLock:"The Zoom join button turns on 5 min before class", zBarHead:(l, m) => m < 0 ? `Class ${l} · starts in ${-m} min` : `Class ${l} · ${m} min left`,
   zJoin:"🎥 Join Zoom", zOther:(isT) => isT ? "Edward" : "Teacher", zOn:"📷 ON · joined", zWait:"📷 OFF · not joined yet", zLate:(m) => `📷 OFF · ${m} min late`, zMe:"You: 📷 ON",
   zChipTitle:"Tap to join the Zoom class · green dot = the other person has joined", zBadUrl:"The Zoom link must look like https://…zoom.us/…",
@@ -905,9 +915,38 @@ function joinZoom(s){
       d.in = d.in || {}; d.in[auth.login] = me; await ghPut(SHARE_REPO, "live.json", d, `Zoom join ${key} by ${auth.login}`, g.sha); zLive = d; renderZoom(); } catch(e) {} })();
   logActivity("zoom", key);
 }
+function zWho(role){ const cur = zCurrent(); if (!cur || !zLive || zLive.key !== zKey(cur)) return null; return Object.values(zLive.in || {}).find(v => v && v.role === role) || null; }
+function zDay(s){ return `${sdate(s.d)}(${t("dow")[s.d.getUTCDay()]})`; }
+function renderZCard(){
+  const box = $("zCard"); if (!box) return;
+  if (!isEditor() || !zoomUrl() || !zC){ box.style.display = "none"; return; }
+  const cur = zCurrent(), s = cur || zNext();
+  if (!s){ box.style.display = "none"; return; }
+  box.style.display = ""; box.classList.toggle("live", !!cur);
+  const st = zStart(s), dur = zC.dur || 25, el = (Date.now() - st) / 60e3;
+  const range = `${zDay(s)} ${s.time}–${endHM(s.time, dur)}`;
+  const when = !cur ? `${t("zNextL")} · ${labelOf(s)} · ${range} · ${t("zIn")(Math.ceil(-el))}`
+    : el < 0 ? `${labelOf(s)} · ${range} · ${t("zIn")(Math.ceil(-el))}` : `${labelOf(s)} · ${range} · ${t("zLeftL")(dur - Math.floor(el))}`;
+  const opens = new Date(st - 5*60e3), op = kstParts(opens);
+  const btn = cur ? `<button class="zbig" id="zBigBtn">${t("zBig")}</button>` : `<button class="zbig" disabled>${esc(t("zOpensAt2")(zDay(s), `${op.hour}:${op.minute}`))}</button>`;
+  let pres = "";
+  if (cur){
+    const m = Math.floor(el);
+    const boxH = (label, role, mine) => { const w = zWho(role), late = !w && m > 0 && !mine;
+      const nm = role === "sub" ? `${label}${w && w.name ? " " + esc(w.name) : ""}` : label;
+      return `<div class="zp ${w ? "on" : late ? "late" : ""}"><div>${nm}</div><div class="zs"><span class="dot"></span>${w ? t("zOnS") : t("zOffS")}</div><div class="zsub">${w ? esc(t("zJoinedAt")(String(w.at).slice(11))) : late ? esc(t("zLateL")(m)) : t("zNotYet")}</div></div>`; };
+    pres = `<div class="zpres">${boxH(t("zTeacherL"), "sub", isSub())}${boxH(t("zStudentL"), "master", isMaster())}</div>`;
+  }
+  box.innerHTML = `<h3>${t("zCardT")(!!cur)}</h3><div class="zwhen">${esc(when)}</div>${btn}${pres}<div class="zlegend">${t("zLegend")}</div>`;
+  if (cur) $("zBigBtn").onclick = () => joinZoom(cur);
+}
+// 상단 카드가 화면에 보이면 하단 바는 숨김 (둘 다 같은 내용이라)
+let zCardVisible = false;
+try { new IntersectionObserver(es => { zCardVisible = es[0].isIntersecting; renderZoom(); }).observe(document.getElementById("zCard")); } catch(e) {}
 function renderZoom(){
-  const cur = isEditor() && zoomUrl() ? zCurrent() : null;
-  $("zBar").classList.toggle("show", !!cur); document.body.classList.toggle("zbaron", !!cur);
+  renderZCard();
+  const cur = isEditor() && zoomUrl() ? zCurrent() : null, showBar = !!cur && !zCardVisible;
+  $("zBar").classList.toggle("show", showBar); document.body.classList.toggle("zbaron", showBar);
   if (!cur){ return; }
   const el = (Date.now() - zStart(cur)) / 60e3, m = el < 0 ? -Math.ceil(-el) : Math.floor(el), left = (zC.dur || 25) - Math.max(0, m);
   const on = zOtherIn(), late = !on && m > 0;

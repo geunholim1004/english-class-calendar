@@ -208,6 +208,20 @@ body.locked .grid{display:none}
 .it.zlive .zd.on{background:#4ee08a;box-shadow:0 0 0 2px rgba(78,224,138,.4)}
 @keyframes zpulse{0%{box-shadow:0 0 0 0 rgba(45,140,255,.55)}70%{box-shadow:0 0 0 7px rgba(45,140,255,0)}100%{box-shadow:0 0 0 0 rgba(45,140,255,0)}}
 @media(prefers-reduced-motion:reduce){.it.zlive{animation:none}}
+.zcard{margin-bottom:14px;padding:14px 16px}
+.zcard.live{border-color:#9fc6f5;background:#f3f8ff}
+.zcard h3{margin:0 0 2px;font-size:15px}
+.zcard .zwhen{font-size:13px;color:var(--muted);margin-bottom:10px}
+.zbig{display:block;width:100%;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:15.5px;border:0;cursor:pointer;background:#2d8cff;color:#fff;box-shadow:0 2px 0 #1a6fd6}
+.zbig:disabled{background:#eceae4;color:#8a8f94;box-shadow:none;cursor:not-allowed}
+.zpres{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.zp{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;background:#fff}
+.zp .zs{display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px;margin-top:2px}
+.zp .dot{width:11px;height:11px;border-radius:50%;background:#b9bcc0;flex:none}
+.zp .zsub{font-size:12px;color:var(--muted)}
+.zp.on{border-color:#9fd3bf;background:#eaf7f1}.zp.on .dot{background:#1fa35b;box-shadow:0 0 0 3px #c9ecd9}
+.zp.late{border-color:#f1c7c2;background:var(--tc-soft)}.zp.late .zs,.zp.late .zsub{color:var(--tc)}
+.zlegend{font-size:12px;color:var(--muted);margin-top:8px}
 .zbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(0,0,0,.08);padding:10px 14px;display:none}
 .zbar.show{display:block}
 body.zbaron{padding-bottom:84px}
@@ -324,6 +338,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
       </div>
     </div>
     <div class="rightcol">
+      <div class="card zcard" id="zCard" style="display:none"></div>
       <div class="card masteronly" id="actCard" style="padding:12px 16px"><button id="actBtn2" style="width:100%" data-i18n="actBtn"></button></div>
       <div class="card pendcard masteronly" id="pendCard" style="display:none">
         <h2><span data-i18n="hPend"></span> <span id="pendCount" class="logcount"></span></h2>
@@ -714,6 +729,6 @@ input:disabled{opacity:.75;background:#f3f2ee}
 </div>
 
 <div class="zbar" id="zBar"><div class="in" id="zBarIn"></div></div>
-<script src="app.js?v=20261125b"></script>
+<script src="app.js?v=20261125c"></script>
 </body>
 </html>
