@@ -45,7 +45,7 @@ const isMaster = () => !!(auth && auth.token && auth.role !== "sub");
 const isSub = () => !!(auth && auth.token && auth.role === "sub");
 const isEditor = () => isMaster() || isSub();
 let remoteSha = null, lastUpdated = null, syncStatus = "", saveTimer = null, loadingRemote = false;
-const SETTING_IDS = ["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate"];
+const SETTING_IDS = ["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate","zoom"];
 function snapshot(){ const settings = {}; SETTING_IDS.forEach(id => settings[id] = $(id).value);
   return {version:1, updatedAt:new Date().toISOString(), settings, state, log, extras, fixes}; }
 function applySnapshot(d){
@@ -339,12 +339,15 @@ ko: {
   logFix:(a,b,e1,e2) => `🛠 수업 조건 정정: 선불 ${a}회 → ${b}회 · 마지막 수업 ${e1} → ${e2} (자세한 내용은 마스터 정정 기록)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1}회 = $${u1} → $${p2} × ${c2}회 = $${u2} · ${r}`,
   payWas:(n,e) => `정정 전 ${n}회 · ~${e}`,
+  zJoinChip:(l) => `🎥 ${l} 입장`, zLock:"16:55부터 Zoom 입장 버튼이 켜져요", zBarHead:(l, m) => m < 0 ? `${l} 수업 · ${-m}분 후 시작` : `${l} 수업 중 · ${m}분 남음`,
+  zJoin:"🎥 Zoom 입장", zOther:(isT) => isT ? "Edward" : "선생님", zOn:"📷 ON · 입장함", zWait:"📷 OFF · 아직 입장 전", zLate:(m) => `📷 OFF · ${m}분 늦음`, zMe:"내 상태: 📷 ON",
+  zChipTitle:"지금 누르면 Zoom 수업에 입장 · 점 🟢 = 상대방 입장함", zBadUrl:"Zoom 링크는 https://…zoom.us/… 형식이어야 해요",
   actBtn:"👀 선생님 활동 보기", actH:"선생님 활동 (마스터만 볼 수 있음)", actUser:"아이디", actLast:"마지막 활동", actVisits:"접속", actReqs:"요청", actFbs:"피드백", actList:"활동 기록 (최근 순)",
-  actKind:{login:"로그인",visit:"사이트 열람",request:"변경 요청",reqCancel:"요청 취소",feedback:"피드백 작성",fbDelete:"피드백 삭제",register:"가입 완료"},
+  actKind:{zoom:"Zoom 입장", login:"로그인",visit:"사이트 열람",request:"변경 요청",reqCancel:"요청 취소",feedback:"피드백 작성",fbDelete:"피드백 삭제",register:"가입 완료"},
   actNever:"기록 없음", actNone:"아직 기록이 없어요.", actGit:"GitHub 저장 기록",
   actNote:"접속(열람)은 이번 업데이트부터 기록됩니다. 그 전의 가입·요청·피드백은 GitHub 저장 기록에서 찾아 보여 줍니다. 같은 기기에서 30분 안에 다시 열면 한 번으로 셉니다.",
   fbEditB:"✏️ 편집", fbDelB:"🗑 초기화(삭제)", fbDelAsk:"이 수업의 피드백을 지울까요? 학생 답장도 함께 지워집니다.", fbDeleted:"피드백을 지웠어요.", fbEditSave:"편집 저장", fbEdited:"피드백을 고쳤어요.",
-  hSettings:"나의 수업 설정", sStart:"시작일", sMonths:"선불 기간(개월)", sCount:"선불 수업 수 (빈칸 = 기간 안 일요일 전부)", sTime:"수업 시각", sDur:"수업 길이(분)", sPrice:"1 Class 가격 (USD)",
+  hSettings:"나의 수업 설정", sStart:"시작일", sMonths:"선불 기간(개월)", sCount:"선불 수업 수 (빈칸 = 기간 안 일요일 전부)", sTime:"수업 시각", sZoom:"Zoom 수업 링크 (수업 5분 전부터 첫 화면 버튼이 켜짐)", sDur:"수업 길이(분)", sPrice:"1 Class 가격 (USD)",
   sAlert:"알림: 남은 수업 몇 회", sNotice:"이동·Hold 사전 합의 기준 (수업 며칠 전까지)", sRateDate:"환율 고시일",
   cbuHint:'결제 전에 <a href="https://cbu.uz/en/arkhiv-kursov-valyut/" target="_blank" rel="noopener">CBU 환율 아카이브</a>에서 최신 값을 확인해 입력하세요.',
   sAsof:"기준일 (알림 미리보기용, 비우면 오늘)", sDone:"완료", sHint:"입력 즉시 달력과 금액이 다시 계산됩니다.",
@@ -551,12 +554,15 @@ en: {
   logFix:(a,b,e1,e2) => `🛠 Class terms corrected: prepaid ${a} → ${b} classes · last class ${e1} → ${e2} (details in the master correction history)`,
   fixRow:(at,p1,p2,c1,c2,u1,u2,r) => `${at} · $${p1} × ${c1} = $${u1} → $${p2} × ${c2} = $${u2} · ${r}`,
   payWas:(n,e) => `was ${n} · to ${e}`,
+  zJoinChip:(l) => `🎥 Join ${l}`, zLock:"The Zoom join button turns on 5 min before class", zBarHead:(l, m) => m < 0 ? `Class ${l} · starts in ${-m} min` : `Class ${l} · ${m} min left`,
+  zJoin:"🎥 Join Zoom", zOther:(isT) => isT ? "Edward" : "Teacher", zOn:"📷 ON · joined", zWait:"📷 OFF · not joined yet", zLate:(m) => `📷 OFF · ${m} min late`, zMe:"You: 📷 ON",
+  zChipTitle:"Tap to join the Zoom class · green dot = the other person has joined", zBadUrl:"The Zoom link must look like https://…zoom.us/…",
   actBtn:"👀 Teacher activity", actH:"Teacher activity (master only)", actUser:"ID", actLast:"Last activity", actVisits:"Visits", actReqs:"Requests", actFbs:"Feedback", actList:"Activity log (newest first)",
-  actKind:{login:"Logged in",visit:"Opened the site",request:"Change request",reqCancel:"Cancelled request",feedback:"Wrote feedback",fbDelete:"Deleted feedback",register:"Registered"},
+  actKind:{zoom:"Joined Zoom", login:"Logged in",visit:"Opened the site",request:"Change request",reqCancel:"Cancelled request",feedback:"Wrote feedback",fbDelete:"Deleted feedback",register:"Registered"},
   actNever:"No record", actNone:"No records yet.", actGit:"from GitHub history",
   actNote:"Visits are recorded from this update. Earlier sign-ups, requests and feedback come from the GitHub save history. Re-opening on the same device within 30 minutes counts once.",
   fbEditB:"✏️ Edit", fbDelB:"🗑 Reset (delete)", fbDelAsk:"Delete the feedback for this class? The student reply is deleted too.", fbDeleted:"Feedback deleted.", fbEditSave:"Save edits", fbEdited:"Feedback updated.",
-  hSettings:"My class settings", sStart:"Start date", sMonths:"Prepaid period (months)", sCount:"Prepaid classes (blank = every Sunday in the period)", sTime:"Class time", sDur:"Length (min)", sPrice:"Price per class (USD)",
+  hSettings:"My class settings", sStart:"Start date", sMonths:"Prepaid period (months)", sCount:"Prepaid classes (blank = every Sunday in the period)", sTime:"Class time", sZoom:"Zoom class link (the join button turns on 5 min before class)", sDur:"Length (min)", sPrice:"Price per class (USD)",
   sAlert:"Alert when this many classes are left", sNotice:"Notice needed to move / hold (days before class)", sRateDate:"Rate date",
   cbuHint:'Check the latest rate in the <a href="https://cbu.uz/en/arkhiv-kursov-valyut/" target="_blank" rel="noopener">CBU rate archive</a> before paying.',
   sAsof:"As-of date (to preview alerts; blank = today)", sDone:"Done", sHint:"The calendar and amounts update as you type.",
@@ -871,8 +877,59 @@ async function openActivity(){
     <div class="hint" style="margin-top:10px">${t("actNote")}</div>`;
 }
 
+/* ---------- Zoom 입장 (수업 5분 전 ~ 끝날 때까지) : 입장 표시는 english-class-share/live.json ---------- */
+let zTL = [], zC = null, zLive = null, zLiveAt = 0, zWasOpen = false;
+const ZOOM_RE = /^https:\/\/([\w-]+\.)*zoom\.us\/[^\s"'<>]*$/i;
+function zoomUrl(){ const u = ($("zoom").value || "").trim(); return ZOOM_RE.test(u) ? u : ""; }
+const zStart = s => Date.parse(`${fmt(s.d)}T${s.time}:00+09:00`);
+const zKey = s => `${fmt(s.d)} ${s.time}`;
+function zCurrent(){ if (!zC) return null; const now = Date.now(), dur = (zC.dur || 25) * 60e3;
+  return zTL.find(s => (s.act === "plan" || s.act === "done") && now >= zStart(s) - 5*60e3 && now < zStart(s) + dur) || null; }
+function zNext(){ const now = Date.now(); return zTL.filter(s => s.act === "plan" && zStart(s) > now).sort((a,b) => zStart(a) - zStart(b))[0] || null; }
+function zoomState(s, C){
+  if (!isEditor() || !zoomUrl()) return "";
+  const cur = zCurrent(); if (cur && cur.id === s.id) return "open";
+  if (!cur){ const n = zNext(); if (n && n.id === s.id) return "next"; }
+  return "";
+}
+function zOtherIn(){ const cur = zCurrent(); if (!cur || !zLive || zLive.key !== zKey(cur)) return false;
+  const want = isMaster() ? "sub" : "master"; return Object.values(zLive.in || {}).some(v => v && v.role === want); }
+function zMeIn(){ const cur = zCurrent(); return !!(cur && zLive && zLive.key === zKey(cur) && zLive.in && zLive.in[auth.login]); }
+async function zFetch(){ try { const g = await ghGet(SHARE_REPO, "live.json"); zLive = g.data && typeof g.data === "object" ? g.data : null; zLiveAt = Date.now(); } catch(e) {} }
+function joinZoom(s){
+  const url = zoomUrl(); if (!url) return;
+  window.open(url, "_blank", "noopener");
+  const key = zKey(s), me = {role: isMaster() ? "master" : "sub", name: (auth && auth.name) || (isMaster() ? "Edward" : auth.login), at: nowStamp()};
+  zLive = zLive && zLive.key === key ? zLive : {key, in: {}}; zLive.in[auth.login] = me; renderZoom();
+  (async () => { try { const g = await ghGet(SHARE_REPO, "live.json"); const d = g.data && g.data.key === key ? g.data : {key, in: {}};
+      d.in = d.in || {}; d.in[auth.login] = me; await ghPut(SHARE_REPO, "live.json", d, `Zoom join ${key} by ${auth.login}`, g.sha); zLive = d; renderZoom(); } catch(e) {} })();
+  logActivity("zoom", key);
+}
+function renderZoom(){
+  const cur = isEditor() && zoomUrl() ? zCurrent() : null;
+  $("zBar").classList.toggle("show", !!cur); document.body.classList.toggle("zbaron", !!cur);
+  if (!cur){ return; }
+  const el = (Date.now() - zStart(cur)) / 60e3, m = el < 0 ? -Math.ceil(-el) : Math.floor(el), left = (zC.dur || 25) - Math.max(0, m);
+  const on = zOtherIn(), late = !on && m > 0;
+  $("zBarIn").innerHTML = `<div class="info"><b>${esc(t("zBarHead")(labelOf(cur), m <= 0 ? m : left))}</b>
+    <span class="tp ${on ? "on" : late ? "late" : ""}"><span class="dot"></span>${esc(t("zOther")(isSub()))} ${esc(on ? t("zOn") : late ? t("zLate")(m) : t("zWait"))}</span>
+    ${zMeIn() ? `<div class="zme">${t("zMe")}</div>` : ""}</div>
+    <button class="zj" id="zJoinBtn">${t("zJoin")}</button>`;
+  $("zJoinBtn").onclick = () => joinZoom(cur);
+  document.querySelectorAll(".it.zlive .zd").forEach(d => d.classList.toggle("on", on));
+}
+// 15초마다: 입장 시간이 열리고 닫힐 때 달력 다시 그림, 수업 시간엔 상대방 입장 확인(20초 간격)
+setInterval(async () => {
+  if (!isEditor() || !zoomUrl()) return;
+  const open = !!zCurrent();
+  if (open !== zWasOpen){ zWasOpen = open; render(); }
+  if (open && Date.now() - zLiveAt > 18e3){ await zFetch(); renderZoom(); }
+  else if (open) renderZoom();
+}, 15e3);
+
 /* ---------- 렌더링 ---------- */
-function render(){
+function render(){ renderMain(); renderZoom(); }
+function renderMain(){
   const C = cfg(); renderSub();
   const P = sundays(C.start, C.months, C.count);
   const S = buildSessions(P, C);
@@ -882,7 +939,7 @@ function render(){
   const Pend = paidDates.length ? new Date(Math.max(P.list.length ? +P.list[P.list.length-1] : 0, ...paidDates.map(Number))) : P.end;
   const prepaidUsd = prepaid*C.price, prepaidUzs = prepaidUsd*C.rate;
 
-  const timeline = S.filter(occupies).sort(byTime);
+  const timeline = S.filter(occupies).sort(byTime); zTL = timeline; zC = C;
   const holds = S.filter(s => s.act === "hold");
   const bonusCount = S.filter(s => s.kind === "bonus").length;
   const movedCount = S.filter(s => s.kind === "moved").length;
@@ -978,6 +1035,9 @@ function render(){
           else it.style.cursor = "default";
           if (pendingFor(s.id)){ it.classList.add("pending"); it.textContent += " ⏳"; it.title += " · " + t("st_pending"); }
           if (reqSid === s.id || fbSid === s.id) it.classList.add("sel");
+          const zw = zoomState(s, C);
+          if (zw === "open"){ it.className = "it zlive"; it.textContent = t("zJoinChip")(labelOf(s)); it.insertAdjacentHTML("beforeend", `<span class="zd ${zOtherIn() ? "on" : ""}"></span>`); it.title = t("zChipTitle"); it.onclick = e => { e.stopPropagation(); joinZoom(s); }; }
+          else if (zw === "next"){ it.textContent += " 🔒"; it.title += " · " + t("zLock"); }
           el.appendChild(it);
         });
       }
@@ -2183,7 +2243,7 @@ function drawFx(){
 }
 
 /* ---------- 이벤트 ---------- */
-["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate","asof"].forEach(id => $(id).addEventListener("input", () => { render(); if (id !== "asof") queueRemoteSave(); }));
+["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate","zoom","asof"].forEach(id => $(id).addEventListener("input", () => { if (id === "zoom"){ const v = $("zoom").value.trim(); $("zoom").setCustomValidity(v && !zoomUrl() ? t("zBadUrl") : ""); $("zoom").title = v && !zoomUrl() ? t("zBadUrl") : ""; } render(); if (id !== "asof") queueRemoteSave(); }));
 $("loginBtn").onclick = () => { const tokMode = /^#master$/.test(location.hash);
   $("loginTabs").style.display = tokMode ? "" : "none";
   document.querySelector(`#loginTabs [data-v="${tokMode ? "master" : "sub"}"]`).click(); const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
@@ -2230,4 +2290,4 @@ applyStatic();
 renderAcct();
 render();
 if (/^#master$/.test(location.hash) && !isEditor()) setTimeout(() => $("loginBtn").click(), 300);
-loadRemote().then(() => { if (isSub()) logActivity("visit"); if (isMaster()) drainActivity(); loadFeedback(); loadPayments(); loadArchive(); checkReq(); checkInvite(); checkRegReq(); checkPendingReg(); loadRequests(); });
+loadRemote().then(() => { if (isEditor() && zoomUrl() && zCurrent()){ zWasOpen = true; zFetch().then(renderZoom); } if (isSub()) logActivity("visit"); if (isMaster()) drainActivity(); loadFeedback(); loadPayments(); loadArchive(); checkReq(); checkInvite(); checkRegReq(); checkPendingReg(); loadRequests(); });
