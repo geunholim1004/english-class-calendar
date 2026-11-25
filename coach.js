@@ -98,7 +98,11 @@ const AUTHKEY = "eng-class-gh-auth", SHARE_REPO = "english-class-share", COACH_F
 const GH = {auth:null, sha:null};
 try{ GH.auth = JSON.parse(localStorage.getItem(AUTHKEY) || "null"); }catch(e){}
 const ghMaster = () => !!(GH.auth && GH.auth.token && GH.auth.owner && GH.auth.role !== "sub");
+const ghStudent = () => !!(GH.auth && GH.auth.token && GH.auth.owner && GH.auth.role === "sub" && GH.auth.kind === "student");
+const ghCoach = () => ghMaster() || ghStudent();     // master and students use the coach; teachers do not
 const ghPriv = () => (GH.auth && GH.auth.privRepo) || "english-class-private";
+// where this person's coach notebook lives: master → private repo, student → share repo (their token has no private access)
+const coachLoc = () => ghMaster() ? {repo: ghPriv(), path: COACH_FILE} : {repo: SHARE_REPO, path: "coach-" + String(GH.auth.login||"student").replace(/[^a-z0-9._-]/gi,"") + ".json"};
 const b64enc = s => btoa(unescape(encodeURIComponent(s)));
 const b64dec = s => decodeURIComponent(escape(atob(String(s).replace(/\n/g,""))));
 const ghHeaders = () => ({Accept:"application/vnd.github+json", Authorization:"Bearer " + GH.auth.token});
@@ -133,15 +137,15 @@ async function flush(opts={}){
     if(saving){ saveAgain = true; return; }
     saving = true; dirty = false; setSync("저장 중…");
     try{
-      try{ GH.sha = await ghPutJSON(ghPriv(), COACH_FILE, slimState(), "Coach: update progress", GH.sha, opts); }
+      try{ GH.sha = await ghPutJSON(coachLoc().repo, coachLoc().path, slimState(), "Coach: update progress", GH.sha, opts); }
       catch(e){
         if(!e.conflict) throw e;
-        const g = await ghGetJSON(ghPriv(), COACH_FILE);          // another device saved first → merge, then retry once
+        const g = await ghGetJSON(coachLoc().repo, coachLoc().path);          // another device saved first → merge, then retry once
         if(g.data) state = mergeStates(state, Object.assign(blankState(), g.data));
-        GH.sha = await ghPutJSON(ghPriv(), COACH_FILE, slimState(), "Coach: update progress (merged)", g.sha, opts);
+        GH.sha = await ghPutJSON(coachLoc().repo, coachLoc().path, slimState(), "Coach: update progress (merged)", g.sha, opts);
         renderAll();
       }
-      setSync("비공개 저장소에 저장됨 ✓");
+      setSync("저장소에 저장됨 ✓");
     }catch(e){ dirty = true; setSync("저장 실패: " + e.message + " — 잠시 뒤 다시 시도해요", true); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 30000); }
     saving = false;
     if(saveAgain){ saveAgain = false; flush(); }
@@ -186,7 +190,8 @@ function mergeStates(a, b){
 
 /* ============ Mistake model ============ */
 function allItems(){
-  const items = CORE.map(c=>Object.assign({source:"daniel", core:true}, c));
+  // Edward's 21 recurring mistakes are his own; a student account starts with only their own notes
+  const items = ghStudent() ? [] : CORE.map(c=>Object.assign({source:"daniel", core:true}, c));
   state.custom.forEach(c=>items.push(Object.assign({core:false}, c)));
   return items.map(it=>{
     const p = state.progress[it.id] || {};
@@ -213,9 +218,10 @@ function markPractice(){ const d=todayStr(); state.days[d]=(state.days[d]||0)+1;
 function addCorrection(c, source){
   // c: {wrong,right,why,tag}
   if(!c || !c.wrong || !c.right) return;
-  if(c.tag && CORE_BY_ID[c.tag]){ bumpMistake(c.tag); return; }
+  const useCore = !ghStudent();           // the built-in list is Edward's; students keep their own entries
+  if(useCore && c.tag && CORE_BY_ID[c.tag]){ bumpMistake(c.tag); return; }
   const key = norm(c.wrong);
-  const coreHit = CORE.find(x=>norm(x.wrong).split(" / ").some(w=>w && key.includes(w)));
+  const coreHit = useCore && CORE.find(x=>norm(x.wrong).split(" / ").some(w=>w && key.includes(w)));
   if(coreHit){ bumpMistake(coreHit.id); return; }
   let ex = state.custom.find(x=>norm(x.wrong)===key);
   if(!ex){
@@ -272,7 +278,7 @@ async function aiJSON(system, messages, opts){
   }
 }
 
-const LEARNER = "Edward is a Korean technical marketing professional at a memory semiconductor company (memory and automotive semiconductor solutions), mostly working with Chinese and global customers. Intermediate English: fluent enough to talk, but with fossilized errors.";
+let LEARNER = "Edward is a Korean technical marketing professional at a memory semiconductor company (memory and automotive semiconductor solutions), mostly working with Chinese and global customers. Intermediate English: fluent enough to talk, but with fossilized errors.";
 const TAGS = CORE.map(c=>c.id+' ("'+c.wrong+'" → "'+c.right+'")').join("; ");
 
 function coachSystem(context){
@@ -489,6 +495,7 @@ function renderDrill(){
   $("#drillPos").textContent = total ? Math.min(drill.i+1,total)+" / "+total : "";
   $("#drillBar").style.width = total ? (drill.i/total*100)+"%" : "0%";
   if(drill.phase==="idle"){
+    if(!allItems().length){ body.innerHTML='<div>아직 실수 노트가 비어 있어요.</div><div class="hint">교정 대화를 하거나 Daniel 수업 탭에서 피드백을 가져오면, 지적된 표현으로 매일 훈련 문제가 만들어져요.</div>'; return; }
     const q=buildQueue();
     body.innerHTML = q.length
       ? '<div>오늘 복습할 표현이 <b>'+q.length+'개</b> 있어요. 한국어 문장을 영어로 말하거나 써 보세요. 5분이면 끝나요.</div>'+
@@ -660,7 +667,7 @@ async function loadDanielFeedback(){
 function renderFeedback(){
   const list = $("#fbList"), allBtn = $("#fbImportAll");
   if(MODE !== "github"){
-    $("#fbHint").textContent = "수업 달력에서 마스터로 로그인한 뒤 이 페이지를 열면 Daniel의 피드백이 여기에 나와요.";
+    $("#fbHint").textContent = "수업 달력에서 마스터나 학생으로 로그인한 뒤 이 페이지를 열면 Daniel의 피드백이 여기에 나와요.";
     list.innerHTML = ""; allBtn.hidden = true; return;
   }
   allBtn.hidden = false;
@@ -762,14 +769,15 @@ function renderSettings(){
       "<br><br>같은 파일을 GitHub Pages에 올리면 <b>독립 모드</b>로 바뀌어 내 API 키로 동작해요.";
     $("#apiCard").style.display="none";
   } else if(MODE==="github"){
-    pill.textContent = aiReady() ? "● 마스터 · AI 연결됨" : "● 마스터 · API 키 필요";
+    const who = ghMaster() ? "마스터" : "학생 · " + (GH.auth.name || GH.auth.login);
+    pill.textContent = aiReady() ? "● "+who+" · AI 연결됨" : "● "+who+" · API 키 필요";
     pill.className = "mode-pill "+(aiReady()?"on":"off");
-    $("#modeExplain").innerHTML = "수업 달력에 <b>마스터로 로그인된 상태</b>예요. 실수 노트와 기록은 비공개 저장소("+esc(ghPriv())+"/coach.json)에 저장돼 다른 기기에서도 이어지고, Daniel이 달력에 남긴 피드백을 바로 가져올 수 있어요. "+(cap.sample?"AI 기능은 <b>Claude</b>로 동작해요(키 불필요).":"AI 기능은 아래 API 키로 동작해요.")+"";
+    $("#modeExplain").innerHTML = "수업 달력에 <b>"+(ghMaster()?"마스터":"학생")+"로 로그인된 상태</b>예요. 실수 노트와 기록은 "+esc(coachLoc().repo+"/"+coachLoc().path)+"에 저장돼 다른 기기에서도 이어지고, Daniel이 달력에 남긴 피드백을 바로 가져올 수 있어요. "+(cap.sample?"AI 기능은 <b>Claude</b>로 동작해요(키 불필요).":"AI 기능은 아래 API 키로 동작해요.")+"";
     $("#apiCard").style.display = cap.sample ? "none" : "";
   } else if(MODE==="standalone"){
     pill.textContent = secret.apiKey ? "● 독립 모드 · AI 연결됨" : "● 독립 모드 · 키 필요";
     pill.className = "mode-pill "+(secret.apiKey?"on":"off");
-    $("#modeExplain").innerHTML = "지금은 <b>로그인 전</b>이라 기록이 이 브라우저에만 저장돼요. <a href=\"./\">수업 달력</a>에서 마스터로 로그인하고 다시 열면 비공개 저장소에 저장되고 Daniel 피드백도 가져올 수 있어요. 키가 없어도 반복 실수 훈련은 정답 보기·자가 채점으로 쓸 수 있어요.";
+    $("#modeExplain").innerHTML = "지금은 <b>로그인 전</b>이라 기록이 이 브라우저에만 저장돼요. <a href=\"./\">수업 달력</a>에서 마스터나 학생으로 로그인하고 다시 열면 비공개 저장소에 저장되고 Daniel 피드백도 가져올 수 있어요. 키가 없어도 반복 실수 훈련은 정답 보기·자가 채점으로 쓸 수 있어요.";
     $("#apiCard").style.display="";
   } else {
     pill.textContent="연결 확인 중…"; pill.className="mode-pill";
@@ -821,14 +829,19 @@ function renderAll(){ renderStats(); renderSettings(); renderSessions(); renderN
 
 /* ============ Boot ============ */
 async function bootGithub(){
-  MODE="github"; renderAll(); setSync("비공개 저장소에서 불러오는 중…");
+  if(ghStudent()){
+    const nm = String(GH.auth.name || GH.auth.login || "the learner").replace(/[^\p{L}\p{N} ._-]/gu,"").slice(0,30);
+    LEARNER = "The learner, "+nm+", is a Korean student of English taking a weekly online class with tutor Daniel. Adjust to their level; keep examples from everyday life, school and travel unless they bring up work.";
+    const h1 = document.querySelector("header.top h1"); if(h1) h1.textContent = "English Coach · " + nm;
+  }
+  MODE="github"; renderAll(); setSync("저장소에서 불러오는 중…");
     try{
-      const g = await ghGetJSON(ghPriv(), COACH_FILE);
+      const g = await ghGetJSON(coachLoc().repo, coachLoc().path);
       GH.sha = g.sha;
       if(g.data){ state = mergeStates(state, Object.assign(blankState(), g.data)); try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
-      setSync(g.data ? "비공개 저장소와 동기화됨 ✓" : "첫 저장 때 비공개 저장소에 coach.json이 만들어져요");
+      setSync(g.data ? "저장소와 동기화됨 ✓" : "첫 저장 때 저장소에 기록 파일이 만들어져요");
       if(!g.data || (state.updatedAt||0) > (g.data.updatedAt||0)){ dirty = true; save(); }
-    }catch(e){ setSync("비공개 저장소를 읽지 못했어요 ("+e.message+"). 이 기기에만 저장돼요.", true); MODE="standalone"; }
+    }catch(e){ setSync("저장소를 읽지 못했어요 ("+e.message+"). 이 기기에만 저장돼요.", true); MODE="standalone"; }
     renderAll(); loadDanielFeedback();
 }
 
@@ -839,13 +852,13 @@ renderChatTopics(); renderRoles(); renderAll();
   let inClaude=false;
   for(let i=0;i<15;i++){ if(window.claude && typeof window.claude.use==="function"){ inClaude=true; break; } await new Promise(r=>setTimeout(r,100)); }
   if(!inClaude){
-    if(!ghMaster()){ MODE="standalone"; renderAll(); return; }
+    if(!ghCoach()){ MODE="standalone"; renderAll(); return; }
     return bootGithub();
   }
 
   const use = n => window.claude.use(n).catch(()=>null);
-  if(ghMaster()){
-    // Calendar master inside Claude: progress stays in the GitHub private repo, AI and voice come from Claude
+  if(ghCoach()){
+    // Calendar master/student inside Claude: progress stays in the GitHub private repo, AI and voice come from Claude
     const [sample, dictation, tts] = await Promise.all([use("sample"), use("dictation"), use("tts")]);
     cap.sample=sample; cap.dictation=dictation; cap.tts=tts;
     return bootGithub();

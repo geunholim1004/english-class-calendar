@@ -300,7 +300,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
         <a class="ghost sm hublink masteronly" href="hub.html">🤝 허브 Hub</a>
         <button class="ghost sm" id="loginBtn" data-i18n="login"></button>
         <button class="ghost sm" id="linkBtn" data-i18n="teacherLinkBtn"></button>
-        <a class="btnlink sm masteronly" id="coachLink" href="coach.html" data-i18n="coachBtn"></a>
+        <a class="btnlink sm" id="coachLink" style="display:none" href="coach.html" data-i18n="coachBtn"></a>
         <button class="ghost sm" id="logoutBtn" data-i18n="logout"></button></div>
       <div id="syncStatus" class="sync"></div>
     </div></div>
@@ -543,6 +543,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
     <header><h2 data-i18n="hRR"></h2><button class="x" data-close>×</button></header>
     <div class="row2"><div><label data-i18n="rrId"></label><input id="rrId" autocapitalize="none"></div>
       <div><label data-i18n="rrName"></label><input id="rrName"></div></div>
+    <div class="row2"><div><label data-i18n="uRoleL"></label><select id="rrRole"><option value="teacher" data-i18n="roleT"></option><option value="student" data-i18n="roleS"></option></select></div><div></div></div>
     <div class="btns"><button id="rrSend" data-i18n="rrSend"></button></div>
     <div id="rrOut" style="display:none"><textarea id="rrText" readonly class="outbox"></textarea>
       <div class="btns"><button class="sm" id="rrCopy" data-i18n="rqCopy"></button></div><div class="hint" data-i18n="rrHint"></div></div>
@@ -716,6 +717,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
       <div id="uList" class="ulist"></div>
       <div class="row2"><div><label data-i18n="uNewId"></label><input id="uNewId" autocapitalize="none"></div>
         <div><label data-i18n="uNewName"></label><input id="uNewName"></div></div>
+      <div class="row2"><div><label data-i18n="uRoleL"></label><select id="uNewRole"><option value="teacher" data-i18n="roleT"></option><option value="student" data-i18n="roleS"></option></select></div><div></div></div>
       <div class="btns"><button class="sm" id="uInviteBtn" data-i18n="uInviteBtn"></button><button class="ghost sm" id="uTokChange" data-i18n="uTokChange"></button></div>
       <div id="uInviteBox" style="display:none"><textarea id="uInvite" readonly></textarea>
         <div class="btns"><button class="sm" id="uInviteCopy" data-i18n="rqCopy"></button></div><div class="hint" data-i18n="uInviteHint"></div></div>
@@ -736,6 +738,6 @@ input:disabled{opacity:.75;background:#f3f2ee}
 </div>
 
 <div class="zbar" id="zBar"><div class="in" id="zBarIn"></div></div>
-<script src="app.js?v=20261125f"></script>
+<script src="app.js?v=20261126c"></script>
 </body>
 </html>
