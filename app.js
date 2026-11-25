@@ -945,7 +945,7 @@ let zCardVisible = false;
 try { new IntersectionObserver(es => { zCardVisible = es[0].isIntersecting; renderZoom(); }).observe(document.getElementById("zCard")); } catch(e) {}
 function renderZoom(){
   renderZCard();
-  const cur = isEditor() && zoomUrl() ? zCurrent() : null, showBar = !!cur && !zCardVisible;
+  const cur = isEditor() && zoomUrl() ? zCurrent() : null, showBar = false;   // A(달력 칸) + B(상단 카드)만 사용 — 하단 바는 끔
   $("zBar").classList.toggle("show", showBar); document.body.classList.toggle("zbaron", showBar);
   if (!cur){ return; }
   const el = (Date.now() - zStart(cur)) / 60e3, m = el < 0 ? -Math.ceil(-el) : Math.floor(el), left = (zC.dur || 25) - Math.max(0, m);
