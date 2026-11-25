@@ -190,7 +190,7 @@ async function unseal(str){
 }
 
 /* ---------- 상태 ---------- */
-const DEF_SETTINGS = {bankName:"", bankHolder:"", bankAcct:"", tossId:"", kakaoLink:"", usdKrw:0, usdUzs:0, rateAt:"", rateSrc:"", margin:0, months:3, dur:25};
+const DEF_SETTINGS = {bankName:"", bankHolder:"", bankAcct:"", tossId:"", kakaoLink:"", cardLink:"", usdKrw:0, usdUzs:0, rateAt:"", rateSrc:"", margin:0, months:3, dur:25};
 let D = null, dSha = null, keys = {}, kSha = null, accounts = [], aSha = null;   // 마스터 데이터
 let page = null;                                                                   // 회원 화면 데이터
 let tab = "home", poolSeg = "student", sel = {};
@@ -468,7 +468,7 @@ function pageFor(p){
   const bills = D.ledger.filter(l => isT ? (l.kind === "out" && l.tid === p.id) : (l.kind === "in" && l.sid === p.id))
     .map(l => ({id: l.id, mid: l.mid, n: l.n, usd: l.usd, krw: l.krw, uzs: l.uzs, rate: l.rate, rateAt: l.rateAt, status: l.status, at: l.at, paidAt: l.paidAt, note: l.note}));
   return {v:1, at: new Date().toISOString(), id: p.id, role: p.role, name: p.name, profile: cleanProfile(p, p.role), matches: ms, bills,
-    pay: isT ? null : {bankName: S.bankName, bankHolder: S.bankHolder, bankAcct: S.bankAcct, tossId: S.tossId, kakaoLink: S.kakaoLink}};
+    pay: isT ? null : {bankName: S.bankName, bankHolder: S.bankHolder, bankAcct: S.bankAcct, tossId: S.tossId, kakaoLink: S.kakaoLink, cardLink: S.cardLink}};
 }
 async function publishPages(){
   for (const a of accounts){
@@ -654,7 +654,7 @@ function mPay(){
       <div class="kpi"><div class="l">받을 돈</div><div class="v money">${krw(M.inDue)}</div></div>
       <div class="kpi"><div class="l">선생님 지급</div><div class="v money">${usd(M.outP)}</div></div>
       <div class="kpi"><div class="l">차액 (받은−지급)</div><div class="v money">${usd(M.inC - M.outP)}</div></div></div>
-    ${!S.bankAcct && !S.tossId && !S.kakaoLink ? `<div class="card todo item"><b>먼저 받을 계좌를 설정하세요</b><div class="meta">설정 탭에서 은행 계좌·토스 아이디·카카오페이 송금 링크를 넣으면 학생 화면에 송금 버튼이 생겨요.</div><div class="btns"><button class="sm" data-act="tab" data-k="set">설정으로</button></div></div>` : ""}
+    ${!S.bankAcct && !S.tossId && !S.kakaoLink && !S.cardLink ? `<div class="card todo item"><b>먼저 받을 계좌를 설정하세요</b><div class="meta">설정 탭에서 은행 계좌·토스 아이디·카카오페이 송금 링크를 넣으면 학생 화면에 송금 버튼이 생겨요.</div><div class="btns"><button class="sm" data-act="tab" data-k="set">설정으로</button></div></div>` : ""}
     <div class="card"><h2>장부</h2>${rows || `<div class="empty">매칭을 만들면 청구가 자동으로 생겨요.</div>`}</div>`;
 }
 function mSet(){
@@ -664,6 +664,8 @@ function mSet(){
       <label>계좌번호</label><input id="sAcct" value="${esc(S.bankAcct)}" inputmode="numeric">
       <label>토스 아이디 <small>toss.me/아이디 — 토스 앱 › 전체 › 토스아이디</small></label><input id="sToss" value="${esc(S.tossId)}" autocapitalize="none" placeholder="예: edward">
       <label>카카오페이 송금 링크 <small>카카오페이 › 송금 › 송금코드 › 링크 복사 (https://qr.kakaopay.com/…)</small></label><input id="sKakao" value="${esc(S.kakaoLink)}" placeholder="https://qr.kakaopay.com/…">
+      <label>💳 카드 결제 링크 <small>토스페이먼츠 링크페이 · PayPal · Stripe 결제 링크 등 (https://…)</small></label><input id="sCard" value="${esc(S.cardLink || "")}" placeholder="https://…">
+      <p class="hint">카드 결제는 결제대행사(PG)가 만들어 준 <b>결제 링크</b>를 넣는 방식이에요. 카드 번호는 이 사이트가 아니라 결제사 화면에서만 입력되고, 결제 후 학생이 '결제했어요'를 누르면 마스터가 확인합니다.</p>
       <p class="hint">계좌 정보는 비공개 저장소에 저장되고, 학생 화면에는 그 학생의 비밀번호로만 열리는 암호문으로 전달돼요.</p></div>
     <div class="card"><h2>💱 환율 · 수업 기본값</h2>
       <div class="row2"><div><label>1 USD = KRW <small>학생 청구</small></label><input id="sKrw" type="number" step="0.01" value="${esc(S.usdKrw || "")}"></div>
@@ -779,11 +781,12 @@ function kstStampFrom(unix){ const p = kst(new Date(unix * 1000)); return `${p.y
 async function saveSet(){
   const S = D.settings, v = id => $(id).value.trim();
   const k = v("sKakao"); if (k && !/^https:\/\/(qr\.kakaopay\.com|link\.kakaopay\.com)\/\S+$/.test(k)) return toast("카카오페이 송금 링크 형식이 아니에요");
+  const cl = v("sCard"); if (cl && !/^https:\/\/[^\s"'<>]+$/.test(cl)) return toast("카드 결제 링크는 https:// 로 시작해야 해요");
   const krwV = +v("sKrw"), uzsV = +v("sUzs");
   if (fetchedRate && krwV === fetchedRate.krw && uzsV === fetchedRate.uzs){ S.rateAt = fetchedRate.at; S.rateSrc = "open.er-api.com (CBU 공식값과 조금 다를 수 있음)"; }
   else if (krwV !== +S.usdKrw || uzsV !== +S.usdUzs){ S.rateAt = nowStamp(); S.rateSrc = "직접 입력"; }
   fetchedRate = null;
-  Object.assign(S, {bankName: v("sBank").slice(0, 30), bankHolder: v("sHolder").slice(0, 30), bankAcct: v("sAcct").replace(/[^\d-]/g, "").slice(0, 30), tossId: v("sToss").replace(/[^A-Za-z0-9._-]/g, "").slice(0, 40), kakaoLink: k,
+  Object.assign(S, {bankName: v("sBank").slice(0, 30), bankHolder: v("sHolder").slice(0, 30), bankAcct: v("sAcct").replace(/[^\d-]/g, "").slice(0, 30), tossId: v("sToss").replace(/[^A-Za-z0-9._-]/g, "").slice(0, 40), kakaoLink: k, cardLink: cl.slice(0, 400),
     usdKrw: krwV || 0, usdUzs: uzsV || 0, months: Math.max(1, Math.min(12, +v("sMonths") || 3)), margin: Math.max(0, Math.min(100, +v("sMargin") || 0))});
   // 아직 입금 전인 청구는 새 환율로 다시 계산
   D.ledger.forEach(l => { if (l.kind === "in" && l.status === "requested" && S.usdKrw){ l.krw = Math.round(l.usd * S.usdKrw / 100) * 100; l.rate = S.usdKrw; l.rateAt = S.rateAt; }
@@ -858,14 +861,15 @@ function payNow(id){
   openSheet(`<h2>💳 수업료 보내기</h2>
     <div class="big money">${krw(b.krw)}</div><div class="hint">${b.n}회 · ${usd(b.usd)} · 받는 사람: ${esc(P.bankHolder || "마스터")}</div>
     <div class="pay">
+      ${P.cardLink ? `<a class="btn card" href="${esc(P.cardLink)}" target="_blank" rel="noopener noreferrer"><b>💳</b> 카드로 결제 <span class="muted">(신용·체크카드 · 결제창에서 ${krw(b.krw)})</span></a>` : ""}
       ${P.tossId ? `<a class="btn toss" href="https://toss.me/${encodeURIComponent(P.tossId)}" target="_blank" rel="noopener noreferrer"><b>🔵</b> 토스로 보내기 <span class="muted">(금액 ${krw(b.krw)} 입력)</span></a>` : ""}
       ${P.kakaoLink ? `<a class="btn kakao" href="${esc(P.kakaoLink)}" target="_blank" rel="noopener noreferrer"><b>🟡</b> 카카오페이로 보내기 <span class="muted">(금액 ${krw(b.krw)} 입력)</span></a>` : ""}
       ${acct ? `<div class="acctbox"><b>🏦 계좌이체</b> · 카카오뱅크·은행 앱 어디서나<br><span class="mono">${esc(acct)}</span>
         <div class="btns"><button class="sm" data-act="copyText" data-text="${esc(P.bankAcct)}">계좌번호 복사</button><button class="sm ghost" data-act="copyText" data-text="${esc(String(b.krw))}">금액 복사</button></div></div>` : ""}
-      ${!P.tossId && !P.kakaoLink && !acct ? `<p class="bad">마스터가 아직 받을 계좌를 설정하지 않았어요.</p>` : ""}
+      ${!P.tossId && !P.kakaoLink && !acct && !P.cardLink ? `<p class="bad">마스터가 아직 받을 계좌를 설정하지 않았어요.</p>` : ""}
     </div>
     <label>보낸 사람 이름 / 메모 <small>선택</small></label><input id="payNote" maxlength="100" placeholder="예: 홍길동 (아빠 계좌)">
-    <div class="btns"><button class="block" data-act="reportPaid" data-id="${b.id}">✅ 송금했어요 — 마스터에게 알리기</button></div>
+    <div class="btns"><button class="block" data-act="reportPaid" data-id="${b.id}">✅ 송금·결제했어요 — 마스터에게 알리기</button></div>
     <p class="hint">누르면 마스터만 열 수 있는 확인 링크가 카카오톡으로 전달돼요. 입금이 확인되면 '입금 확인'으로 바뀝니다.</p>`);
 }
 async function sendToMaster(kind, ref, text){
