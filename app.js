@@ -908,13 +908,13 @@ function zoomState(s, C){
   return "";
 }
 function zOtherIn(){ const cur = zCurrent(); if (!cur || !zLive || zLive.key !== zKey(cur)) return false;
-  const want = isMaster() ? "sub" : "master"; return Object.values(zLive.in || {}).some(v => v && v.role === want); }
+  const want = isTeacher() ? "master" : "sub"; return Object.values(zLive.in || {}).some(v => v && v.role === want); }
 function zMeIn(){ const cur = zCurrent(); return !!(cur && zLive && zLive.key === zKey(cur) && zLive.in && zLive.in[auth.login]); }
 async function zFetch(){ try { const g = await ghGet(SHARE_REPO, "live.json"); zLive = g.data && typeof g.data === "object" ? g.data : null; zLiveAt = Date.now(); } catch(e) {} }
 function joinZoom(s){
   const url = zoomUrl(); if (!url) return;
   window.open(url, "_blank", "noopener");
-  const key = zKey(s), me = {role: isMaster() ? "master" : "sub", name: (auth && auth.name) || (isMaster() ? "Edward" : auth.login), at: nowStamp()};
+  const key = zKey(s), me = {role: isTeacher() ? "sub" : "master", name: (auth && auth.name) || (isMaster() ? "Edward" : auth.login), at: nowStamp()};
   zLive = zLive && zLive.key === key ? zLive : {key, in: {}}; zLive.in[auth.login] = me; renderZoom();
   (async () => { try { const g = await ghGet(SHARE_REPO, "live.json"); const d = g.data && g.data.key === key ? g.data : {key, in: {}};
       d.in = d.in || {}; d.in[auth.login] = me; await ghPut(SHARE_REPO, "live.json", d, `Zoom join ${key} by ${auth.login}`, g.sha); zLive = d; renderZoom(); } catch(e) {} })();
@@ -941,7 +941,7 @@ function renderZCard(){
     const boxH = (label, role, mine) => { const w = zWho(role), late = !w && m > 0 && !mine;
       const nm = role === "sub" ? `${label}${w && w.name ? " " + esc(w.name) : ""}` : label;
       return `<div class="zp ${w ? "on" : late ? "late" : ""}"><div>${nm}</div><div class="zs"><span class="dot"></span>${w ? t("zOnS") : t("zOffS")}</div><div class="zsub">${w ? esc(t("zJoinedAt")(String(w.at).slice(11))) : late ? esc(t("zLateL")(m)) : t("zNotYet")}</div></div>`; };
-    pres = `<div class="zpres">${boxH(t("zTeacherL"), "sub", isSub())}${boxH(t("zStudentL"), "master", isMaster())}</div>`;
+    pres = `<div class="zpres">${boxH(t("zTeacherL"), "sub", isTeacher())}${boxH(t("zStudentL"), "master", isMaster() || isStudent())}</div>`;
   }
   box.innerHTML = `<h3>${t("zCardT")(!!cur)}</h3><div class="zwhen">${esc(when)}</div>${btn}${pres}<div class="zlegend">${t("zLegend")}</div>`;
   if (cur) $("zBigBtn").onclick = () => joinZoom(cur);
@@ -958,7 +958,7 @@ function renderZoom(){
   const el = (Date.now() - zStart(cur)) / 60e3, m = el < 0 ? -Math.ceil(-el) : Math.floor(el), left = (zC.dur || 25) - Math.max(0, m);
   const on = zOtherIn(), late = !on && m > 0;
   $("zBarIn").innerHTML = `<div class="info"><b>${esc(t("zBarHead")(labelOf(cur), m <= 0 ? m : left))}</b>
-    <span class="tp ${on ? "on" : late ? "late" : ""}"><span class="dot"></span>${esc(t("zOther")(isSub()))} ${esc(on ? t("zOn") : late ? t("zLate")(m) : t("zWait"))}</span>
+    <span class="tp ${on ? "on" : late ? "late" : ""}"><span class="dot"></span>${esc(t("zOther")(isTeacher()))} ${esc(on ? t("zOn") : late ? t("zLate")(m) : t("zWait"))}</span>
     ${zMeIn() ? `<div class="zme">${t("zMe")}</div>` : ""}</div>
     <button class="zj" id="zJoinBtn">${t("zJoin")}</button>`;
   $("zJoinBtn").onclick = () => joinZoom(cur);
