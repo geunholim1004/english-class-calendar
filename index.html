@@ -303,6 +303,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
         <a class="btnlink sm" id="coachLink" style="display:none" href="coach.html" data-i18n="coachBtn"></a>
         <button class="ghost sm" id="logoutBtn" data-i18n="logout"></button></div>
       <div id="syncStatus" class="sync"></div>
+      <button class="ghost sm" id="unsentChip" style="display:none"></button>
     </div></div>
 
   <div class="card lockcard" id="lockCard">
@@ -510,7 +511,7 @@ input:disabled{opacity:.75;background:#f3f2ee}
   <div class="nfhead"><b data-i18n="nfTitle"></b>
     <span><button class="ghost sm" data-nl="ko">KO</button> <button class="ghost sm" data-nl="en">EN</button> <button class="x" id="nfX">×</button></span></div>
   <textarea id="nfText" readonly></textarea>
-  <div class="btns"><button class="sm" id="nfCopy" data-i18n="nfCopy"></button><button class="ghost sm" id="nfShare" data-i18n="nfShare"></button></div>
+  <div class="btns"><button id="nfShare" data-i18n="nfShare" style="flex:1;background:#fee500;color:#191919;border-color:#fee500;font-weight:700"></button><button class="ghost sm" id="nfCopy" data-i18n="nfCopy"></button></div>
   <div class="hint" data-i18n="nfHint"></div>
 </div>
 
@@ -738,6 +739,6 @@ input:disabled{opacity:.75;background:#f3f2ee}
 </div>
 
 <div class="zbar" id="zBar"><div class="in" id="zBarIn"></div></div>
-<script src="app.js?v=20261126a"></script>
+<script src="app.js?v=20261126b"></script>
 </body>
 </html>

@@ -219,7 +219,13 @@ ko: {
   lockTitle:"🔒 로그인이 필요합니다", lockBody:"등록된 사용자만 수업 달력을 볼 수 있어요. 아이디가 없으면 등록을 요청하세요.", lockLogin:"로그인", lockReg:"등록 요청",
 
   rqWhatTeacherDate:(d,tm) => `이동 → ${d} ${tm} (선생님 사유 · 보너스 1회)`, rqSameDayBonus:" (선생님 사유 · 한국 시간 기준 당일 변경 → 보너스 1회)",
-  nfTitle:"카톡 알림 메시지", nfCopy:"복사", nfShare:"공유", nfHint:"복사해서 선생님과의 단톡방에 붙여넣으세요. 계속 바꾸면 이 메시지에 이어서 모입니다.",
+  nfTitle:"📢 단톡방 공지", nfCopy:"복사", nfShare:"💬 카톡 단톡방에 보내기", nfHint:"휴대폰: 버튼 → 카카오톡 → 단톡방 선택 → 전송. PC: 복사된 글을 단톡방에 붙여넣기. 이어서 바뀌는 내용은 이 공지에 함께 모여요.",
+  nfCopied:"복사했어요 · 카톡 단톡방에 붙여넣으세요", nfSentHint:"단톡방 공지를 보냈어요", nfUnsent:n => `📢 안 보낸 공지 ${n}`,
+  nfTd:(ok, what, stu, tch) => `${what} — ${tch} 선생님이 ${stu}님 요청을 ${ok ? "승인했어요. 달력에 반영됐어요." : "거절했어요."}`,
+  nfReq:(who, what, why, to) => `${who}님 변경 요청: ${what}${why ? " (" + why + ")" : ""} — ${to === "teacher" ? "선생님" : "Edward"} 승인 대기`,
+  nfCancel:(who, what) => `${who}님이 요청을 취소했어요: ${what}`,
+  nfFb:(cls, who) => `${cls} 수업 피드백이 올라왔어요 (${who}). 사이트에서 확인하세요.`,
+  nfZoom:"Zoom 수업 링크가 바뀌었어요. 사이트의 Zoom 입장 버튼으로 들어오세요 (수업 5분 전부터 열려요).",
   hPend:"승인 대기 요청", hPendT:"학생 변경 요청 · 승인해 주세요", pendWaitT:"선생님 승인 대기 (마스터가 바로 승인해도 돼요)", tdAskOk:n => `${n}님의 요청을 승인할까요? 승인하면 달력 일정이 바로 바뀝니다.`, tdAskNo:n => `${n}님의 요청을 거절할까요?`, tdDone:"승인했어요 · 달력이 바뀌었어요", tdYes:"✓ 승인 확정", tdNo:"취소", tdYesNo:"✕ 거절 확정", tdDeclined:"거절했어요", tdApplied:n => `선생님이 승인한 학생 요청 ${n}건을 달력에 반영했어요`, tdNeedPw:n => `선생님이 승인한 학생 요청 ${n}건 반영 — 비밀번호를 확인해 주세요`, tdLater:"반영을 미뤘어요 · 승인 대기 카드에서 언제든 반영할 수 있어요", tdApplyBtn:"📥 달력에 반영", tdMsg:(ok, what, stu, tch, url) => `[영어 수업 변경 요청 ${ok ? "승인" : "거절"}]\n• ${what}\n${stu}님의 요청을 ${tch} 선생님이 ${ok ? "승인했어요. 달력이 바뀌었어요." : "거절했어요."}\n${url}`, pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ 승인", pendReject:"✕ 거절",
   autoTag:" (자동)", fbHas:"피드백 있음", fbDue:"피드백 작성 대기", fbHead:"선생님 피드백", fbNone:"아직 선생님 피드백이 없어요.",
   fbL:{topics:"오늘 배운 내용", expr:"핵심 표현·단어", good:"잘한 점·고칠 점", hw:"숙제·다음 준비"},
@@ -439,7 +445,13 @@ en: {
   lockTitle:"🔒 Please log in", lockBody:"Only registered users can see the class calendar. If you have no ID, request access.", lockLogin:"Log in", lockReg:"Request access",
 
   rqWhatTeacherDate:(d,tm) => `Move → ${d} ${tm} (teacher’s reason · 1 bonus class)`, rqSameDayBonus:" (teacher’s reason · same-day change in Korea time → 1 bonus class)",
-  nfTitle:"KakaoTalk message", nfCopy:"Copy", nfShare:"Share", nfHint:"Copy it into the group chat with the teacher. Further changes keep adding to this message.",
+  nfTitle:"📢 Group chat notice", nfCopy:"Copy", nfShare:"💬 Send to the KakaoTalk group", nfHint:"Phone: tap → KakaoTalk → pick the group → send. Computer: paste the copied text into the group. Further changes are added to this notice.",
+  nfCopied:"Copied · paste it into the KakaoTalk group", nfSentHint:"Notice sent to the group", nfUnsent:n => `📢 ${n} unsent notice${n > 1 ? "s" : ""}`,
+  nfTd:(ok, what, stu, tch) => `${what} — ${tch} ${ok ? "approved" : "declined"} ${stu}’s request${ok ? ". The calendar is updated." : "."}`,
+  nfReq:(who, what, why, to) => `${who} requested: ${what}${why ? " (" + why + ")" : ""} — waiting for ${to === "teacher" ? "the teacher" : "Edward"}’s approval`,
+  nfCancel:(who, what) => `${who} cancelled the request: ${what}`,
+  nfFb:(cls, who) => `Feedback for ${cls} is up (${who}). Check it on the site.`,
+  nfZoom:"The Zoom class link was updated. Join from the Zoom button on the site (opens 5 min before class).",
   hPend:"Pending requests", hPendT:"Student change requests · please review", pendWaitT:"Waiting for teacher (master may approve directly)", tdAskOk:n => `Approve ${n}\u2019s request? The calendar changes right away.`, tdAskNo:n => `Decline ${n}\u2019s request?`, tdDone:"Approved · calendar updated", tdYes:"✓ Yes, approve", tdNo:"Cancel", tdYesNo:"✕ Yes, decline", tdDeclined:"Declined", tdApplied:n => `Applied ${n} teacher-approved student request(s) to the calendar`, tdNeedPw:n => `Applying ${n} teacher-approved request(s) — confirm your password`, tdLater:"Postponed · apply any time from the pending card", tdApplyBtn:"📥 Apply to calendar", tdMsg:(ok, what, stu, tch, url) => `[English class – request ${ok ? "approved" : "declined"}]\n• ${what}\n${tch} ${ok ? "approved" : "declined"} ${stu}\u2019s request.${ok ? " The calendar has been updated." : ""}\n${url}`, pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ Approve", pendReject:"✕ Decline",
   autoTag:" (auto)", fbHas:"Feedback written", fbDue:"Feedback to write", fbHead:"Teacher feedback", fbNone:"No feedback from the teacher yet.",
   fbL:{topics:"Topics covered", expr:"Key expressions & words", good:"Strengths & to improve", hw:"Homework / next class"},
@@ -977,7 +989,7 @@ setInterval(async () => {
 }, 15e3);
 
 /* ---------- 렌더링 ---------- */
-function render(){ if (!isMaster() && baseState) overlayApprovals(); renderMain(); renderZoom(); }
+function render(){ if (!isMaster() && baseState) overlayApprovals(); renderMain(); renderZoom(); renderUnsentChip(); }
 function renderMain(){
   const C = cfg(); renderSub();
   const P = sundays(C.start, C.months, C.count);
@@ -1577,6 +1589,9 @@ $("rqdSend").onclick = async () => {
     await mutateRequests(list => { if (list.some(x => x.id === r.id && x.status === "pending")) throw new Error(t("rqAlready")); list.push(r); }, `Request from ${r.by}: ${r.d} ${r.act}`); logActivity("request", `${r.d} ${r.act}`);
   } catch(e){ $("rqdSend").disabled = false; $("rqdMsg").className = "hint bad"; $("rqdMsg").textContent = t("rqSaveFail")(e.message); return; }
   rqDraft = null; reqSid = null; render(); renderPending();
+  { const C2 = cfg(), to = isStudent() ? "teacher" : "master";
+    announceB("request", () => t("nfReq")(r.name || r.by, `${kdate(parse(r.d))} · ${reqWhat(r, C2)}`, r.reason, to)); }
+  $("rqdModal").classList.remove("on"); $("rqdSend").disabled = false; return;
   $("rqdTitle").textContent = t("rqdDoneTitle"); $("rqdHint").textContent = t("rqdDoneHint");
   $("rqdAsk").style.display = "none"; $("rqdDone").style.display = ""; $("rqdMsg").textContent = "";
   $("rqdShare").style.display = navigator.share ? "" : "none";
@@ -1669,8 +1684,9 @@ async function teacherDecide(rid, ok){
     logActivity(ok ? "reqApprove" : "reqDecline", `${r.d} ${r.act}`); }
   catch(e){ setSync(t("rqSaveFail")(e.message), true); return; }
   overlayApprovals(); render(); renderPending();
-  const C = cfg(), msg = t("tdMsg")(ok, `${kdate(parse(r.d))} · ${reqWhat(r, C)}`, r.name || r.by, auth.name || auth.login, teacherLink());
-  notifyItems = []; $("nfText").value = msg; $("notify").classList.add("on"); setSync(ok ? t("tdDone") : t("tdDeclined"));
+  const C = cfg();
+  announceB(ok ? "approved" : "declined", () => t("nfTd")(ok, `${kdate(parse(r.d))} · ${reqWhat(r, C)}`, r.name || r.by, auth.name || auth.login));
+  setSync(ok ? t("tdDone") : t("tdDeclined"));
 }
 let autoApplying = false;
 async function applyTeacherApproved(){
@@ -1713,31 +1729,38 @@ function renderPending(){
   box.querySelectorAll("[data-pr]").forEach(b => b.onclick = () => isTeacher() ? askInline(b, b.dataset.pr, false) : decide(b.dataset.pr, false));
   renderMyRequests();
 }
-let notifyKind = "change", notifyItems = [], notifyLang = null;
+let notifyKind = "change", notifyItems = [], notifyLang = null, notifySent = false;
+const UNSENT = "ecc-unsent-notices";
 function notifyAdd(entry){
-  if (!$("notify").classList.contains("on")){ notifyItems = []; notifyLang = notifyLang || lang; }
-  notifyItems.push({kind: notifyKind, ko: entry.ko, en: entry.en});
-  renderNotify(); $("notify").classList.add("on");
+  if (!$("notify").classList.contains("on")){ notifyItems = loadUnsent(); notifySent = false; notifyLang = notifyLang || lang; }
+  notifyItems.push({kind: notifyKind, ko: entry.ko, en: entry.en, at: nowStamp()});
+  saveUnsent(notifyItems); renderNotify(); $("notify").classList.add("on");
 }
+// 단톡방 공지 한 줄 추가 (누가 무엇을 하든 같은 상자에 모임)
+function announce(kind, ko, en){ const k = notifyKind; notifyKind = kind; try { notifyAdd({ko, en: en || ko}); } finally { notifyKind = k; } }
+function announceB(kind, fn){ const b = bothLangs(fn); announce(kind, b.ko, b.en); }
+function loadUnsent(){ try { return JSON.parse(localStorage.getItem(UNSENT) || "[]").slice(-20); } catch(e) { return []; } }
+function saveUnsent(list){ try { list.length ? localStorage.setItem(UNSENT, JSON.stringify(list.slice(-20))) : localStorage.removeItem(UNSENT); } catch(e) {} renderUnsentChip(); }
+function renderUnsentChip(){ const el = $("unsentChip"); if (!el) return; const n = $("notify").classList.contains("on") ? 0 : loadUnsent().length;
+  el.style.display = n && isEditor() ? "" : "none"; el.textContent = t("nfUnsent")(n); }
+const NF_ICON = {change: "🔄", approved: "✅", declined: "✖️", request: "🙋", info: "📌"};
 function renderNotify(){
   const L2 = notifyLang || lang, url = teacherLink();
-  const groups = {change: [], approved: [], declined: []};
-  notifyItems.forEach(x => groups[x.kind].push("• " + (x[L2] || x.ko)));
-  const head = L2 === "en"
-    ? {change:"[English class – schedule change]", approved:"[English class – request approved]", declined:"[English class – request declined]"}
-    : {change:"[영어 수업 변경 안내]", approved:"[영어 수업 변경 요청 승인]", declined:"[영어 수업 변경 요청 거절]"};
-  const tail = L2 === "en"
-    ? {change:"Please check and confirm 🙏", approved:"Updated on the calendar ✓", declined:"Not applied. Let’s talk if needed."}
-    : {change:"확인 부탁드립니다 🙏", approved:"달력에 반영했습니다 ✓", declined:"반영하지 않았습니다. 필요하면 다시 이야기해요."};
-  const parts = ["change","approved","declined"].filter(k => groups[k].length).map(k => `${head[k]}\n${groups[k].join("\n")}\n${tail[k]}`);
-  $("nfText").value = parts.join("\n\n") + "\n\n" + url;
+  const lines = notifyItems.map(x => `${NF_ICON[x.kind] || "•"} ${x[L2] || x.ko}`);
+  $("nfText").value = `${L2 === "en" ? "📢 [English class notice]" : "📢 [영어수업 공지]"}\n${lines.join("\n")}\n👉 ${url}`;
   document.querySelectorAll("#notify [data-nl]").forEach(b => b.classList.toggle("on", b.dataset.nl === L2));
 }
+function markSent(){ notifySent = true; saveUnsent([]); }
 document.querySelectorAll("#notify [data-nl]").forEach(b => b.onclick = () => { notifyLang = b.dataset.nl; renderNotify(); });
-$("nfX").onclick = () => { $("notify").classList.remove("on"); notifyItems = []; };
-$("nfCopy").onclick = () => copy($("nfText").value, t("copied"));
-$("nfShare").onclick = async () => { try { await navigator.share({text: $("nfText").value}); } catch(e) {} };
-if (!navigator.share) $("nfShare").style.display = "none";
+$("nfX").onclick = () => { $("notify").classList.remove("on"); if (notifySent) saveUnsent([]); notifyItems = []; renderUnsentChip(); };
+$("nfCopy").onclick = () => { copy($("nfText").value, t("nfCopied")); markSent(); };
+// 💬 단톡방에 보내기: 휴대폰은 공유창 → 카카오톡 → 단톡방 선택, PC는 복사 후 안내
+$("nfShare").onclick = async () => {
+  const text = $("nfText").value;
+  if (navigator.share){ try { await navigator.share({text}); markSent(); setSync(t("nfSentHint")); } catch(e) {} }
+  else { await copy(text, t("nfCopied")); markSent(); setSync(t("nfCopied")); }
+};
+$("unsentChip") && ($("unsentChip").onclick = () => { notifyItems = loadUnsent(); notifySent = false; renderNotify(); $("notify").classList.add("on"); renderUnsentChip(); });
 function applyReq(r){
   selected = r.id; pick = {act: r.act, cause: r.cause || null, how: r.how || "end"};
   $("toDate").value = r.to || ""; $("toTime").value = r.toTime || $("time").value; $("agreed").value = String(r.at).slice(0,10);
@@ -1765,7 +1788,8 @@ function renderMyRequests(){
     : `<div class="empty">${t("myNone")}</div>`;
   box.querySelectorAll("[data-cancel]").forEach(a => a.onclick = async e => {
     e.preventDefault();
-    try { await mutateRequests(list => { const i = list.findIndex(y => y.rid === a.dataset.cancel && y.status === "pending"); if (i >= 0) list.splice(i, 1); }, "Cancel request"); logActivity("reqCancel"); }
+    try { await mutateRequests(list => { const i = list.findIndex(y => y.rid === a.dataset.cancel && y.status === "pending"); if (i >= 0) list.splice(i, 1); }, "Cancel request"); logActivity("reqCancel");
+      const rc = requests.find(y => y.rid === a.dataset.cancel); if (rc){ announceB("info", () => t("nfCancel")(rc.name || rc.by, `${kdate(parse(rc.d))} · ${reqWhat(rc, cfg())}`)); } }
     catch(err){ setSync(t("rqSaveFail")(err.message), true); }
     render(); renderPending();
   });
@@ -1835,6 +1859,7 @@ $("fbSave").onclick = async () => {
   $("fbSave").disabled = true; $("fbMsg").className = "hint"; $("fbMsg").textContent = t("rqdSaving");
   try {
     await mutateFeedback(items => { const old = items[fbSid] || {}; items[fbSid] = Object.assign({}, old, v, {by: auth.login, name: auth.name, at: nowStamp()}); }, `Feedback ${fmt(s.d)} ${labelOf(s)} by ${auth.login}`); logActivity("feedback", `${fmt(s.d)} ${labelOf(s)}`);
+    announceB("info", () => t("nfFb")(`${kdate(s.d)} ${labelOf(s)}`, auth.name || auth.login));
     $("fbText").value = fbText(s, feedback[fbSid]); $("fbShareRow").style.display = "";
     $("fbShare").style.display = navigator.share ? "" : "none";
     $("fbMsg").textContent = t("fbSaved"); render();
@@ -2352,6 +2377,8 @@ function drawFx(){
 }
 
 /* ---------- 이벤트 ---------- */
+let zoomAnnounced = null;
+$("zoom").addEventListener("change", () => { const u = zoomUrl(); if (!isMaster() || !u) return; if (zoomAnnounced === null) zoomAnnounced = ""; if (u !== zoomAnnounced){ zoomAnnounced = u; announceB("info", () => t("nfZoom")); } });
 ["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate","zoom","asof"].forEach(id => $(id).addEventListener("input", () => { if (id === "zoom"){ const v = $("zoom").value.trim(); $("zoom").setCustomValidity(v && !zoomUrl() ? t("zBadUrl") : ""); $("zoom").title = v && !zoomUrl() ? t("zBadUrl") : ""; } render(); if (id !== "asof") queueRemoteSave(); }));
 $("loginBtn").onclick = () => { const tokMode = /^#master$/.test(location.hash);
   $("loginTabs").style.display = tokMode ? "" : "none";
