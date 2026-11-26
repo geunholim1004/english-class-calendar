@@ -16,7 +16,9 @@ function cleanReq(r){
   o.rid = String(o.rid || "").replace(/[^\w-]/g, "");
   o.by = String(o.by || "").replace(/[^a-z0-9._-]/g, "");
   o.name = String(o.name || "").slice(0, 40); o.reason = String(o.reason || "").slice(0, 300);
-  if (!["pending","approved","rejected", undefined].includes(o.status)) o.status = "pending";
+  if (!["pending","teacherOk","approved","rejected", undefined].includes(o.status)) o.status = "pending";
+  o.byKind = o.byKind === "student" ? "student" : "teacher";
+  o.decidedBy = o.decidedBy ? String(o.decidedBy).replace(/[^a-z0-9._-]/g, "").slice(0, 40) : undefined;
   return o;
 }
 // 사용자가 입력한 글자는 화면에 그릴 때 반드시 이스케이프 (악성 코드 실행 방지)
@@ -52,10 +54,11 @@ let remoteSha = null, lastUpdated = null, syncStatus = "", saveTimer = null, loa
 const SETTING_IDS = ["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate","zoom"];
 function snapshot(){ const settings = {}; SETTING_IDS.forEach(id => settings[id] = $(id).value);
   return {version:1, updatedAt:new Date().toISOString(), settings, state, log, extras, fixes}; }
+let baseState = null;   // 선생님·학생 화면: 저장소에서 받은 달력 (선생님이 승인한 학생 요청을 그 위에 바로 보여 줌)
 function applySnapshot(d){
   if (!d) return;
   if (d.settings) SETTING_IDS.forEach(id => { if (d.settings[id] !== undefined) $(id).value = d.settings[id]; });
-  state = d.state || {}; log = d.log || []; extras = d.extras || []; fixes = Array.isArray(d.fixes) ? d.fixes : []; lastUpdated = d.updatedAt || null;
+  state = d.state || {}; baseState = state; log = d.log || []; extras = d.extras || []; fixes = Array.isArray(d.fixes) ? d.fixes : []; lastUpdated = d.updatedAt || null;
   try { localStorage.setItem(KEY, JSON.stringify(state)); localStorage.setItem(LOGKEY, JSON.stringify(log)); } catch(e) {}
 }
 const b64enc = s => btoa(unescape(encodeURIComponent(s)));
@@ -217,7 +220,7 @@ ko: {
 
   rqWhatTeacherDate:(d,tm) => `이동 → ${d} ${tm} (선생님 사유 · 보너스 1회)`, rqSameDayBonus:" (선생님 사유 · 한국 시간 기준 당일 변경 → 보너스 1회)",
   nfTitle:"카톡 알림 메시지", nfCopy:"복사", nfShare:"공유", nfHint:"복사해서 선생님과의 단톡방에 붙여넣으세요. 계속 바꾸면 이 메시지에 이어서 모입니다.",
-  hPend:"승인 대기 요청", pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ 승인", pendReject:"✕ 거절",
+  hPend:"승인 대기 요청", hPendT:"학생 변경 요청 · 승인해 주세요", pendWaitT:"선생님 승인 대기 (마스터가 바로 승인해도 돼요)", tdAskOk:n => `${n}님의 요청을 승인할까요? 승인하면 달력 일정이 바로 바뀝니다.`, tdAskNo:n => `${n}님의 요청을 거절할까요?`, tdDone:"승인했어요 · 달력이 바뀌었어요", tdYes:"✓ 승인 확정", tdNo:"취소", tdYesNo:"✕ 거절 확정", tdDeclined:"거절했어요", tdApplied:n => `선생님이 승인한 학생 요청 ${n}건을 달력에 반영했어요`, tdNeedPw:n => `선생님이 승인한 학생 요청 ${n}건 반영 — 비밀번호를 확인해 주세요`, tdLater:"반영을 미뤘어요 · 승인 대기 카드에서 언제든 반영할 수 있어요", tdApplyBtn:"📥 달력에 반영", tdMsg:(ok, what, stu, tch, url) => `[영어 수업 변경 요청 ${ok ? "승인" : "거절"}]\n• ${what}\n${stu}님의 요청을 ${tch} 선생님이 ${ok ? "승인했어요. 달력이 바뀌었어요." : "거절했어요."}\n${url}`, pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ 승인", pendReject:"✕ 거절",
   autoTag:" (자동)", fbHas:"피드백 있음", fbDue:"피드백 작성 대기", fbHead:"선생님 피드백", fbNone:"아직 선생님 피드백이 없어요.",
   fbL:{topics:"오늘 배운 내용", expr:"핵심 표현·단어", good:"잘한 점·고칠 점", hw:"숙제·다음 준비"},
   fbPh:{topics:"예: 반도체 고객 미팅 롤플레이", expr:"예: lead time, ramp-up, yield", good:"예: 발음 좋음 / 시제 주의", hw:"예: 이메일 3문장 써 오기"},
@@ -227,7 +230,7 @@ ko: {
   fbReplied:"답장을 저장했어요 ✓", fbReplyCopied:"답장 포함 메시지를 복사했어요. 카카오톡에 붙여 넣으세요.", fbReplied2:"답장함",
   hFb:"수업 피드백", fbDueCnt:n => `✍ 작성 대기 ${n}`, fbNewCnt:n => `새 피드백 ${n}`, fbEmptyList:"끝난 수업이 생기면 여기에 피드백이 모입니다.",
   fbHint:"수업이 끝나면 자동으로 '완료'가 되고, 선생님이 ✍ 표시된 수업을 눌러 피드백을 남깁니다.",
-  hMyReq:"내 변경 요청", myNone:"보낸 요청이 없어요.", st_pending:"⏳ 승인 대기", st_approved:"✓ 승인됨", st_rejected:"✕ 거절됨", myCancel:"요청 취소",
+  hMyReq:"내 변경 요청", myNone:"보낸 요청이 없어요.", st_pending:"⏳ 승인 대기", st_teacherOk:"✓ 선생님 승인 · 일정 변경됨", st_approved:"✓ 승인됨", st_rejected:"✕ 거절됨", myCancel:"요청 취소",
   rqSaveFail:e => `요청 저장 실패 (${e})`, rqAlready:"이 수업에는 이미 승인 대기 중인 요청이 있어요.",
   rqMsg2:o => `[영어 수업 변경 요청]\n${o.target}\n요청: ${o.what}\n사유: ${o.why}\n요청자: ${o.who}\n\n웹에서 확인·승인해 주세요 👇\n${o.url}`,
 
@@ -284,7 +287,7 @@ ko: {
   rqWhatTeacher:"이동 → 마지막 수업 다음 (선생님 사유 · 한국 시간 당일 → 패널티 보너스 1회)", rqNoPenalty:" (선생님 사유 · 미리 연락 → 패널티 없음)",
   rqInTitle:"선생님 변경 요청", rqApprove:"✓ 승인하고 적용", rqReject:"✕ 거절", rqNeedLogin:"마스터로 로그인해야 승인할 수 있어요.",
   rqTarget:"대상", rqWhat:"요청", rqWhy:"사유", rqWhen:"요청 시각", rqStale:"⚠ 요청 이후 이 수업의 날짜나 상태가 바뀌었습니다. 확인 후 승인하세요.",
-  rqGone:"요청한 수업을 찾을 수 없어요 (이미 삭제·변경됨).", rqTag:"선생님 요청", rqRejected:(x) => `선생님 변경 요청 거절: ${x}`,
+  rqGone:"요청한 수업을 찾을 수 없어요 (이미 삭제·변경됨).", rqTag:"선생님 요청", rqTagS:"학생 요청", rqTagOk:w => `${w} 승인`, rqRejected:(x) => `선생님 변경 요청 거절: ${x}`,
 
   logDel:"기록에서 지우기", logClear:"🗑 전체 지우기", logClearQ:"정말 전체 지울까요? 한 번 더", dlArch:"⬇ 보관 로그(CSV)",
   archHead:["시각","내용","상태"], archKept:"보관", archDeleted:d => `화면에서 삭제 (${d})`,
@@ -353,7 +356,7 @@ ko: {
   zJoin:"🎥 Zoom 입장", zOther:(isT) => isT ? "Edward" : "선생님", zOn:"📷 ON · 입장함", zWait:"📷 OFF · 아직 입장 전", zLate:(m) => `📷 OFF · ${m}분 늦음`, zMe:"내 상태: 📷 ON",
   zChipTitle:"지금 누르면 Zoom 수업에 입장 · 점 🟢 = 상대방 입장함", zBadUrl:"Zoom 링크는 https://…zoom.us/… 형식이어야 해요",
   actBtn:"👀 선생님 활동 보기", actH:"선생님 활동 (마스터만 볼 수 있음)", actUser:"아이디", actLast:"마지막 활동", actVisits:"접속", actReqs:"요청", actFbs:"피드백", actList:"활동 기록 (최근 순)",
-  actKind:{zoom:"Zoom 입장", login:"로그인",visit:"사이트 열람",request:"변경 요청",reqCancel:"요청 취소",feedback:"피드백 작성",fbDelete:"피드백 삭제",register:"가입 완료"},
+  actKind:{reqApprove:"학생 요청 승인", reqDecline:"학생 요청 거절", zoom:"Zoom 입장", login:"로그인",visit:"사이트 열람",request:"변경 요청",reqCancel:"요청 취소",feedback:"피드백 작성",fbDelete:"피드백 삭제",register:"가입 완료"},
   actNever:"기록 없음", actNone:"아직 기록이 없어요.", actGit:"GitHub 저장 기록",
   actNote:"접속(열람)은 이번 업데이트부터 기록됩니다. 그 전의 가입·요청·피드백은 GitHub 저장 기록에서 찾아 보여 줍니다. 같은 기기에서 30분 안에 다시 열면 한 번으로 셉니다.",
   fbEditB:"✏️ 편집", fbDelB:"🗑 초기화(삭제)", fbDelAsk:"이 수업의 피드백을 지울까요? 학생 답장도 함께 지워집니다.", fbDeleted:"피드백을 지웠어요.", fbEditSave:"편집 저장", fbEdited:"피드백을 고쳤어요.",
@@ -437,7 +440,7 @@ en: {
 
   rqWhatTeacherDate:(d,tm) => `Move → ${d} ${tm} (teacher’s reason · 1 bonus class)`, rqSameDayBonus:" (teacher’s reason · same-day change in Korea time → 1 bonus class)",
   nfTitle:"KakaoTalk message", nfCopy:"Copy", nfShare:"Share", nfHint:"Copy it into the group chat with the teacher. Further changes keep adding to this message.",
-  hPend:"Pending requests", pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ Approve", pendReject:"✕ Decline",
+  hPend:"Pending requests", hPendT:"Student change requests · please review", pendWaitT:"Waiting for teacher (master may approve directly)", tdAskOk:n => `Approve ${n}\u2019s request? The calendar changes right away.`, tdAskNo:n => `Decline ${n}\u2019s request?`, tdDone:"Approved · calendar updated", tdYes:"✓ Yes, approve", tdNo:"Cancel", tdYesNo:"✕ Yes, decline", tdDeclined:"Declined", tdApplied:n => `Applied ${n} teacher-approved student request(s) to the calendar`, tdNeedPw:n => `Applying ${n} teacher-approved request(s) — confirm your password`, tdLater:"Postponed · apply any time from the pending card", tdApplyBtn:"📥 Apply to calendar", tdMsg:(ok, what, stu, tch, url) => `[English class – request ${ok ? "approved" : "declined"}]\n• ${what}\n${tch} ${ok ? "approved" : "declined"} ${stu}\u2019s request.${ok ? " The calendar has been updated." : ""}\n${url}`, pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ Approve", pendReject:"✕ Decline",
   autoTag:" (auto)", fbHas:"Feedback written", fbDue:"Feedback to write", fbHead:"Teacher feedback", fbNone:"No feedback from the teacher yet.",
   fbL:{topics:"Topics covered", expr:"Key expressions & words", good:"Strengths & to improve", hw:"Homework / next class"},
   fbPh:{topics:"e.g. Role-play: customer meeting on memory chips", expr:"e.g. lead time, ramp-up, yield", good:"e.g. Clear pronunciation / watch past tense", hw:"e.g. Write a 3-sentence email"},
@@ -447,7 +450,7 @@ en: {
   fbReplied:"Reply saved ✓", fbReplyCopied:"Copied the message with your reply. Paste it into KakaoTalk.", fbReplied2:"replied",
   hFb:"Class feedback", fbDueCnt:n => `✍ ${n} to write`, fbNewCnt:n => `${n} new`, fbEmptyList:"Feedback appears here once classes are done.",
   fbHint:"Classes turn ‘Done’ automatically when they end; the teacher taps a class marked ✍ to leave feedback.",
-  hMyReq:"My change requests", myNone:"No requests yet.", st_pending:"⏳ Pending", st_approved:"✓ Approved", st_rejected:"✕ Declined", myCancel:"Cancel request",
+  hMyReq:"My change requests", myNone:"No requests yet.", st_pending:"⏳ Pending", st_teacherOk:"✓ Approved by teacher · schedule changed", st_approved:"✓ Approved", st_rejected:"✕ Declined", myCancel:"Cancel request",
   rqSaveFail:e => `Couldn’t save the request (${e})`, rqAlready:"There’s already a pending request for this class.",
   rqMsg2:o => `[English class – change request]\n${o.target}\nRequest: ${o.what}\nReason: ${o.why}\nFrom: ${o.who}\n\nPlease review and approve on the web 👇\n${o.url}`,
 
@@ -504,7 +507,7 @@ en: {
   rqWhatTeacher:"Move → after the last class (teacher’s reason · same day in Korea time → 1 penalty bonus class)", rqNoPenalty:" (teacher’s reason · notice given in advance → no penalty)",
   rqInTitle:"Teacher’s change request", rqApprove:"✓ Approve & apply", rqReject:"✕ Decline", rqNeedLogin:"Log in as master to approve.",
   rqTarget:"Class", rqWhat:"Request", rqWhy:"Reason", rqWhen:"Requested at", rqStale:"⚠ This class’s date or status changed after the request. Check before approving.",
-  rqGone:"The requested class can’t be found (already deleted or changed).", rqTag:"Teacher request", rqRejected:(x) => `Teacher’s change request declined: ${x}`,
+  rqGone:"The requested class can’t be found (already deleted or changed).", rqTag:"Teacher request", rqTagS:"Student request", rqTagOk:w => `approved by ${w}`, rqRejected:(x) => `Teacher’s change request declined: ${x}`,
 
   logDel:"Remove from log", logClear:"🗑 Clear all", logClearQ:"Clear everything? Tap again", dlArch:"⬇ Archive log (CSV)",
   archHead:["Time","Entry","Status"], archKept:"kept", archDeleted:d => `removed from view (${d})`,
@@ -573,7 +576,7 @@ en: {
   zJoin:"🎥 Join Zoom", zOther:(isT) => isT ? "Edward" : "Teacher", zOn:"📷 ON · joined", zWait:"📷 OFF · not joined yet", zLate:(m) => `📷 OFF · ${m} min late`, zMe:"You: 📷 ON",
   zChipTitle:"Tap to join the Zoom class · green dot = the other person has joined", zBadUrl:"The Zoom link must look like https://…zoom.us/…",
   actBtn:"👀 Teacher activity", actH:"Teacher activity (master only)", actUser:"ID", actLast:"Last activity", actVisits:"Visits", actReqs:"Requests", actFbs:"Feedback", actList:"Activity log (newest first)",
-  actKind:{zoom:"Joined Zoom", login:"Logged in",visit:"Opened the site",request:"Change request",reqCancel:"Cancelled request",feedback:"Wrote feedback",fbDelete:"Deleted feedback",register:"Registered"},
+  actKind:{reqApprove:"Approved a student request", reqDecline:"Declined a student request", zoom:"Joined Zoom", login:"Logged in",visit:"Opened the site",request:"Change request",reqCancel:"Cancelled request",feedback:"Wrote feedback",fbDelete:"Deleted feedback",register:"Registered"},
   actNever:"No record", actNone:"No records yet.", actGit:"from GitHub history",
   actNote:"Visits are recorded from this update. Earlier sign-ups, requests and feedback come from the GitHub save history. Re-opening on the same device within 30 minutes counts once.",
   fbEditB:"✏️ Edit", fbDelB:"🗑 Reset (delete)", fbDelAsk:"Delete the feedback for this class? The student reply is deleted too.", fbDeleted:"Feedback deleted.", fbEditSave:"Save edits", fbEdited:"Feedback updated.",
@@ -974,7 +977,7 @@ setInterval(async () => {
 }, 15e3);
 
 /* ---------- 렌더링 ---------- */
-function render(){ renderMain(); renderZoom(); }
+function render(){ if (!isMaster() && baseState) overlayApprovals(); renderMain(); renderZoom(); }
 function renderMain(){
   const C = cfg(); renderSub();
   const P = sundays(C.start, C.months, C.count);
@@ -1557,7 +1560,7 @@ $("reqSend").onclick = () => {
   const r = {rid: "Q" + Date.now().toString(36), id: sel.id, d: fmt(sel.d), act: rq.act, cause: rq.cause || undefined,
     how: rq.act === "move" ? rq.how : undefined,
     to: needDate ? $("reqDate").value : undefined, toTime: needDate ? ($("reqTime").value || C.time) : undefined,
-    reason, by: auth.login, name: auth.name, status: "pending"};
+    reason, by: auth.login, name: auth.name, byKind: isStudent() ? "student" : "teacher", status: "pending"};
   const text = t("rqMsg2")({target: `${kdate(sel.d)} ${sel.time} ${labelOf(sel)}`, what: reqWhat(Object.assign({at: nowStamp()}, r), C), why: reason, who: `${r.name} (${r.by})`, url: teacherLink()});
   rqDraft = {r, text};
   $("rqdTitle").textContent = t("rqdAskTitle"); $("rqdHint").textContent = t("rqdAskHint");
@@ -1624,7 +1627,7 @@ async function fetchRequests(){
   const g = await ghGet(SHARE_REPO, "requests.json");
   return {list: ((g.data && g.data.requests) || []).map(cleanReq).filter(Boolean), sha: g.sha};
 }
-async function loadRequests(){ if (!isEditor()) return; try { requests = (await fetchRequests()).list; } catch(e) {} render(); renderPending(); }
+async function loadRequests(){ if (!isEditor()) return; try { requests = (await fetchRequests()).list; } catch(e) {} overlayApprovals(); render(); renderPending(); if (isMaster()) applyTeacherApproved(); }
 async function mutateRequests(fn, message, retry){
   const {list, sha} = await fetchRequests();
   fn(list);
@@ -1640,20 +1643,74 @@ function reqLines(r, C){
     <div class="hint">${(r.cause ? t("cause")[r.cause] + " · " : "") + String(r.reason || "").replace(/</g,"&lt;")}</div>`};
 }
 // 마스터: 승인 대기 목록
+/* ---------- 학생 요청 → 선생님 승인 → 달력 변경 ----------
+   선생님이 승인하면 requests.json 상태가 teacherOk 가 되고, 선생님·학생 화면에는 곧바로 바뀐 일정이 보임.
+   마스터가 사이트를 열면 비밀번호 확인 한 번으로 달력(비공개 저장소)에 정식 반영 → approved */
+function reqMeta(r, sess, prev){
+  const notice = sess ? Math.round((sess.d - parse(String(r.at || todayStr()).slice(0, 10))) / 86400000) : 0, agreed = String(r.at || todayStr()).slice(0, 10);
+  if (r.act === "edit") return {...prev, ed:{date: r.to, time: r.toTime || cfg().time}, edCause: r.cause || undefined, agreed, notice};
+  const m = {act: "move", cause: r.cause, how: r.how || "end", agreed, notice, late: notice < cfg().minNotice, ...(prev.ed ? {ed: prev.ed} : {})};
+  if (m.how === "date"){ m.to = r.to; m.toTime = r.toTime || cfg().time; }
+  return m;
+}
+function overlayApprovals(){
+  if (isMaster() || !baseState) return;
+  const ok = requests.filter(r => r.status === "teacherOk");
+  state = baseState;
+  if (!ok.length) return;
+  const C = cfg(), P = sundays(C.start, C.months, C.count), next = JSON.parse(JSON.stringify(baseState));
+  ok.forEach(r => { state = next; const s = buildSessions(P, C).find(x => x.id === r.id); if (s && fmt(s.d) === r.d) next[r.id] = reqMeta(r, s, next[r.id] || {}); });
+  state = next;
+}
+async function teacherDecide(rid, ok){
+  if (!isTeacher()) return;
+  const r = requests.find(x => x.rid === rid); if (!r || r.byKind !== "student" || r.status !== "pending") return;
+  try { await mutateRequests(list => { const x = list.find(y => y.rid === rid); if (x && x.status === "pending"){ x.status = ok ? "teacherOk" : "rejected"; x.decidedAt = nowStamp(); x.decidedBy = auth.login; } }, `${ok ? "Teacher approve" : "Teacher decline"} request ${rid} by ${auth.login}`);
+    logActivity(ok ? "reqApprove" : "reqDecline", `${r.d} ${r.act}`); }
+  catch(e){ setSync(t("rqSaveFail")(e.message), true); return; }
+  overlayApprovals(); render(); renderPending();
+  const C = cfg(), msg = t("tdMsg")(ok, `${kdate(parse(r.d))} · ${reqWhat(r, C)}`, r.name || r.by, auth.name || auth.login, teacherLink());
+  notifyItems = []; $("nfText").value = msg; $("notify").classList.add("on"); setSync(ok ? t("tdDone") : t("tdDeclined"));
+}
+let autoApplying = false;
+async function applyTeacherApproved(){
+  if (!isMaster() || autoApplying) return;
+  const list = requests.filter(r => r.status === "teacherOk"); if (!list.length) return;
+  autoApplying = true;
+  try {
+    setSync(t("tdNeedPw")(list.length));
+    if (!(await confirmMaster())){ setSync(t("tdLater"), true); return; }
+    const C = cfg(), sess = buildSessions(sundays(C.start, C.months, C.count), C), done = [];
+    list.forEach(r => { const s = sess.find(x => x.id === r.id); if (s && fmt(s.d) === r.d && s.act === "plan") applyReq(r); done.push(r.rid); });
+    clearTimeout(saveTimer); await saveRemote();
+    if (done.length) await mutateRequests(rl => rl.forEach(x => { if (done.includes(x.rid) && x.status === "teacherOk"){ x.status = "approved"; x.appliedAt = nowStamp(); } }), `Apply ${done.length} teacher-approved request(s)`);
+    setSync(t("tdApplied")(done.length));
+  } catch(e){ setSync(t("rqSaveFail")(e.message), true); }
+  finally { autoApplying = false; }
+  render(); renderPending();
+}
 function renderPending(){
   const box = $("pendList"); if (!box) return;
-  const C = cfg(), list = requests.filter(r => r.status === "pending").sort((a,b) => String(a.at).localeCompare(String(b.at)));
-  $("pendCard").style.display = isMaster() && list.length ? "" : "none";
+  const C = cfg(), list = requests.filter(r => (r.status === "pending" || (isMaster() && r.status === "teacherOk")) && (isMaster() || (isTeacher() && r.byKind === "student"))).sort((a,b) => String(a.at).localeCompare(String(b.at)));
+  $("pendCard").style.display = (isMaster() || isTeacher()) && list.length ? "" : "none";
+  $("pendTitle").textContent = isTeacher() ? t("hPendT") : t("hPend");
   $("pendCount").textContent = list.length ? `(${list.length})` : "";
   box.innerHTML = list.map(r => {
     const {s, html} = reqLines(r, C);
     const stale = !s || fmt(s.d) !== r.d || s.act !== "plan";
-    return `<div class="pendrow"><div class="hint">${esc(t("pendBy")(r.name || r.by, r.by, r.at))}</div>${html}
+    return `<div class="pendrow"><div class="hint">${r.byKind === "student" ? "🎓 " : "👨‍🏫 "}${esc(t("pendBy")(r.name || r.by, r.by, r.at))}${isMaster() && r.byKind === "student" ? ` · <b>${t("pendWaitT")}</b>` : ""}</div>${html}
       ${stale ? `<div class="hint bad">${s ? t("rqStale") : t("rqGone")}</div>` : ""}
-      <div class="btns">${s ? `<button class="sm" data-pa="${esc(r.rid)}">${t("pendApprove")}</button>` : ""}<button class="ghost sm danger" data-pr="${esc(r.rid)}">${t("pendReject")}</button></div></div>`;
+      ${r.status === "teacherOk" ? `<div class="hint"><b>${t("st_teacherOk")}</b> · ${esc(r.decidedBy || "")} ${esc(r.decidedAt || "")}</div><div class="btns"><button class="sm" data-apply="1">${t("tdApplyBtn")}</button></div></div>` :
+      `<div class="btns">${s ? `<button class="sm" data-pa="${esc(r.rid)}">${t("pendApprove")}</button>` : ""}<button class="ghost sm danger" data-pr="${esc(r.rid)}">${t("pendReject")}</button></div></div>`}`;
   }).join("");
-  box.querySelectorAll("[data-pa]").forEach(b => b.onclick = () => decide(b.dataset.pa, true));
-  box.querySelectorAll("[data-pr]").forEach(b => b.onclick = () => decide(b.dataset.pr, false));
+  // 선생님: 팝업 대신 같은 자리에서 한 번 더 확인 (휴대폰·앱 안 브라우저에서도 동작)
+  const askInline = (b, rid, ok) => { const r = requests.find(x => x.rid === rid); const row = b.closest(".btns");
+    row.innerHTML = `<div class="hint" style="width:100%"><b>${esc(ok ? t("tdAskOk")(r.name || r.by) : t("tdAskNo")(r.name || r.by))}</b></div><button class="sm ${ok ? "" : "danger"}" data-yes>${ok ? t("tdYes") : t("tdYesNo")}</button><button class="ghost sm" data-no>${t("tdNo")}</button>`;
+    row.querySelector("[data-yes]").onclick = e => { e.target.disabled = true; e.target.textContent = "…"; teacherDecide(rid, ok); };
+    row.querySelector("[data-no]").onclick = () => renderPending(); };
+  box.querySelectorAll("[data-pa]").forEach(b => b.onclick = () => isTeacher() ? askInline(b, b.dataset.pa, true) : decide(b.dataset.pa, true));
+  box.querySelectorAll("[data-apply]").forEach(b => b.onclick = () => applyTeacherApproved());
+  box.querySelectorAll("[data-pr]").forEach(b => b.onclick = () => isTeacher() ? askInline(b, b.dataset.pr, false) : decide(b.dataset.pr, false));
   renderMyRequests();
 }
 let notifyKind = "change", notifyItems = [], notifyLang = null;
@@ -1684,7 +1741,7 @@ if (!navigator.share) $("nfShare").style.display = "none";
 function applyReq(r){
   selected = r.id; pick = {act: r.act, cause: r.cause || null, how: r.how || "end"};
   $("toDate").value = r.to || ""; $("toTime").value = r.toTime || $("time").value; $("agreed").value = String(r.at).slice(0,10);
-  $("memo").value = `[${t("rqTag")}${r.by ? " · " + r.by : ""}] ${r.reason || ""}`;
+  $("memo").value = `[${t(r.byKind === "student" ? "rqTagS" : "rqTag")}${r.by ? " · " + r.by : ""}${r.status === "teacherOk" && r.decidedBy ? " · " + t("rqTagOk")(r.decidedBy) : ""}] ${r.reason || ""}`;
   notifyKind = "approved"; try { $("applyBtn").onclick(); } finally { notifyKind = "change"; }
 }
 async function decide(rid, ok){
