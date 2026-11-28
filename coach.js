@@ -89,21 +89,55 @@ const LS_KEY = "edward-coach-state-v1";
 const LS_SECRET = "edward-coach-secret-v1"; // API key + model, never synced
 function blankState(){ return {v:1, updatedAt:0, progress:{}, custom:[], sessions:[], days:{}, importedFb:[], expressions:[], settings:{autoSpeak:false, rate:1}}; }
 let state = blankState();
-let secret = {provider:"", apiKey:"", model:"claude-sonnet-5-5", geminiKey:"", geminiModel:"gemini-flash-latest"};
+let secret = {provider:"", apiKey:"", model:"claude-sonnet-5-5", geminiKey:"", geminiModel:"gemini-flash-latest",
+  groqKey:"", groqModel:"llama-3.3-70b-versatile", orKey:"", orModel:""};
 try{ const raw=localStorage.getItem(LS_KEY); if(raw) state=Object.assign(blankState(), JSON.parse(raw)); }catch(e){}
 try{ const raw=localStorage.getItem(LS_SECRET); if(raw) secret=Object.assign(secret, JSON.parse(raw)); }catch(e){}
-if(!secret.provider) secret.provider = secret.apiKey ? "anthropic" : "gemini";   // 키가 없으면 무료 Gemini를 기본으로
-const isGem = () => secret.provider==="gemini";
-const curKey = () => isGem() ? secret.geminiKey : secret.apiKey;
-const hasKey = () => !!curKey();
+/* AI 순서: Gemini → Groq → OpenRouter 무료 모델 → (선택) Claude 유료 키 → 오프라인 자동 판정 */
+const AI_CHAIN = [
+  {id:"gemini",     name:"Gemini",     key:()=>secret.geminiKey, model:()=>(secret.geminiModel||"gemini-flash-latest").replace(/^models\//,"")},
+  {id:"groq",       name:"Groq",       key:()=>secret.groqKey,   model:()=>secret.groqModel||"llama-3.3-70b-versatile"},
+  {id:"openrouter", name:"OpenRouter", key:()=>secret.orKey,     model:()=>secret.orModel||"자동(무료 모델)"},
+  {id:"anthropic",  name:"Claude",     key:()=>secret.apiKey,    model:()=>secret.model||"claude-sonnet-5-5", paid:true}
+];
+const hasKey = () => AI_CHAIN.some(p=>!!p.key());
+/* 마스터가 넣은 무료 키를 학생·edward1004도 쓰도록 공유 (english-class-share/coach-ai.json, 간단히 가려서 저장) */
+const SHARED_AI = "coach-ai.json";
+let sharedKeys = null;   // 학생 기기: 마스터가 공유한 키 (자기 키가 비어 있을 때만 사용)
+const SHARE_FIELDS = ["geminiKey","geminiModel","groqKey","groqModel","orKey","orModel"];
+const mask = t => btoa(String(t).split("").reverse().join("")).split("").reverse().join("");
+const unmask = t => { try{ return atob(String(t).split("").reverse().join("")).split("").reverse().join(""); }catch(e){ return ""; } };
+function applySharedKeys(){
+  if(!sharedKeys) return;
+  SHARE_FIELDS.forEach(f=>{ if(!secret[f] && sharedKeys[f]) secret[f] = sharedKeys[f]; });
+}
+async function loadSharedKeys(){
+  if(ghMaster() || !ghCoach()) return;
+  try{
+    const g = await ghGetJSON(SHARE_REPO, SHARED_AI);
+    if(g.data && g.data.k){ sharedKeys = {}; Object.keys(g.data.k).forEach(f=>{ if(SHARE_FIELDS.includes(f)) sharedKeys[f] = /Key$/.test(f) ? unmask(g.data.k[f]) : String(g.data.k[f]); }); applySharedKeys(); renderAll(); }
+  }catch(e){}
+}
+async function shareKeysToStudents(){
+  const k = {}; SHARE_FIELDS.forEach(f=>{ if(secret[f]) k[f] = /Key$/.test(f) ? mask(secret[f]) : secret[f]; });
+  let sha = null; try{ sha = (await ghGetJSON(SHARE_REPO, SHARED_AI)).sha; }catch(e){}
+  await ghPutJSON(SHARE_REPO, SHARED_AI, {v:1, updatedAt:Date.now(), note:"Free AI keys shared by the master for the English coach", k}, "Coach: share free AI keys with students", sha);
+}
+const keyedNames = () => AI_CHAIN.filter(p=>p.key()).map(p=>p.name);
 
 /* --- GitHub storage (calendar site): coach.json in the private repo, master token only --- */
 const AUTHKEY = "eng-class-gh-auth", SHARE_REPO = "english-class-share", COACH_FILE = "coach.json", BRANCH = "main";
 const GH = {auth:null, sha:null};
 try{ GH.auth = JSON.parse(localStorage.getItem(AUTHKEY) || "null"); }catch(e){}
 const ghMaster = () => !!(GH.auth && GH.auth.token && GH.auth.owner && GH.auth.role !== "sub");
-const ghStudent = () => !!(GH.auth && GH.auth.token && GH.auth.owner && GH.auth.role === "sub" && GH.auth.kind === "student");
-const ghCoach = () => ghMaster() || ghStudent();     // master and students use the coach; teachers do not
+// 선생님 계정이지만 코치를 쓰는 사용자: edward1004 = Edward 본인(Edward 실수 목록 사용), uihee = 학생으로 취급
+const COACH_EXTRA = {"edward1004":"edward", "uihee":"student"};
+const ghSub = () => !!(GH.auth && GH.auth.token && GH.auth.owner && GH.auth.role === "sub");
+const extraOf = () => ghSub() ? COACH_EXTRA[String(GH.auth.login||"").toLowerCase()] : "";
+const ghStudent = () => ghSub() && (GH.auth.kind === "student" || extraOf() === "student");
+const ghEdward = () => ghSub() && extraOf() === "edward";
+const ghCoach = () => ghMaster() || ghStudent() || ghEdward();     // 마스터·모든 학생·edward1004가 코치 사용, Daniel(선생님)은 제외
+const whoLabel = () => ghMaster() ? "마스터" : ghEdward() ? "Edward · " + GH.auth.login : "학생 · " + (GH.auth.name || GH.auth.login);
 const ghPriv = () => (GH.auth && GH.auth.privRepo) || "english-class-private";
 // where this person's coach notebook lives: master → private repo, student → share repo (their token has no private access)
 const coachLoc = () => ghMaster() ? {repo: ghPriv(), path: COACH_FILE} : {repo: SHARE_REPO, path: "coach-" + String(GH.auth.login||"student").replace(/[^a-z0-9._-]/gi,"") + ".json"};
@@ -263,33 +297,117 @@ async function ai(system, messages, opts={}){
       throw new Error((e && e.message) || "AI 호출 실패");
     }
   }
-  if(!hasKey()) throw new Error("설정 탭에서 AI 키를 넣어 주세요 (Google Gemini 키는 무료).");
-  if(isGem()){
-    const model = (secret.geminiModel||"gemini-flash-latest").replace(/^models\//,"");
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent", {
-      method:"POST", headers:{"content-type":"application/json","x-goog-api-key":secret.geminiKey},
-      body: JSON.stringify({systemInstruction:{parts:[{text:system}]}, contents: messages.map(m=>({role: m.role==="assistant"?"model":"user", parts:[{text: String(m.content)}]}))})
-    });
-    const data = await res.json().catch(()=>({}));
-    if(!res.ok){
-      const msg = (data.error && data.error.message) || ("Gemini 오류 "+res.status);
-      if(res.status===429) throw new Error("무료 사용량을 잠시 넘었어요. 1분쯤 뒤 다시 해 주세요.");
-      if(res.status===400 && /API key/i.test(msg)) throw new Error("Gemini 키가 맞지 않아요. 설정 탭에서 다시 넣어 주세요.");
-      throw new Error(msg);
-    }
-    const parts = (((data.candidates||[])[0]||{}).content||{}).parts||[];
-    const out = parts.filter(x=>x.text && !x.thought).map(x=>x.text).join("");
-    if(!out) throw new Error("AI 답이 비어 있어요. 다시 눌러 주세요.");
-    return out;
+  if(!hasKey()) throw new Error("설정 탭에서 AI 키를 넣어 주세요 (Google Gemini·Groq·OpenRouter 키는 모두 무료).");
+  return aiChain(system, messages, opts);
+}
+
+/* ---- 여러 AI 업체를 차례로 시도 (폴백 체인) ---- */
+let lastAI = null;                       // {name, model, skipped:[{name,why}], offline}
+const aiCool = {};                       // 혼잡·한도 초과 업체는 1분 동안 뒤로 미룸
+class AIErr extends Error{ constructor(msg, status, why){ super(msg); this.status=status; this.why=why; } }
+async function fetchJSON(url, init, label){
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 30000);
+  let res, data;
+  try{ res = await fetch(url, Object.assign({}, init, {signal: ctl.signal})); data = await res.json().catch(()=>({})); }
+  catch(e){ throw new AIErr(label+" 연결 실패", 0, e.name==="AbortError" ? "응답 시간 초과" : "연결 실패"); }
+  finally{ clearTimeout(t); }
+  if(!res.ok){
+    const msg = (data.error && (data.error.message || data.error)) || (label+" 오류 "+res.status);
+    const why = res.status===503||res.status===502||res.status===529 ? "서버 혼잡"
+      : res.status===429 ? "사용량 한도"
+      : res.status===401||res.status===403||(res.status===400 && /api key/i.test(String(msg))) ? "키 오류"
+      : res.status===404 ? "모델 없음" : "오류 "+res.status;
+    throw new AIErr(String(msg), res.status, why);
   }
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  return data;
+}
+async function callGemini(model, system, messages){
+  const data = await fetchJSON("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent", {
+    method:"POST", headers:{"content-type":"application/json","x-goog-api-key":secret.geminiKey},
+    body: JSON.stringify({systemInstruction:{parts:[{text:system}]}, contents: messages.map(m=>({role: m.role==="assistant"?"model":"user", parts:[{text: String(m.content)}]}))})
+  }, "Gemini");
+  const parts = (((data.candidates||[])[0]||{}).content||{}).parts||[];
+  return parts.filter(x=>x.text && !x.thought).map(x=>x.text).join("");
+}
+async function callOpenAI(url, key, model, system, messages, opts, label, extra){
+  const data = await fetchJSON(url, {
+    method:"POST", headers:Object.assign({"content-type":"application/json","authorization":"Bearer "+key}, extra||{}),
+    body: JSON.stringify({model, max_tokens: opts.maxTokens||1500, temperature:0.4,
+      messages:[{role:"system", content:system}].concat(messages.map(m=>({role:m.role, content:String(m.content)})))})
+  }, label);
+  const msg = ((data.choices||[])[0]||{}).message||{};
+  return String(msg.content||"").replace(/<think>[\s\S]*?<\/think>/g,"").trim();
+}
+// OpenRouter 무료 모델은 자주 바뀌므로 목록을 받아 좋은 순서로 고름 (하루 캐시)
+const OR_CACHE = "edward-coach-or-free-v1";
+const OR_PREF = [/llama-3\.3-70b/i, /gpt-oss-120b/i, /deepseek-(chat|v3)/i, /qwen.*(72b|235b|-max)/i, /gemma-[34].*(27b|31b)/i, /mistral-(small|medium)/i, /llama-4/i, /nemotron/i];
+async function orFreeModels(){
+  try{ const c = JSON.parse(localStorage.getItem(OR_CACHE)||"null"); if(c && Date.now()-c.t < 864e5 && c.ids.length) return c.ids; }catch(e){}
+  let ids = [];
+  try{
+    const r = await fetch("https://openrouter.ai/api/v1/models"); const d = await r.json();
+    ids = (d.data||[]).filter(m => /:free$/.test(m.id) && (m.context_length||0) >= 8000 && !/vision|image|embed|audio/i.test(m.id)).map(m=>m.id);
+    const rank = id => { const i = OR_PREF.findIndex(rx=>rx.test(id)); return i<0 ? 99 : i; };
+    ids.sort((a,b)=>rank(a)-rank(b));
+    try{ localStorage.setItem(OR_CACHE, JSON.stringify({t:Date.now(), ids})); }catch(e){}
+  }catch(e){}
+  return ids.length ? ids : ["meta-llama/llama-3.3-70b-instruct:free"];
+}
+async function callProvider(p, system, messages, opts){
+  if(p.id==="gemini") return {text: await callGemini(p.model(), system, messages), model:p.model()};
+  if(p.id==="groq") return {text: await callOpenAI("https://api.groq.com/openai/v1/chat/completions", secret.groqKey, p.model(), system, messages, opts, "Groq"), model:p.model()};
+  if(p.id==="openrouter"){
+    const hdr = {"HTTP-Referer": location.origin, "X-Title": "Edward English Coach"};
+    const list = secret.orModel ? [secret.orModel] : (await orFreeModels()).slice(0,3);
+    let last;
+    for(const m of list){   // 무료 모델 하나가 막히면 다른 무료 모델로
+      try{ return {text: await callOpenAI("https://openrouter.ai/api/v1/chat/completions", secret.orKey, m, system, messages, opts, "OpenRouter", hdr), model:m.replace(/:free$/,"")}; }
+      catch(e){ last = e; if(e.why==="키 오류") break; if(e.why==="모델 없음") try{ localStorage.removeItem(OR_CACHE); }catch(_){} }
+    }
+    throw last;
+  }
+  const data = await fetchJSON("https://api.anthropic.com/v1/messages", {
     method:"POST",
     headers:{"content-type":"application/json","x-api-key":secret.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body: JSON.stringify({model: secret.model||"claude-sonnet-5-5", max_tokens: opts.maxTokens||1200, system, messages})
-  });
-  const data = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error((data.error && data.error.message) || ("API 오류 "+res.status));
-  return (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+    body: JSON.stringify({model: p.model(), max_tokens: opts.maxTokens||1200, system, messages})
+  }, "Claude");
+  return {text:(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""), model:p.model()};
+}
+async function aiChain(system, messages, opts){
+  const now = Date.now();
+  const list = AI_CHAIN.filter(p=>p.key());
+  const order = list.filter(p=>!(aiCool[p.id]>now)).concat(list.filter(p=>aiCool[p.id]>now));
+  const skipped = [];
+  for(const p of order){
+    try{
+      const r = await callProvider(p, system, messages, opts);
+      if(!r.text || !r.text.trim()) throw new AIErr(p.name+" 답이 비어 있음", 0, "빈 답");
+      delete aiCool[p.id];
+      lastAI = {name:p.name, model:r.model, skipped, offline:false, paid:!!p.paid, t:Date.now()};
+      showAIUsed(true);
+      return r.text;
+    }catch(e){
+      const why = e.why || "오류";
+      if(why==="서버 혼잡" || why==="사용량 한도" || why==="응답 시간 초과") aiCool[p.id] = Date.now()+60000;
+      skipped.push({name:p.name, why});
+    }
+  }
+  lastAI = {name:"", model:"", skipped, offline:true, t:Date.now()};
+  showAIUsed(false);
+  const err = new Error("연결된 AI가 모두 응답하지 않아요 ("+skipped.map(x=>x.name+": "+x.why).join(", ")+"). 잠시 뒤 다시 해 주세요.");
+  err.allFailed = true;
+  throw err;
+}
+// 어떤 AI가 답했는지 한 줄 표시용
+function aiUsedText(){
+  if(!lastAI) return "";
+  if(lastAI.offline) return "🤖 오프라인 자동 판정"+(lastAI.skipped.length?" · "+lastAI.skipped.map(x=>x.name+" "+x.why).join(", "):"");
+  return "🤖 "+lastAI.name+" · "+lastAI.model+(lastAI.skipped.length?" · "+lastAI.skipped.map(x=>x.name+" "+x.why).join(", ")+" → 전환":"");
+}
+function aiUsedHTML(){ const t = aiUsedText(); return t ? '<div class="ai-used'+(lastAI && (lastAI.skipped.length||lastAI.offline)?" switched":"")+'">'+esc(t)+'</div>' : ""; }
+function showAIUsed(ok){
+  if(ok && lastAI && lastAI.skipped.length) toast(lastAI.skipped.map(x=>x.name).join("·")+" "+lastAI.skipped[0].why+" → "+lastAI.name+"(으)로 처리했어요");
+  try{ renderPill(); renderApiCard(); }catch(e){}
 }
 async function aiJSON(system, messages, opts){
   const t = await ai(system, messages, opts);
@@ -402,14 +520,14 @@ function makeConvo(o){
   };
   C.addAI = (text, tip)=>{
     const div=document.createElement("div"); div.className="msg ai";
-    div.innerHTML='<div class="bubble">'+esc(text)+'</div><div class="meta">'+speakerBtn(text)+'</div>'+(tip?'<div class="tip">💡 '+esc(tip)+'</div>':"");
+    div.innerHTML='<div class="bubble">'+esc(text)+'</div><div class="meta">'+speakerBtn(text)+'</div>'+(tip?'<div class="tip">💡 '+esc(tip)+'</div>':"")+(MODE!=="claude"?aiUsedHTML():"");
     C.log.appendChild(div); C.log.scrollTop=C.log.scrollHeight;
     if(state.settings.autoSpeak) speak(text);
   };
   C.submit = async ()=>{
     const text = C.input.value.trim();
     if(!text || C.busy) return;
-    if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 AI 키를 넣어 주세요 (Google Gemini 키는 무료)."); return; }
+    if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 AI 키를 넣어 주세요 (Gemini·Groq·OpenRouter 모두 무료)."); return; }
     stopMic();
     C.busy=true; C.send.disabled=true; C.input.value="";
     const me = C.addMe(text);
@@ -468,7 +586,7 @@ $("#roleChips").addEventListener("click", e=>{
   scenario = SCENARIOS.find(s=>s.id===b.dataset.sc); renderRoles();
 });
 $("#roleStart").addEventListener("click", async ()=>{
-  if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 AI 키를 넣어 주세요 (Google Gemini 키는 무료)."); return; }
+  if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 AI 키를 넣어 주세요 (Gemini·Groq·OpenRouter 모두 무료)."); return; }
   role.reset(); $("#roleReport").innerHTML="";
   const btn=$("#roleStart"); btn.disabled=true; btn.textContent="상대방 입장 중…";
   try{
@@ -496,7 +614,7 @@ $("#roleEnd").addEventListener("click", async ()=>{
       ((r.top_mistakes||[]).length?'<div><h3>꼭 고칠 것</h3>'+fixHTML({corrections:r.top_mistakes})+'</div>':"")+
       ((r.expressions||[]).length?'<div><h3>이 상황에서 쓸 표현</h3><div class="expr">'+r.expressions.map(x=>'<div class="en">'+esc(x.en)+' '+speakerBtn(x.en)+'</div><div class="ko">'+esc(x.ko)+'</div>').join("")+'</div></div>':"")+
       (r.model_answer?'<div><h3>더 강한 답변 예시</h3><div class="fix clean"><div class="better">'+esc(r.model_answer)+' '+speakerBtn(r.model_answer)+'</div></div></div>':"");
-    $("#roleReport").innerHTML = h;
+    $("#roleReport").innerHTML = h + aiUsedHTML();
     addSession({kind:"roleplay", title:"롤플레이 · "+scenario.title, summary:"점수 "+r.score+"/10 · "+(r.summary_ko||"")});
     save(); renderSessions();
   }catch(e){ toast(e.message); }
@@ -582,18 +700,7 @@ async function checkDrill(){
   const it=drill.item;
   stopMic();
   if(!ans){ toast("답을 먼저 말하거나 써 주세요."); return; }
-  if(!aiReady()){
-    // AI 없이도 자동 판정: 목표 표현을 썼고 틀린 표현이 없으면 통과
-    const r = ruleJudge(it, ans);
-    recordAttempt(it.id, r.pass); drill.done++; if(r.pass) drill.ok++; save();
-    drill.phase="graded";
-    drill.resultHTML = '<div class="bubble" style="background:var(--accent-soft)">'+esc(ans)+'</div>'+
-      '<div class="fix '+(r.pass?"clean":"")+'"><div class="fix-line"><span class="'+(r.pass?"ins":"del")+'">'+(r.pass?"✓ 통과":"✗ 다시 연습")+'</span><span class="why">자동 판정 · '+esc(r.why)+'</span></div>'+
-      '<div class="better"><b>MODEL</b>'+esc(drill.answer)+' '+speakerBtn(drill.answer)+'</div><div class="why">'+esc(it.why)+'</div></div>'+
-      '<div class="hint">설정 탭에서 무료 Gemini 키를 넣으면 AI가 문장 전체의 문법·철자까지 채점해요.</div>'+
-      '<div class="row"><button class="btn primary" id="drillNext" type="button">다음 →</button></div>';
-    renderDrill(); renderStats(); return;
-  }
+  if(!aiReady()){ offlineGrade(it, ans, ""); return; }
   const btn=$("#drillCheck"); btn.disabled=true; btn.textContent="채점 중…";
   try{
     const r = await aiJSON(LEARNER+' Grade a translation drill. Target pattern: correct form "'+it.right+'" (common error: "'+it.wrong+'"). Korean prompt: "'+drill.ko+'". Model answer: "'+drill.answer+'". Pass = the learner used the target pattern correctly AND the sentence has no serious grammar error (small wording differences from the model are fine; ignore punctuation/capitalization). Respond with ONLY JSON: {"pass":true|false,"corrected":"learner sentence minimally fixed (same as input if perfect)","why":"한국어 1~2문장 설명","other":[{"wrong":"","right":"","why":"한국어"}]}  (other = other errors not about the target, max 2)',
@@ -608,9 +715,26 @@ async function checkDrill(){
       '<div class="why">'+esc(r.why)+'</div>'+
       ((r.other||[]).length?r.other.map(c=>'<div class="fix-line"><span class="del">'+esc(c.wrong)+'</span>→<span class="ins">'+esc(c.right)+'</span><span class="why">'+esc(c.why)+'</span></div>').join(""):"")+
       '<div class="better"><b>MODEL</b>'+esc(drill.answer)+' '+speakerBtn(drill.answer)+'</div></div>'+
+      (MODE!=="claude"?aiUsedHTML():"")+
       '<div class="row"><button class="btn primary" id="drillNext" type="button">다음 →</button></div>';
     renderDrill(); renderStats();
-  }catch(e){ toast(e.message); btn.disabled=false; btn.textContent="채점"; }
+  }catch(e){
+    if(e.allFailed){ offlineGrade(it, ans, "AI가 모두 혼잡해서 자동 판정으로 채점했어요."); return; }
+    toast(e.message); btn.disabled=false; btn.textContent="채점";
+  }
+}
+// AI 없이도 자동 판정: 목표 표현을 썼고 틀린 표현이 없으면 통과
+function offlineGrade(it, ans, note){
+    const r = ruleJudge(it, ans);
+    recordAttempt(it.id, r.pass); drill.done++; if(r.pass) drill.ok++; save();
+    drill.phase="graded";
+    drill.resultHTML = '<div class="bubble" style="background:var(--accent-soft)">'+esc(ans)+'</div>'+
+      '<div class="fix '+(r.pass?"clean":"")+'"><div class="fix-line"><span class="'+(r.pass?"ins":"del")+'">'+(r.pass?"✓ 통과":"✗ 다시 연습")+'</span><span class="why">자동 판정 · '+esc(r.why)+'</span></div>'+
+      '<div class="better"><b>MODEL</b>'+esc(drill.answer)+' '+speakerBtn(drill.answer)+'</div><div class="why">'+esc(it.why)+'</div></div>'+
+      (note ? '<div class="ai-used switched">'+esc(aiUsedText() || "🤖 오프라인 자동 판정")+'</div><div class="hint">'+esc(note)+'</div>'
+            : '<div class="ai-used">🤖 오프라인 자동 판정</div><div class="hint">설정 탭에서 무료 AI 키(Gemini·Groq·OpenRouter)를 넣으면 AI가 문장 전체의 문법·철자까지 채점해요.</div>')+
+      '<div class="row"><button class="btn primary" id="drillNext" type="button">다음 →</button></div>';
+    renderDrill(); renderStats();
 }
 // AI가 없을 때 쓰는 규칙 판정 (목표 표현 포함 + 흔한 틀린 표현 없음)
 function ruleJudge(it, ans){
@@ -636,7 +760,7 @@ function nextDrill(){
 $("#prepGo").addEventListener("click", async ()=>{
   const topic=$("#prepTopic").value.trim();
   if(!topic){ toast("주제를 먼저 적어 주세요."); return; }
-  if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 AI 키를 넣어 주세요 (Google Gemini 키는 무료)."); return; }
+  if(!aiReady()){ toast(MODE==="claude"?"AI 연결을 기다리는 중이에요.":"설정 탭에서 AI 키를 넣어 주세요 (Gemini·Groq·OpenRouter 모두 무료)."); return; }
   const btn=$("#prepGo"); btn.disabled=true; btn.textContent="만드는 중…";
   try{
     const r = await aiJSON(LEARNER+" He has a 25-minute online class once a week with his tutor Daniel. Help him prepare so the class is dense and useful. Topic: "+topic+
@@ -646,7 +770,7 @@ $("#prepGo").addEventListener("click", async ()=>{
       '<div><h3>첫 발언 초안 (소리 내서 3번 읽기)</h3><div class="fix clean"><div class="better">'+esc(r.opener)+' '+speakerBtn(r.opener)+'</div></div></div>'+
       '<div><h3>Daniel이 물어볼 질문</h3><ol>'+(r.questions||[]).map(q=>'<li>'+esc(q)+'</li>').join("")+'</ol></div>'+
       '<div><h3>핵심 표현</h3><div class="expr">'+(r.expressions||[]).map(x=>'<div class="en">'+esc(x.en)+'</div><div class="ko">'+esc(x.ko)+'</div>').join("")+'</div></div>'+
-      '<div><h3>Daniel에게 보낼 메시지</h3><div class="bubble" style="background:var(--bg);border:1px solid var(--line)">'+esc(r.message)+'</div><div class="row" style="margin-top:8px"><button class="btn" type="button" data-copy="'+esc(r.message)+'">메시지 복사</button></div></div>';
+      '<div><h3>Daniel에게 보낼 메시지</h3><div class="bubble" style="background:var(--bg);border:1px solid var(--line)">'+esc(r.message)+'</div><div class="row" style="margin-top:8px"><button class="btn" type="button" data-copy="'+esc(r.message)+'">메시지 복사</button></div></div>'+aiUsedHTML();
     addSession({kind:"daniel", title:"수업 준비 · "+topic, summary:"예상 질문 "+(r.questions||[]).length+"개 · 표현 "+(r.expressions||[]).length+"개"});
     markPractice(); save(); renderSessions(); renderStats();
   }catch(e){ toast(e.message); }
@@ -665,7 +789,7 @@ $("#notesGo").addEventListener("click", async ()=>{
     addSession({kind:"daniel", title:"Daniel 수업 기록", summary:"교정 "+items.length+"개 저장: "+items.map(x=>x.right).slice(0,3).join(", ")});
     save(); renderAll();
     $("#classNotes").value="";
-    $("#notesStatus").textContent = items.length+"개를 실수 노트에 넣었어요.";
+    $("#notesStatus").textContent = items.length+"개를 실수 노트에 넣었어요. "+aiUsedText();
   }catch(e){ toast(e.message); }
   btn.disabled=false; btn.textContent="정리해서 저장";
 });
@@ -806,14 +930,12 @@ function renderSettings(){
       "<br><br>같은 파일을 GitHub Pages에 올리면 <b>독립 모드</b>로 바뀌어 내 API 키로 동작해요.";
     $("#apiCard").style.display="none";
   } else if(MODE==="github"){
-    const who = ghMaster() ? "마스터" : "학생 · " + (GH.auth.name || GH.auth.login);
-    pill.textContent = aiReady() ? "● "+who+" · AI 연결됨"+(cap.sample?"":isGem()?" (Gemini)":" (Claude)") : "● "+who+" · AI 키 필요";
-    pill.className = "mode-pill "+(aiReady()?"on":"off");
-    $("#modeExplain").innerHTML = "수업 달력에 <b>"+(ghMaster()?"마스터":"학생")+"로 로그인된 상태</b>예요. 실수 노트와 기록은 "+esc(coachLoc().repo+"/"+coachLoc().path)+"에 저장돼 다른 기기에서도 이어지고, Daniel이 달력에 남긴 피드백을 바로 가져올 수 있어요. "+(cap.sample?"AI 기능은 <b>Claude</b>로 동작해요(키 불필요).":"AI 기능은 아래에서 고른 AI(무료 Gemini 또는 Claude) 키로 동작해요. 키가 없어도 반복 실수 훈련은 자동 판정돼요.")+"";
+    const who = whoLabel();
+    renderPill();
+    $("#modeExplain").innerHTML = "수업 달력에 <b>"+esc(whoLabel())+"(으)로 로그인된 상태</b>예요. 실수 노트와 기록은 "+esc(coachLoc().repo+"/"+coachLoc().path)+"에 저장돼 다른 기기에서도 이어지고, Daniel이 달력에 남긴 피드백을 바로 가져올 수 있어요. "+(cap.sample?"AI 기능은 <b>Claude</b>로 동작해요(키 불필요).":"AI 기능은 Gemini → Groq → OpenRouter 순서로 자동 전환되며, 모두 막히면 오프라인 자동 판정으로 채점해요. 키가 없어도 반복 실수 훈련은 자동 판정돼요.")+"";
     $("#apiCard").style.display = cap.sample ? "none" : "";
   } else if(MODE==="standalone"){
-    pill.textContent = hasKey() ? "● 독립 모드 · AI 연결됨 ("+(isGem()?"Gemini":"Claude")+")" : "● 독립 모드 · 키 필요";
-    pill.className = "mode-pill "+(hasKey()?"on":"off");
+    renderPill();
     $("#modeExplain").innerHTML = "지금은 <b>로그인 전</b>이라 기록이 이 브라우저에만 저장돼요. <a href=\"./\">수업 달력</a>에서 마스터나 학생으로 로그인하고 다시 열면 비공개 저장소에 저장되고 Daniel 피드백도 가져올 수 있어요. 키가 없어도 반복 실수 훈련은 자동 판정으로 쓸 수 있어요.";
     $("#apiCard").style.display="";
   } else {
@@ -825,27 +947,69 @@ function renderSettings(){
   $("#voiceNote").textContent = (canListen()?"🎙 음성 입력 사용 가능. ":"🎙 이 화면에선 음성 입력이 안 돼요(크롬 권장). ")+(canSpeak()?"🔊 읽어주기 사용 가능.":"🔊 이 화면에선 읽어주기가 안 돼요.");
   ["#chatMic","#roleMic"].forEach((s,i)=>wireMic($(s), $(i?"#roleInput":"#chatInput")));
 }
-function renderApiCard(){
-  const g = isGem(), k = curKey();
-  document.querySelectorAll("input[name=aiProv]").forEach(r => r.checked = (r.value===secret.provider));
-  $("#apiKeyLbl").textContent = g ? "Google Gemini API 키 (무료)" : "Anthropic API 키";
-  $("#apiKey").placeholder = g ? "AIza..." : "sk-ant-...";
-  $("#apiKey").value = k ? "••••••••"+k.slice(-4) : "";
-  $("#apiModel").value = g ? (secret.geminiModel||"gemini-flash-latest") : (secret.model||"claude-sonnet-5-5");
-  $("#apiModel").placeholder = g ? "gemini-flash-latest" : "claude-sonnet-5-5";
-  $("#apiHelp").innerHTML = g
-    ? '무료 키 받기: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> → 구글 계정으로 로그인 → <b>API 키 만들기</b> → 복사해서 위에 붙여 넣기. 카드 등록 없이 무료 한도 안에서 쓸 수 있어요. 무료 등급은 입력 내용이 구글 서비스 개선에 쓰일 수 있어요.'
-    : 'Anthropic 콘솔에서 만든 키를 넣어 주세요. 사용한 만큼 요금이 나가니 월 사용 한도를 꼭 걸어 두세요.';
+function renderPill(){
+  const pill=$("#modePill"); if(!pill || MODE==="claude" || MODE==="detecting") return;
+  const who = MODE==="github" ? whoLabel() : "독립 모드";
+  if(cap.sample){ pill.textContent="● "+who+" · AI 연결됨 (Claude)"; pill.className="mode-pill on"; return; }
+  if(!hasKey()){ pill.textContent="● "+who+" · AI 키 필요"; pill.className="mode-pill off"; return; }
+  const now = lastAI && !lastAI.offline ? lastAI.name : (lastAI && lastAI.offline ? "오프라인" : keyedNames()[0]);
+  pill.textContent = "● "+who+" · AI: "+now+(lastAI?"":" 대기")+" ("+keyedNames().length+"곳 연결)";
+  pill.className = "mode-pill "+(lastAI && lastAI.offline ? "off" : "on");
+  pill.title = "자동 전환 순서: "+keyedNames().join(" → ")+" → 오프라인 자동 판정";
 }
-document.addEventListener("change", e=>{ if(e.target && e.target.name==="aiProv"){ secret.provider=e.target.value; try{ localStorage.setItem(LS_SECRET, JSON.stringify(secret)); }catch(err){} renderAll(); } });
+const KEY_FIELDS = [
+  {k:"geminiKey", m:"geminiModel", key:"#kGemini", model:"#mGemini", def:"gemini-flash-latest"},
+  {k:"groqKey",   m:"groqModel",   key:"#kGroq",   model:"#mGroq",   def:"llama-3.3-70b-versatile"},
+  {k:"orKey",     m:"orModel",     key:"#kOR",     model:"#mOR",     def:""},
+  {k:"apiKey",    m:"model",       key:"#kClaude", model:"#mClaude", def:"claude-sonnet-5-5"}
+];
+function renderApiCard(){
+  KEY_FIELDS.forEach(f=>{
+    const el=$(f.key), mel=$(f.model); if(!el) return;
+    const v=secret[f.k]; el.value = v ? "••••••••"+v.slice(-4) : "";
+    const st=$(f.key+"St"); if(st) st.textContent = v ? "✓ 연결됨" : "미입력";
+    if(mel) mel.value = secret[f.m] || f.def;
+  });
+  const used=$("#aiUsedNow"); if(used) used.textContent = lastAI ? "마지막 사용: "+aiUsedText().replace(/^🤖 /,"") : "아직 이번 화면에서 AI를 쓰지 않았어요.";
+  const sh=$("#apiShareRow"); if(sh) sh.style.display = (MODE==="github" && ghMaster()) ? "" : "none";
+  const sn=$("#sharedNote"); if(sn) sn.textContent = (!ghMaster() && sharedKeys) ? "마스터가 공유한 무료 키를 쓰고 있어요. 내 키를 넣으면 내 키가 먼저 쓰여요." : "";
+  const ord=$("#aiOrder"); if(ord) ord.textContent = hasKey() ? keyedNames().join(" → ")+" → 오프라인 자동 판정" : "키가 없어서 오프라인 자동 판정만 동작해요.";
+}
 $("#apiSave").addEventListener("click", ()=>{
-  const k=$("#apiKey").value.trim();
-  if(k && !k.startsWith("••")){ if(isGem()) secret.geminiKey=k; else secret.apiKey=k; }
-  const m=$("#apiModel").value.trim(); if(isGem()) secret.geminiModel=m||"gemini-flash-latest"; else secret.model=m||"claude-sonnet-5-5";
-  try{ localStorage.setItem(LS_SECRET, JSON.stringify(secret)); }catch(e){}
-  toast("저장했어요"); renderAll();
+  KEY_FIELDS.forEach(f=>{
+    const el=$(f.key), mel=$(f.model); if(!el) return;
+    const k=el.value.trim();
+    if(k && !k.startsWith("••")) secret[f.k]=k;
+    if(!k) secret[f.k]="";
+    if(mel) secret[f.m] = mel.value.trim() || f.def;
+  });
+  const own = Object.assign({}, secret);
+  if(sharedKeys) SHARE_FIELDS.forEach(f=>{ if(own[f] && own[f]===sharedKeys[f]) own[f]=""; });   // 공유받은 키는 내 기기에 따로 저장하지 않음
+  try{ localStorage.setItem(LS_SECRET, JSON.stringify(own)); }catch(e){}
+  applySharedKeys();
+  toast("저장했어요 · 순서: "+(keyedNames().join(" → ")||"오프라인")); renderAll();
 });
-$("#apiClear").addEventListener("click", ()=>{ if(isGem()) secret.geminiKey=""; else secret.apiKey=""; try{ localStorage.setItem(LS_SECRET, JSON.stringify(secret)); }catch(e){} renderAll(); toast("키를 지웠어요"); });
+$("#apiClear").addEventListener("click", ()=>{ KEY_FIELDS.forEach(f=>secret[f.k]=""); try{ localStorage.setItem(LS_SECRET, JSON.stringify(secret)); }catch(e){} renderAll(); toast("키를 모두 지웠어요"); });
+$("#apiShare").addEventListener("click", async ()=>{
+  if(!ghMaster()){ toast("마스터만 공유할 수 있어요."); return; }
+  if(!secret.geminiKey && !secret.groqKey && !secret.orKey){ toast("공유할 무료 키를 먼저 넣고 저장해 주세요."); return; }
+  const btn=$("#apiShare"); btn.disabled=true;
+  try{ await shareKeysToStudents(); toast("학생·edward1004 기기에서도 이 무료 키로 AI를 쓸 수 있어요"); }
+  catch(e){ toast("공유 실패: "+e.message); }
+  btn.disabled=false;
+});
+$("#apiTest").addEventListener("click", async ()=>{
+  const btn=$("#apiTest"), out=$("#aiTestOut"); btn.disabled=true; btn.textContent="확인 중…"; out.innerHTML="";
+  const rows=[];
+  for(const p of AI_CHAIN.filter(p=>p.key())){
+    const t0=Date.now();
+    try{ const r=await callProvider(p, "Reply with the single word OK.", [{role:"user", content:"ping"}], {maxTokens:20}); rows.push("✓ "+p.name+" · "+r.model+" · "+((Date.now()-t0)/1000).toFixed(1)+"초"); }
+    catch(e){ rows.push("✗ "+p.name+" · "+(e.why||"오류")+" — "+String(e.message).slice(0,90)); }
+    out.innerHTML = rows.map(x=>'<div class="'+(x[0]==="✓"?"ok":"err")+'">'+esc(x)+'</div>').join("");
+  }
+  if(!rows.length) out.innerHTML='<div class="err">입력된 키가 없어요.</div>';
+  btn.disabled=false; btn.textContent="연결 테스트";
+});
 $("#autoSpeak").addEventListener("change", e=>{ state.settings.autoSpeak=e.target.checked; save(); });
 $("#rate").addEventListener("input", e=>{ state.settings.rate=Number(e.target.value); $("#rateVal").textContent="×"+Number(e.target.value).toFixed(2); });
 $("#rate").addEventListener("change", ()=>save());
@@ -892,7 +1056,7 @@ async function bootGithub(){
       setSync(g.data ? "저장소와 동기화됨 ✓" : "첫 저장 때 저장소에 기록 파일이 만들어져요");
       if(!g.data || (state.updatedAt||0) > (g.data.updatedAt||0)){ dirty = true; save(); }
     }catch(e){ setSync("저장소를 읽지 못했어요 ("+e.message+"). 이 기기에만 저장돼요.", true); MODE="standalone"; }
-    renderAll(); loadDanielFeedback();
+    renderAll(); loadDanielFeedback(); loadSharedKeys();
 }
 
 renderChatTopics(); renderRoles(); renderAll();

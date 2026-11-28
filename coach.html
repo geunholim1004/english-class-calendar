@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://api.anthropic.com https://generativelanguage.googleapis.com; media-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai; media-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
 <title>Edward English Coach</title>
@@ -179,6 +179,9 @@ label{font-size:13px;font-weight:600;display:flex;flex-direction:column;gap:6px}
 .notice{font-size:13px;padding:10px 12px;border-radius:8px;background:var(--warn-soft);color:var(--ink);border:1px solid var(--warn)}
 .notice.info{background:var(--accent-soft);border-color:var(--accent)}
 .err{color:var(--bad);font-size:13px}
+.ai-used{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:4px}
+.ai-used.switched{color:var(--warn)}
+#aiTestOut .ok{color:var(--good)}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:10;max-width:90vw}
 .toast.show{opacity:1}
 details summary{cursor:pointer;font-weight:600;font-size:14px}
@@ -350,20 +353,37 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
       <div id="modeExplain" class="hint"></div>
     </div>
     <div class="card" id="apiCard">
-      <h2>AI 연결</h2>
-      <div class="hint">쓰고 있는 AI의 키를 넣으면 문장 채점·교정을 AI가 해요. 키는 이 브라우저(localStorage)에만 저장되고 저장소에는 올라가지 않아요. 기기마다 한 번씩 넣어 주세요.</div>
-      <div class="row" role="radiogroup" aria-label="AI 고르기">
-        <label class="row" style="flex-direction:row;font-weight:500"><input type="radio" name="aiProv" value="gemini"> Google Gemini (무료)</label>
-        <label class="row" style="flex-direction:row;font-weight:500"><input type="radio" name="aiProv" value="anthropic"> Claude (Anthropic 키)</label>
-      </div>
-      <label for="apiKey"><span id="apiKeyLbl">API 키</span>
-        <input type="password" id="apiKey" autocomplete="off">
-      </label>
-      <label for="apiModel">모델
-        <input type="text" id="apiModel">
-      </label>
-      <div class="hint" id="apiHelp"></div>
-      <div class="row"><button class="btn primary" id="apiSave" type="button">저장</button><button class="btn" id="apiClear" type="button">키 지우기</button></div>
+      <h2>AI 연결 · 자동 전환</h2>
+      <div class="hint">한 곳이 혼잡하거나 한도를 넘으면 다음 AI로 자동으로 넘어가고, 모두 막히면 오프라인 자동 판정으로 채점해요. 어떤 AI가 답했는지는 결과 아래 <b>🤖</b> 줄과 위쪽 표시에 나와요. 키는 이 브라우저(localStorage)에만 저장돼요.</div>
+      <div class="hint mono" id="aiOrder"></div>
+      <div class="hint" id="sharedNote"></div>
+
+      <h3>① Google Gemini (무료) <span class="hint" id="kGeminiSt"></span></h3>
+      <label for="kGemini">API 키 <input type="password" id="kGemini" autocomplete="off" placeholder="AIza..."></label>
+      <label for="mGemini">모델 <input type="text" id="mGemini" placeholder="gemini-flash-latest"></label>
+      <div class="hint">키 받기: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> → API 키 만들기. 카드 등록 없음.</div>
+
+      <h3>② Groq (무료) <span class="hint" id="kGroqSt"></span></h3>
+      <label for="kGroq">API 키 <input type="password" id="kGroq" autocomplete="off" placeholder="gsk_..."></label>
+      <label for="mGroq">모델 <input type="text" id="mGroq" placeholder="llama-3.3-70b-versatile"></label>
+      <div class="hint">키 받기: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> → 구글 계정 로그인 → Create API Key. 카드 등록 없음.</div>
+
+      <h3>③ OpenRouter 무료 모델 <span class="hint" id="kORSt"></span></h3>
+      <label for="kOR">API 키 <input type="password" id="kOR" autocomplete="off" placeholder="sk-or-..."></label>
+      <label for="mOR">모델 (비워 두면 무료 모델 자동 선택) <input type="text" id="mOR" placeholder="자동 (:free 모델 중 선택)"></label>
+      <div class="hint">키 받기: <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai/settings/keys</a> → Create Key. 충전하지 않아도 <code>:free</code> 모델은 무료예요.</div>
+
+      <details>
+        <summary class="hint">④ Claude (유료 · 선택, 비워 두면 사용 안 함)</summary>
+        <label for="kClaude">Anthropic API 키 <input type="password" id="kClaude" autocomplete="off" placeholder="sk-ant-..."></label>
+        <label for="mClaude">모델 <input type="text" id="mClaude" placeholder="claude-sonnet-5-5"></label>
+        <div class="hint">사용한 만큼 요금이 나가요. 넣는다면 Anthropic 콘솔에서 월 사용 한도를 꼭 걸어 두세요.</div>
+      </details>
+
+      <div class="row"><button class="btn primary" id="apiSave" type="button">저장</button><button class="btn" id="apiTest" type="button">연결 테스트</button><button class="btn" id="apiClear" type="button">키 모두 지우기</button></div>
+      <div class="row" id="apiShareRow" style="display:none"><button class="btn" id="apiShare" type="button">무료 키를 학생·edward1004와 공유</button><span class="hint">학생 기기에서 키를 따로 넣지 않아도 돼요. (Daniel도 공유 저장소를 볼 수 있어요)</span></div>
+      <div id="aiTestOut" class="hint"></div>
+      <div class="hint" id="aiUsedNow"></div>
     </div>
     <div class="card">
       <h2>음성</h2>
