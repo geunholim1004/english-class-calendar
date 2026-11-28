@@ -104,6 +104,7 @@ let talker=null;
 function renderTeacher(){const t=TT(),src=fresh[t.k]||repo[t.k],av=$('#orb');
  if(src&&window.TalkingFace){if(!talker||!talker.c.isConnected||av.dataset.k!==t.k||av.dataset.src!==src){av.dataset.src=src;av.innerHTML='<canvas aria-hidden="true"></canvas>';av.dataset.k=t.k;if(talker)talker.stop();talker=new TalkingFace(av.querySelector('canvas'));talker.load(t.k,src);talker.setMode($('#call').dataset.s||'idle')}}
  else{av.innerHTML=face(t);av.dataset.k='';if(talker){talker.stop();talker=null}}
+ $('#chosen').innerHTML=face(t)+`<div><b>${esc(t.n)}</b><span>${esc(t.d)}</span></div>`;
  $('#tname').innerHTML=`${esc(t.n)}<span>${esc(t.d)}</span>`+(isMaster()?'<button class="photoBtn" id="photoBtn" type="button">사진 바꾸기 (마스터)</button>':'');
  $('#teachers').innerHTML=TEACHERS.map(x=>`<button class="tc" data-k="${x.k}" aria-pressed="${x.k===t.k}">${face(x)}<b>${x.n}</b><span>${x.d}</span></button>`).join('')}
 
@@ -287,10 +288,15 @@ async function toggleLive(){const b=$('#liveBtn');
   b.textContent='▶ 실시간 음성 대화 시작'}
  finally{b.disabled=false}}
 
+/* ---- 화면 단계: 선생님 고르기 ↔ 한 선생님과 대화 ---- */
+function showSession(){$('#picker').hidden=true;$('#session').hidden=false;$('#subline').textContent='선생님 얼굴이나 ▶ 단추를 누르면 대화가 시작돼요. 말한 내용은 대화창에 글자로 남아요.';window.scrollTo({top:0})}
+function showPicker(){if(live)live.stop();try{speechSynthesis.cancel()}catch(e){}$('#session').hidden=true;$('#picker').hidden=false;$('#subline').textContent='오늘 함께할 선생님을 고르세요.';renderTeacher()}
+
 /* ---- 시작 ---- */
 if(!loggedIn()){$('#locked').hidden=false;return}
 $('#app').hidden=false;
-$('#teachers').addEventListener('click',e=>{const b=e.target.closest('.tc');if(!b)return;teacherK=b.dataset.k;store.set('teacher',teacherK);renderTeacher();renderVoiceSel();greet();speak(hist[0].text)});
+$('#teachers').addEventListener('click',e=>{const b=e.target.closest('.tc');if(!b)return;teacherK=b.dataset.k;store.set('teacher',teacherK);renderTeacher();renderVoiceSel();showSession();greet();speak(hist[0].text)});
+$('#changeT').addEventListener('click',showPicker);
 $('#scenes').addEventListener('click',e=>{const b=e.target.closest('.sc');if(!b)return;sceneK=b.dataset.k;renderScenes();greet()});
 $('#orb').addEventListener('click',()=>{if(live||secret.geminiKey){toggleLive();return}if($('#call').dataset.s==='speak'){try{speechSynthesis.cancel()}catch(x){}setS('idle');return}startTimer();listen()});
 $('#liveBtn').addEventListener('click',toggleLive);
@@ -311,6 +317,7 @@ $('#pipBtn').addEventListener('click',togglePip);
 $('#voiceSel').addEventListener('change',e=>store.set('voice_'+TT().k,e.target.value));
 $('#voiceTest').addEventListener('click',()=>speak(`Hi, I'm ${TT().n}. Let's talk about your LPDDR5X customer meeting.`));
 renderTeacher();renderWho();renderScenes();greet();probeRepo();
+if(new URLSearchParams(location.search).get('t'))showSession();
 try{speechSynthesis.onvoiceschanged=voiceCheck;setTimeout(voiceCheck,600)}catch(e){}
 loadShared();loadLimits();
 })();
