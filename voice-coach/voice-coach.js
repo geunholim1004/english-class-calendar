@@ -289,6 +289,12 @@ async function toggleLive(){const b=$('#liveBtn');
  finally{b.disabled=false}}
 
 /* ---- 화면 단계: 선생님 고르기 ↔ 한 선생님과 대화 ---- */
+const COACH_URL=window.__COACH_URL||'../coach.html?embed=1';
+function setMode(m){const w=m==='write';$('#mTalk').setAttribute('aria-selected',!w);$('#mWrite').setAttribute('aria-selected',w);
+ $('#talkPane').hidden=w;$('#writePane').hidden=!w;$('#session').classList.toggle('writing',w);
+ if(w){if(live)live.stop();try{speechSynthesis.cancel()}catch(e){}const f=$('#coachFrame');if(!f.src)f.src=COACH_URL;
+  $('#wpWho').innerHTML=face(TT())+`${esc(TT().n)} 선생님과 글쓰기 훈련`}
+ store.set('mode',m)}
 function showSession(){$('#picker').hidden=true;$('#session').hidden=false;$('#subline').textContent='선생님 얼굴이나 ▶ 단추를 누르면 대화가 시작돼요. 말한 내용은 대화창에 글자로 남아요.';window.scrollTo({top:0})}
 function showPicker(){if(live)live.stop();try{speechSynthesis.cancel()}catch(e){}$('#session').hidden=true;$('#picker').hidden=false;$('#subline').textContent='오늘 함께할 선생님을 고르세요.';renderTeacher()}
 
@@ -297,6 +303,8 @@ if(!loggedIn()){$('#locked').hidden=false;return}
 $('#app').hidden=false;
 $('#teachers').addEventListener('click',e=>{const b=e.target.closest('.tc');if(!b)return;teacherK=b.dataset.k;store.set('teacher',teacherK);renderTeacher();renderVoiceSel();showSession();greet();speak(hist[0].text)});
 $('#changeT').addEventListener('click',showPicker);
+$('#mTalk').addEventListener('click',()=>setMode('talk'));
+$('#mWrite').addEventListener('click',()=>setMode('write'));
 $('#scenes').addEventListener('click',e=>{const b=e.target.closest('.sc');if(!b)return;sceneK=b.dataset.k;renderScenes();greet()});
 $('#orb').addEventListener('click',()=>{if(live||secret.geminiKey){toggleLive();return}if($('#call').dataset.s==='speak'){try{speechSynthesis.cancel()}catch(x){}setS('idle');return}startTimer();listen()});
 $('#liveBtn').addEventListener('click',toggleLive);

@@ -1,4 +1,5 @@
 "use strict";
+if(/[?&]embed=1\b/.test(location.search))document.documentElement.classList.add("embed");   // AI 음성 코치 안에 들어갈 때 제목줄 숨김
 /* ============ Content: Edward's fossilized mistakes (from 4 years of Daniel's feedback) ============ */
 const CORE = [
   {id:"every-people", wrong:"every people", right:"everyone / every person", why:"every 뒤에는 단수. people은 이미 복수", seed:12,
