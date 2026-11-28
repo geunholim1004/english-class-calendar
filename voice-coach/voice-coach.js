@@ -12,6 +12,7 @@ const store={get(k,d){try{const v=localStorage.getItem('eec_'+k);return v===null
 /* ---- 로그인 (app.js / coach.js 와 같은 규칙) ---- */
 const AUTHKEY="eng-class-gh-auth",SHARE_REPO="english-class-share",BRANCH="main";
 let auth=null;try{auth=JSON.parse(localStorage.getItem(AUTHKEY)||"null")}catch(e){}
+if(!auth&&window.__VC_DEMO_AUTH)auth=window.__VC_DEMO_AUTH;   // Claude 시연 페이지 전용 (실제 사이트에는 없음)
 const loggedIn=()=>!!(auth&&auth.token&&auth.owner);
 const isMaster=()=>loggedIn()&&auth.role!=="sub";
 const isSub=()=>loggedIn()&&auth.role==="sub";
@@ -151,9 +152,11 @@ function voiceCheck(){const en=enVoices('en'),nat=en.filter(v=>NAT.test(v.name))
  else w.innerHTML='';w.style.display=w.innerHTML?'block':'none';renderVoiceSel()}
 function renderVoiceSel(){const sel=$('#voiceSel'),t=TT(),en=enVoices('en').sort((a,b)=>score(b,t)-score(a,t)),cur=pickVoice(t);
  sel.innerHTML=en.length?en.map(v=>`<option ${cur&&v.name===cur.name?'selected':''}>${esc(v.name)}</option>`).join(''):'<option>영어 음성 없음</option>'}
-function speak(t,after){try{speechSynthesis.cancel();const T=TT(),u=new SpeechSynthesisUtterance(t);u.lang=T.lang;u.rate=rate;u.pitch=T.g==='f'?1.12:0.88;
+let fakeT=null;
+function fakeSpeak(t,after){clearTimeout(fakeT);setS('speak');fakeT=setTimeout(()=>{setS('idle');after&&after()},Math.min(9000,600+String(t).split(/\s+/).length*330))}
+function speak(t,after){let started=false;clearTimeout(fakeT);const guard=setTimeout(()=>{if(!started)fakeSpeak(t,null)},900);try{speechSynthesis.cancel();const T=TT(),u=new SpeechSynthesisUtterance(t);u.lang=T.lang;u.rate=rate;u.pitch=T.g==='f'?1.12:0.88;
  const v=pickVoice(T);if(v){u.voice=v;u.lang=v.lang;if(NAT.test(v.name))u.pitch=1}
- u.onstart=()=>setS('speak');u.onboundary=()=>{if(talker)talker.pulse(0.75+Math.random()*0.25)};u.onend=()=>{setS('idle');after&&after()};u.onerror=()=>setS('idle');speechSynthesis.speak(u)}catch(e){setS('idle')}}
+ u.onstart=()=>{started=true;clearTimeout(fakeT);setS('speak')};u.onboundary=()=>{if(talker)talker.pulse(0.75+Math.random()*0.25)};u.onend=()=>{if(!started)return;setS('idle');after&&after()};u.onerror=()=>{if(started)setS('idle')};speechSynthesis.speak(u)}catch(e){clearTimeout(guard);fakeSpeak(t,null)}}
 function startTimer(){if(tick)return;t0=Date.now();tick=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);$('#timer').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')},1000)}
 
 /* ---- AI 답변: Gemini → Groq → OpenRouter → 오프라인 채점 ---- */
