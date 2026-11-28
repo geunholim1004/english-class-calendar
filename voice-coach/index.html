@@ -6,7 +6,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai; media-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
-<title>Edward English Coach · 음성</title>
+<title>AI 음성 코치 · Edward English Coach</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="voice-coach.css">
@@ -21,7 +21,7 @@
 
 <div class="app" id="app" hidden>
   <header>
-    <div><h1>Edward English Coach · 음성</h1><p>선생님과 상황을 고르고, 선생님 얼굴을 눌러 말하세요. 코치가 답하고 바로 고쳐 줍니다.</p></div>
+    <div><h1>Edward English Coach · AI 음성 코치</h1><p>선생님과 상황을 고르고, 선생님 얼굴을 눌러 말하세요. 코치가 답하고 바로 고쳐 줍니다.</p></div>
     <div class="who" id="who"></div>
   </header>
 
@@ -42,6 +42,7 @@
       <div class="stage">
         <button class="av" id="orb" aria-label="선생님을 눌러 말하기 시작/멈춤"></button>
         <div class="tname" id="tname"></div>
+        <input type="file" id="photoIn" accept="image/*" hidden>
         <div class="cap" id="cap" aria-live="polite"></div>
       </div>
       <div class="fixes" id="fixes"></div>
@@ -82,12 +83,22 @@
         <li><b>"선생님 창 띄우기"</b>를 누르면 선생님 얼굴이 작은 창으로 항상 위에 떠요. 그 탭으로 가서 말하면, 선생님이 대답할 때 사진 속 입이 소리에 맞춰 움직여요.</li>
       </ol>
       <p class="small">크롬·엣지 데스크톱에서 됩니다. Claude 데스크톱 앱을 쓸 때는 윈도우에서 "전체 화면 + 시스템 오디오 공유"를 고르면 됩니다. 휴대폰 앱의 소리는 연결할 수 없어요.</p>
-      <div class="row"><label class="small" style="display:flex;gap:8px;align-items:center">선생님 목소리<select id="voiceSel" aria-label="선생님 목소리"></select></label><button class="btn" id="voiceTest" type="button">들어 보기</button><a class="btn" href="../coach.html">Edward English Coach로 돌아가기</a></div>
+      <div class="row"><label class="small" style="display:flex;gap:8px;align-items:center">선생님 목소리<select id="voiceSel" aria-label="선생님 목소리"></select></label><button class="btn" id="voiceTest" type="button">들어 보기</button><span class="small" id="voiceHint"></span><a class="btn" href="../coach.html">Edward English Coach로 돌아가기</a></div>
       <details style="margin-top:12px"><summary>코치 지침 전문 보기</summary><textarea id="promptBox" readonly></textarea></details>
     </section>
   </div>
 </div>
 
+<div class="dlg" id="photoDlg" hidden role="dialog" aria-modal="true" aria-labelledby="photoTitle">
+  <div class="dlgbox">
+    <h3 id="photoTitle"><span id="photoWho"></span> 선생님 사진 바꾸기</h3>
+    <canvas id="photoPrev" width="240" height="240"></canvas>
+    <label class="small">확대 <input type="range" id="photoZoom" min="1" max="2.2" step="0.05" value="1"></label>
+    <p class="small">얼굴이 가운데 오도록 확대를 맞추세요. 저장하면 사이트 저장소에 올라가 모든 사람에게 바뀐 사진이 보여요.</p>
+    <div class="row"><button class="btn pri" id="photoSave" type="button">이 사진으로 저장</button><button class="btn" id="photoCancel" type="button">취소</button></div>
+    <p class="small" id="photoSt" aria-live="polite"></p>
+  </div>
+</div>
 <script src="face-anim.js"></script>
 <script src="voice-coach.js"></script>
 </body>

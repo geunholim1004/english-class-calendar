@@ -115,3 +115,9 @@ textarea{width:100%;min-height:140px;border-radius:10px;border:1px solid var(--l
 .av{--lv:0}
 .av canvas{box-shadow:0 0 0 calc(4px + var(--lv)*10px) rgba(127,240,200,calc(.25 + var(--lv)*.6)),0 0 calc(30px + var(--lv)*60px) rgba(127,240,200,calc(var(--lv)*.7)),0 20px 60px rgba(0,0,0,.45);transition:box-shadow .08s linear}
 .call[data-s=listen] .av canvas{box-shadow:0 0 0 4px rgba(255,122,89,.55),0 20px 60px rgba(0,0,0,.45)}
+
+.dlg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:50;padding:16px}
+.dlg[hidden]{display:none}
+.dlgbox{background:var(--card);color:var(--ink);border-radius:20px;padding:22px;max-width:380px;width:100%;display:grid;gap:10px;justify-items:center;text-align:center}
+#photoPrev{width:200px;height:200px;border-radius:50%;background:#000}
+.dlgbox input[type=range]{width:180px;vertical-align:middle}
