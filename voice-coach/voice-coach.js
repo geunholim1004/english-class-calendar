@@ -7,6 +7,25 @@
 "use strict";
 const $=s=>document.querySelector(s);
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* ---- 언어: 달력과 같은 설정(eng-class-lang)을 씀 ---- */
+const LANGKEY="eng-class-lang";
+let lang="ko";try{lang=localStorage.getItem(LANGKEY)==="en"?"en":"ko"}catch(e){}
+const tr=(ko,en)=>lang==="en"?en:ko;
+const EN={h1:"Edward English Coach · AI Voice Coach",lockT:"Please log in",lockP:"The voice coach is for people logged in to the English class calendar. Log in first with your registered ID (master, edward1004, uihee…).",lockBtn:"Log in on the calendar",
+ pickT:"Choose your teacher",pickSub:"4 women · 4 men",changeT:"Change teacher",mTalk:"💬 Conversation",mWrite:"✍ Writing practice",hfBtn:"Auto",endBtn:"End call · report",
+ kbIn:"You can type in English instead of speaking",kbSend:"Send",moreSum:"Continue in the ChatGPT · Claude · Gemini apps, voice settings",linkBtn:"Link ChatGPT·Claude voice audio",pipBtn:"Pop out teacher (always on top)",
+ appIntro:"A button copies this teacher's coaching instructions for the current scenario and opens the app. Paste and send them, then press the app's voice button to practise out loud with this teacher.",
+ apClaude:"After sending, talk in Claude's voice mode",apClaudeB:"Practise with Claude",apGpt:"After sending, practise in ChatGPT voice",apGptB:"Practise with ChatGPT",apGemT:"Gemini · paid",apGem:"After sending, talk in Gemini Live",apGemB:"Practise with Gemini",
+ guide:"<li>Open Claude or ChatGPT with a button above (the instructions are copied). <b>Send</b> them in that tab first.</li><li>Then press the <b>voice mode</b> button (sound-wave icon) next to the input. <b>The microphone icon is dictation: it only types your words and does not answer out loud.</b> In voice mode the AI answers through your speakers.</li><li>Come back here, press <b>\"Link ChatGPT·Claude voice audio\"</b>, pick that tab and turn on <b>\"Also share tab audio\"</b>.</li><li>Press <b>\"Pop out teacher\"</b> to keep the teacher on top. Talk in that tab and the teacher's frame lights up while the AI speaks.</li>",
+ guideNote:"Works in desktop Chrome and Edge. With the Claude desktop app on Windows, choose \"Entire screen + share system audio\". Phone app audio can't be linked.",
+ voiceLbl:"Teacher's voice",voiceTest:"Listen",backCoach:"Back to Edward English Coach",promptSum:"Show the full coaching instructions",
+ photoT:"— change teacher photo",photoZoomL:"Zoom",photoHelp:"Adjust the zoom so the face is centred. Saving uploads it to the site repository and everyone sees the new photo.",photoSave:"Save this photo",photoCancel:"Cancel"};
+const KO={};
+function applyLang(){document.documentElement.lang=lang;document.title=lang==='en'?'AI Voice Coach · Edward English Coach':'AI 음성 코치 · Edward English Coach';
+ document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.dataset.i18n,at=el.dataset.i18nAttr;
+  if(!(k in KO))KO[k]=at?el.getAttribute(at):el.innerHTML;
+  const v=lang==='en'&&EN[k]!==undefined?EN[k]:KO[k];if(at)el.setAttribute(at,v);else el.innerHTML=v});
+ document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang))}
 const store={get(k,d){try{const v=localStorage.getItem('eec_'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('eec_'+k,JSON.stringify(v))}catch(e){}}};
 
 /* ---- 로그인 (app.js / coach.js 와 같은 규칙) ---- */
@@ -21,7 +40,7 @@ const loginId=()=>String((auth&&auth.login)||"master");
 const extraOf=()=>isSub()?COACH_EXTRA[loginId().toLowerCase()]:"";
 const isStudent=()=>isSub()&&(auth.kind==="student"||extraOf()==="student");
 const isTeacher=()=>isSub()&&!isStudent()&&extraOf()!=="edward";
-const whoLabel=()=>isMaster()?"마스터 · "+loginId():extraOf()==="edward"?"Edward · "+loginId():(isTeacher()?"선생님 · ":"학생 · ")+(auth.name||loginId());
+const whoLabel=()=>isMaster()?tr("마스터 · ","Master · ")+loginId():extraOf()==="edward"?"Edward · "+loginId():(isTeacher()?tr("선생님 · ","Teacher · "):tr("학생 · ","Student · "))+(auth.name||loginId());
 const b64dec=s=>decodeURIComponent(escape(atob(String(s).replace(/\n/g,""))));
 async function ghGetJSON(repo,path){
   const r=await fetch("https://api.github.com/repos/"+encodeURIComponent(auth.owner)+"/"+encodeURIComponent(repo)+"/contents/"+path+"?ref="+BRANCH+"&t="+Date.now(),{headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+auth.token},cache:"no-store"});
@@ -61,14 +80,15 @@ function myLimit(){
 async function loadLimits(){if(!isSub())return;try{LIM=await ghGetJSON(SHARE_REPO,"coach-limits.json")}catch(e){}renderQuota()}
 
 const TEACHERS=[
- {k:'emma',n:'Emma',g:'f',lang:'en-US',d:'미국 · 밝고 친절한 회화 코치',bg:'#ffd9c7',skin:'#f6d2b8',hair:'#d9b36a',hs:'long',shirt:'#1fb5a0',lip:'#d8636b',p:'Your name is Emma, a warm, upbeat American conversation coach. Lots of encouragement, natural everyday expressions.'},
- {k:'sophie',n:'Sophie',g:'f',lang:'en-GB',d:'영국 · 우아하고 정확한 발음 코치',bg:'#d6e6ff',skin:'#f8dcc8',hair:'#e6cf9a',hs:'long',shirt:'#9fc4e8',lip:'#c9505d',p:'Your name is Sophie, an elegant British coach from London. Precise, polished British English; you gently point out pronunciation and word choice.'},
- {k:'clara',n:'Clara',g:'f',lang:'en-CA',d:'캐나다 · 차분한 이메일·작문 코치',bg:'#f3e3d3',skin:'#f6d6c0',hair:'#5a3622',hs:'long',shirt:'#f4efe6',lip:'#c96a6a',p:'Your name is Clara, a calm, gentle Canadian coach. You help turn spoken ideas into clear, polite business emails and messages.'},
- {k:'luna',n:'Luna',g:'f',lang:'en-AU',d:'호주 · 밝은 억양·리듬 코치',bg:'#dbe9f7',skin:'#fbe3d6',hair:'#eef1f6',hs:'long',shirt:'#cfe0f0',lip:'#e07a7a',p:'Your name is Luna, a bright, cheerful Australian coach. You focus on rhythm, stress and intonation so the learner sounds natural.'},
- {k:'james',n:'James',g:'m',lang:'en-GB',d:'영국 · 반도체 업계 출신 비즈니스 코치',bg:'#d9efe6',skin:'#eec8a8',hair:'#4a3a2c',hs:'part',shirt:'#1f2430',tie:'#3b4a6b',lip:'#b55a50',p:'Your name is James, a confident British business coach who used to work in the semiconductor industry. You push for concise, professional phrasing for customer meetings.'},
- {k:'noah',n:'Noah',g:'m',lang:'en-CA',d:'캐나다 · 회의 진행·발표 코치',bg:'#e7e1d8',skin:'#f3d9c8',hair:'#111111',hs:'short',shirt:'#f4efe6',lip:'#b5655a',p:'Your name is Noah, a composed Canadian coach for presentations and meeting facilitation. You help structure answers: point, reason, example, next step.'},
- {k:'ryan',n:'Ryan',g:'m',lang:'en-US',d:'미국 · 편안한 엔지니어 출신 코치',bg:'#dfe5ee',skin:'#ecc8ac',hair:'#b8743a',hs:'part',shirt:'#1f2a3d',lip:'#a85548',p:'Your name is Ryan, a relaxed American former hardware engineer. Friendly, casual, good at explaining tech in simple words.'},
- {k:'leo',n:'Leo',g:'m',lang:'en-AU',d:'호주 · 여행·일상 회화 코치',bg:'#d8ecf5',skin:'#f6dccd',hair:'#e9edf2',hs:'short',shirt:'#f2f2ee',lip:'#c06a62',p:'Your name is Leo, an easygoing Australian coach. You keep things light with travel and everyday small talk, and you love useful idioms.'}];
+ {k:'emma',de:'USA · bright, friendly conversation coach',n:'Emma',g:'f',lang:'en-US',d:'미국 · 밝고 친절한 회화 코치',bg:'#ffd9c7',skin:'#f6d2b8',hair:'#d9b36a',hs:'long',shirt:'#1fb5a0',lip:'#d8636b',p:'Your name is Emma, a warm, upbeat American conversation coach. Lots of encouragement, natural everyday expressions.'},
+ {k:'sophie',de:'UK · elegant pronunciation coach',n:'Sophie',g:'f',lang:'en-GB',d:'영국 · 우아하고 정확한 발음 코치',bg:'#d6e6ff',skin:'#f8dcc8',hair:'#e6cf9a',hs:'long',shirt:'#9fc4e8',lip:'#c9505d',p:'Your name is Sophie, an elegant British coach from London. Precise, polished British English; you gently point out pronunciation and word choice.'},
+ {k:'clara',de:'Canada · calm email & writing coach',n:'Clara',g:'f',lang:'en-CA',d:'캐나다 · 차분한 이메일·작문 코치',bg:'#f3e3d3',skin:'#f6d6c0',hair:'#5a3622',hs:'long',shirt:'#f4efe6',lip:'#c96a6a',p:'Your name is Clara, a calm, gentle Canadian coach. You help turn spoken ideas into clear, polite business emails and messages.'},
+ {k:'luna',de:'Australia · accent & rhythm coach',n:'Luna',g:'f',lang:'en-AU',d:'호주 · 밝은 억양·리듬 코치',bg:'#dbe9f7',skin:'#fbe3d6',hair:'#eef1f6',hs:'long',shirt:'#cfe0f0',lip:'#e07a7a',p:'Your name is Luna, a bright, cheerful Australian coach. You focus on rhythm, stress and intonation so the learner sounds natural.'},
+ {k:'james',de:'UK · business coach from the chip industry',n:'James',g:'m',lang:'en-GB',d:'영국 · 반도체 업계 출신 비즈니스 코치',bg:'#d9efe6',skin:'#eec8a8',hair:'#4a3a2c',hs:'part',shirt:'#1f2430',tie:'#3b4a6b',lip:'#b55a50',p:'Your name is James, a confident British business coach who used to work in the semiconductor industry. You push for concise, professional phrasing for customer meetings.'},
+ {k:'noah',de:'Canada · meetings & presentations coach',n:'Noah',g:'m',lang:'en-CA',d:'캐나다 · 회의 진행·발표 코치',bg:'#e7e1d8',skin:'#f3d9c8',hair:'#111111',hs:'short',shirt:'#f4efe6',lip:'#b5655a',p:'Your name is Noah, a composed Canadian coach for presentations and meeting facilitation. You help structure answers: point, reason, example, next step.'},
+ {k:'ryan',de:'USA · relaxed ex-engineer coach',n:'Ryan',g:'m',lang:'en-US',d:'미국 · 편안한 엔지니어 출신 코치',bg:'#dfe5ee',skin:'#ecc8ac',hair:'#b8743a',hs:'part',shirt:'#1f2a3d',lip:'#a85548',p:'Your name is Ryan, a relaxed American former hardware engineer. Friendly, casual, good at explaining tech in simple words.'},
+ {k:'leo',de:'Australia · travel & small-talk coach',n:'Leo',g:'m',lang:'en-AU',d:'호주 · 여행·일상 회화 코치',bg:'#d8ecf5',skin:'#f6dccd',hair:'#e9edf2',hs:'short',shirt:'#f2f2ee',lip:'#c06a62',p:'Your name is Leo, an easygoing Australian coach. You keep things light with travel and everyday small talk, and you love useful idioms.'}];
+const TD=t=>lang==='en'?t.de:t.d;
 const TT=()=>TEACHERS.find(t=>t.k===teacherK)||TEACHERS[0];
 function avatar(t){const H={
  long:['M56 98Q52 38 100 40Q148 38 144 98L150 168Q100 182 50 168Z','M63 90Q64 50 100 50Q137 50 137 90Q124 64 98 66Q76 68 63 90Z'],
@@ -104,16 +124,16 @@ let talker=null;
 function renderTeacher(){const t=TT(),src=fresh[t.k]||repo[t.k],av=$('#orb');
  if(src&&window.TalkingFace){if(!talker||!talker.c.isConnected||av.dataset.k!==t.k||av.dataset.src!==src){av.dataset.src=src;av.innerHTML='<canvas aria-hidden="true"></canvas>';av.dataset.k=t.k;if(talker)talker.stop();talker=new TalkingFace(av.querySelector('canvas'));talker.load(t.k,src);talker.setMode($('#call').dataset.s||'idle')}}
  else{av.innerHTML=face(t);av.dataset.k='';if(talker){talker.stop();talker=null}}
- $('#chosen').innerHTML=face(t)+`<div><b>${esc(t.n)}</b><span>${esc(t.d)}</span></div>`;
- $('#tname').innerHTML=`${esc(t.n)}<span>${esc(t.d)}</span>`+(isMaster()?'<button class="photoBtn" id="photoBtn" type="button">사진 바꾸기 (마스터)</button>':'');
- $('#teachers').innerHTML=TEACHERS.map(x=>`<button class="tc" data-k="${x.k}" aria-pressed="${x.k===t.k}">${face(x)}<b>${x.n}</b><span>${x.d}</span></button>`).join('')}
+ $('#chosen').innerHTML=face(t)+`<div><b>${esc(t.n)}</b><span>${esc(TD(t))}</span></div>`;
+ $('#tname').innerHTML=`${esc(t.n)}<span>${esc(TD(t))}</span>`+(isMaster()?'<button class="photoBtn" id="photoBtn" type="button">'+tr('사진 바꾸기 (마스터)','Change photo (master)')+'</button>':'');
+ $('#teachers').innerHTML=TEACHERS.map(x=>`<button class="tc" data-k="${x.k}" aria-pressed="${x.k===t.k}">${face(x)}<b>${x.n}</b><span>${esc(TD(x))}</span></button>`).join('')}
 
 /* ---- 상황 · 코치 지침 ---- */
 const SCENES=[
- {k:'free',n:'자유 회화',d:'일상 이야기로 몸풀기',q:["How was your week?","What did you do last weekend?","What are you looking forward to this month?","Tell me about a small win you had recently."]},
- {k:'cust',n:'고객 미팅',d:'LPDDR5X 이슈 대응 통화',q:["The customer saw a failure at high temperature. How would you open the call?","How would you explain the root-cause analysis timeline?","The customer wants a workaround this week. What do you say?","How do you close the meeting with clear next steps?"]},
- {k:'jedec',n:'JEDEC 표준 설명',d:'기술을 쉽게 말하기',q:["Can you explain what JEDEC does in one or two sentences?","How is LPDDR5X different from LPDDR5?","Why do automotive customers care about AEC-Q100?","How would you explain refresh to a non-engineer?"]},
- {k:'class',n:'Daniel 수업 예습',d:'일요일 수업 전 준비',q:["What topic do you want to cover with Daniel this Sunday?","Describe your job to someone you just met.","What is the hardest part of speaking English at work?","Tell me about a recent email you had to answer in English."]}];
+ {k:'free',ne:"Free talk",de:'Warm up with everyday topics',n:'자유 회화',d:'일상 이야기로 몸풀기',q:["How was your week?","What did you do last weekend?","What are you looking forward to this month?","Tell me about a small win you had recently."]},
+ {k:'cust',ne:"Customer meeting",de:'LPDDR5X issue call',n:'고객 미팅',d:'LPDDR5X 이슈 대응 통화',q:["The customer saw a failure at high temperature. How would you open the call?","How would you explain the root-cause analysis timeline?","The customer wants a workaround this week. What do you say?","How do you close the meeting with clear next steps?"]},
+ {k:'jedec',ne:"Explain JEDEC",de:'Say tech simply',n:'JEDEC 표준 설명',d:'기술을 쉽게 말하기',q:["Can you explain what JEDEC does in one or two sentences?","How is LPDDR5X different from LPDDR5?","Why do automotive customers care about AEC-Q100?","How would you explain refresh to a non-engineer?"]},
+ {k:'class',ne:"Prep for Daniel's class",de:'Get ready for Sunday',n:'Daniel 수업 예습',d:'일요일 수업 전 준비',q:["What topic do you want to cover with Daniel this Sunday?","Describe your job to someone you just met.","What is the hardest part of speaking English at work?","Tell me about a recent email you had to answer in English."]}];
 const COACH=`You are "Edward English Coach", a friendly spoken-English coach for a Korean semiconductor technical-marketing professional (memory and automotive chips, China market).
 Rules:
 - Keep each reply short (2-4 sentences) so it works as spoken conversation.
@@ -123,19 +143,20 @@ Rules:
 - Be honest about mistakes, but encouraging.
 - When the learner says "end session", give a short report: what went well, top 3 corrections, one phrase to practise.`;
 const JSONRULE=`\nReturn ONLY JSON: {"reply":"spoken English reply incl. follow-up question","better":"more natural version of the learner's sentence, or empty","tip_ko":"one short Korean tip, or empty"}`;
-const RULES=[[/\bdiscuss about\b/gi,'discuss','discuss 뒤에는 about을 쓰지 않아요.'],[/\bI am agree\b/gi,'I agree','agree는 동사라 am 없이 씁니다.'],[/\bexplain me\b/gi,'explain to me','explain은 "to + 사람"을 씁니다.'],[/\bmore better\b/gi,'better','better 자체가 비교급이에요.'],[/\bcan able to\b/gi,'can','can과 be able to 중 하나만 씁니다.'],[/\bquestion to you\b/gi,'question for you','질문은 "for you"가 자연스러워요.'],[/\bdepend of\b/gi,'depend on','depend는 on과 함께 씁니다.'],[/\bcontact to\b/gi,'contact','contact 뒤에는 바로 사람이 옵니다.'],[/\bsend me the mail\b/gi,'send me an email','업무 메일은 an email이 자연스러워요.'],[/\bhow do you think\b/gi,'what do you think','의견은 what do you think로 묻습니다.'],[/\bi\b/g,'I','나를 뜻하는 I는 항상 대문자예요.']];
+const RULES=[[/\bdiscuss about\b/gi,'discuss','discuss 뒤에는 about을 쓰지 않아요.','No "about" after "discuss".'],[/\bI am agree\b/gi,'I agree','agree는 동사라 am 없이 씁니다.','"Agree" is a verb, so no "am".'],[/\bexplain me\b/gi,'explain to me','explain은 "to + 사람"을 씁니다.','Use "explain to + person".'],[/\bmore better\b/gi,'better','better 자체가 비교급이에요.','"Better" is already comparative.'],[/\bcan able to\b/gi,'can','can과 be able to 중 하나만 씁니다.','Use either "can" or "be able to", not both.'],[/\bquestion to you\b/gi,'question for you','질문은 "for you"가 자연스러워요.','Say "a question for you".'],[/\bdepend of\b/gi,'depend on','depend는 on과 함께 씁니다.','"Depend" goes with "on".'],[/\bcontact to\b/gi,'contact','contact 뒤에는 바로 사람이 옵니다.','"Contact" takes the person directly.'],[/\bsend me the mail\b/gi,'send me an email','업무 메일은 an email이 자연스러워요.','Say "an email" for work mail.'],[/\bhow do you think\b/gi,'what do you think','의견은 what do you think로 묻습니다.','Ask opinions with "What do you think".'],[/\bi\b/g,'I','나를 뜻하는 I는 항상 대문자예요.','"I" is always capitalised.']];
 
-let teacherK=(()=>{const q=new URLSearchParams(location.search).get('t');if(q&&/^[a-z]+$/.test(q)){store.set('teacher',q);return q}return store.get('teacher','sophie')})(),sceneK='cust',hist=[],qi=0,rec=null,listening=false,micBlocked=false,t0=0,tick=null,rate=1;
+let teacherK=(()=>{const q=new URLSearchParams(location.search).get('t');if(q&&/^[a-z]+$/.test(q)){store.set('teacher',q);return q}return store.get('teacher','emma')})(),sceneK='cust',hist=[],qi=0,rec=null,listening=false,micBlocked=false,t0=0,tick=null,rate=1;
 const RATES=[0.85,1,1.15];
 const scene=()=>SCENES.find(s=>s.k===sceneK);
+const SN=s=>lang==='en'?s.ne:s.n,SD=s=>lang==='en'?s.de:s.d;
 const nextQ=()=>{const q=scene().q;return q[qi++%q.length]};
-const STATES={idle:'대기 중 · 선생님 얼굴이나 ▶ 단추를 누르면 실시간 대화 시작',listen:'듣는 중 · 말을 마치면 잠시 멈추세요',think:'선생님이 생각하는 중',speak:'선생님이 말하는 중'};
-function setS(s){$('#call').dataset.s=s;$('#stateTx').textContent=STATES[s];if(talker)talker.setMode(s)}
+const STATES_KO={idle:'대기 중 · 선생님 얼굴이나 ▶ 단추를 누르면 실시간 대화 시작',listen:'듣는 중 · 말을 마치면 잠시 멈추세요',think:'선생님이 생각하는 중',speak:'선생님이 말하는 중'},STATES_EN={idle:'Ready · tap the teacher or ▶ to start a live conversation',listen:'Listening · pause when you finish',think:'Teacher is thinking',speak:'Teacher is speaking'};
+function setS(s){$('#call').dataset.s=s;$('#stateTx').textContent=(lang==='en'?STATES_EN:STATES_KO)[s];if(talker)talker.setMode(s)}
 function cap(who,t){$('#cap').innerHTML=`<small>${esc(who)}</small>${esc(t)}`}
 function note(t){$('#note').textContent=t;$('#note').style.display=t?'block':'none'}
 function renderWho(){$('#who').textContent=whoLabel();renderQuota()}
-function renderQuota(){const l=myLimit(),n=usedToday();$('#quota').innerHTML=`<b>${esc(whoLabel())}</b><br>`+(l===Infinity?`오늘 AI 사용 ${n}회 · 무제한`:`오늘 AI 사용 ${n} / ${l}회<div class="bar"><i style="width:${Math.min(100,n/l*100)}%"></i></div>`)}
-function renderScenes(){$('#scenes').innerHTML=SCENES.map(s=>`<button class="sc" data-k="${s.k}" aria-pressed="${s.k===sceneK}"><b>${s.n}</b><span>${s.d}</span></button>`).join('')}
+function renderQuota(){const l=myLimit(),n=usedToday();$('#quota').innerHTML=`<b>${esc(whoLabel())}</b><br>`+(l===Infinity?tr(`오늘 AI 사용 ${n}회 · 무제한`,`AI today ${n} · unlimited`):tr(`오늘 AI 사용 ${n} / ${l}회`,`AI today ${n} / ${l}`)+`<div class="bar"><i style="width:${Math.min(100,n/l*100)}%"></i></div>`)}
+function renderScenes(){$('#scenes').innerHTML=SCENES.map(s=>`<button class="sc" data-k="${s.k}" aria-pressed="${s.k===sceneK}"><b>${SN(s)}</b><span>${SD(s)}</span></button>`).join('')}
 function renderTx(){const tx=$('#tx');tx.innerHTML=hist.map(m=>`<p class="${m.role==='user'?'me':'t'}${m.partial?' partial':''}"><b>${m.role==='user'?esc(loginId()):esc(TT().n)}</b>${esc(m.text)}</p>`).join('');tx.scrollTop=tx.scrollHeight}
 function showFix(m){const box=$('#fixes');if(!m.better&&!m.tip){box.innerHTML='';return}
  const last=[...hist].reverse().find(h=>h.role==='user');
@@ -152,12 +173,12 @@ function pickVoice(t){const saved=store.get('voice_'+t.k,'');let all=[];try{all=
  if(saved){const v=all.find(v=>v.name===saved);if(v&&genderOf(v)!==(t.g==='f'?'m':'f'))return v}
  const vs=enVoices('en');return vs.sort((a,b)=>score(b,t)-score(a,t))[0]}
 function voiceCheck(){const en=enVoices('en'),nat=en.filter(v=>NAT.test(v.name)),w=$('#voiceWarn');
- if(!en.length)w.innerHTML='<b>이 기기에 영어 음성이 없어요.</b> 그래서 한국어 음성이 영어를 읽어 어색하게 들립니다. <b>Microsoft Edge</b>로 열면 원어민 수준의 자연스러운 음성을 무료로 쓸 수 있어요.';
- else if(!nat.length)w.innerHTML='기본(로봇) 영어 음성뿐이에요. <b>Microsoft Edge</b>에서 열면 훨씬 자연스러운 "Natural" 음성을 쓸 수 있어요.';
+ if(!en.length)w.innerHTML=tr('<b>이 기기에 영어 음성이 없어요.</b> 그래서 한국어 음성이 영어를 읽어 어색하게 들립니다. <b>Microsoft Edge</b>로 열면 원어민 수준의 자연스러운 음성을 무료로 쓸 수 있어요.','<b>No English voice on this device</b>, so English is read with a Korean voice. Open in <b>Microsoft Edge</b> for free, natural native voices.');
+ else if(!nat.length)w.innerHTML=tr('기본(로봇) 영어 음성뿐이에요. <b>Microsoft Edge</b>에서 열면 훨씬 자연스러운 "Natural" 음성을 쓸 수 있어요.','Only basic (robotic) English voices here. <b>Microsoft Edge</b> has much more natural "Natural" voices.');
  else w.innerHTML='';w.style.display=w.innerHTML?'block':'none';renderVoiceSel()}
 function renderVoiceSel(){const sel=$('#voiceSel'),t=TT(),en=enVoices('en').sort((a,b)=>score(b,t)-score(a,t)),cur=pickVoice(t);
- sel.innerHTML=en.length?en.map(v=>{const g=genderOf(v);return `<option value="${esc(v.name)}" ${cur&&v.name===cur.name?'selected':''}>${g==='f'?'여자 · ':g==='m'?'남자 · ':''}${esc(v.name)}</option>`}).join(''):'<option>영어 음성 없음</option>';
- const ok=en.some(v=>genderOf(v)===t.g);$('#voiceHint').textContent=ok?'':(t.g==='f'?'이 기기에 여자 영어 음성이 없어 다른 목소리로 읽어요. Edge에서 열면 여자 음성(Aria, Jenny, Sonia 등)을 쓸 수 있어요.':'이 기기에 남자 영어 음성이 없어 다른 목소리로 읽어요. Edge에서 열면 남자 음성(Guy, Davis, Ryan 등)을 쓸 수 있어요.')}
+ sel.innerHTML=en.length?en.map(v=>{const g=genderOf(v);return `<option value="${esc(v.name)}" ${cur&&v.name===cur.name?'selected':''}>${g==='f'?tr('여자 · ','Female · '):g==='m'?tr('남자 · ','Male · '):''}${esc(v.name)}</option>`}).join(''):'<option>'+tr('영어 음성 없음','No English voice')+'</option>';
+ const ok=en.some(v=>genderOf(v)===t.g);$('#voiceHint').textContent=ok?'':(t.g==='f'?tr('이 기기에 여자 영어 음성이 없어 다른 목소리로 읽어요. Edge에서 열면 여자 음성(Aria, Jenny, Sonia 등)을 쓸 수 있어요.','No female English voice here, so another voice is used. Edge has female voices (Aria, Jenny, Sonia…).'):tr('이 기기에 남자 영어 음성이 없어 다른 목소리로 읽어요. Edge에서 열면 남자 음성(Guy, Davis, Ryan 등)을 쓸 수 있어요.','No male English voice here, so another voice is used. Edge has male voices (Guy, Davis, Ryan…).'))}
 let fakeT=null;
 function fakeSpeak(t,after){clearTimeout(fakeT);setS('speak');fakeT=setTimeout(()=>{setS('idle');after&&after()},Math.min(9000,600+String(t).split(/\s+/).length*330))}
 function speak(t,after){let started=false;clearTimeout(fakeT);const guard=setTimeout(()=>{if(!started)fakeSpeak(t,null)},900);try{speechSynthesis.cancel();const T=TT(),u=new SpeechSynthesisUtterance(t);u.lang=T.lang;u.rate=rate;u.pitch=T.g==='f'?1.12:0.88;
@@ -167,25 +188,25 @@ function startTimer(){if(tick)return;t0=Date.now();tick=setInterval(()=>{const s
 
 /* ---- AI 답변: Gemini → Groq → OpenRouter → 오프라인 채점 ---- */
 function offline(text){let f=text.trim(),tips=[];
- for(const[r,to,tip]of RULES){if(r.test(f)){f=f.replace(r,to);tips.push(tip)}r.lastIndex=0}
+ for(const[r,to,tip,tipEn]of RULES){if(r.test(f)){f=f.replace(r,to);tips.push(tr(tip,tipEn))}r.lastIndex=0}
  f=f.charAt(0).toUpperCase()+f.slice(1);if(!/[.!?]$/.test(f))f+='.';const ch=tips.length>0;
  return{reply:(ch?'Good try! ':'Nice, that sounds natural. ')+nextQ(),better:ch?f:'',tip_ko:tips.join(' ')}}
 function parse(t){try{const j=JSON.parse(String(t).slice(t.indexOf('{'),t.lastIndexOf('}')+1));if(j.reply)return j}catch(e){}return{reply:String(t),better:'',tip_ko:''}}
 async function post(url,headers,body){const c=new AbortController(),tm=setTimeout(()=>c.abort(),20000);
  try{const r=await fetch(url,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},headers),body:JSON.stringify(body),signal:c.signal});if(!r.ok)throw new Error(r.status);return await r.json()}finally{clearTimeout(tm)}}
 const msgs=sys=>[{role:'system',content:sys}].concat(hist.slice(-12).map(m=>({role:m.role==='user'?'user':'assistant',content:m.text})));
-async function ask(){const sys=COACH+'\n'+TT().p+`\nCurrent scenario: ${scene().n} — ${scene().d}.`+JSONRULE,k=secret;
+async function ask(){const sys=COACH+'\n'+TT().p+`\nCurrent scenario: ${scene().ne} — ${scene().de}.`+JSONRULE,k=secret;
  const chain=[
   ['Gemini',k.geminiKey,async()=>{const m=model('gemini',k.geminiModel,'gemini-2.5-flash').replace(/^models\//,'');const d=await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(k.geminiKey)}`,{},{systemInstruction:{parts:[{text:sys}]},contents:hist.slice(-12).map(x=>({role:x.role==='user'?'user':'model',parts:[{text:x.text}]})),generationConfig:{responseMimeType:'application/json'}});return d.candidates[0].content.parts[0].text}],
   ['Groq',k.groqKey,async()=>(await post('https://api.groq.com/openai/v1/chat/completions',{Authorization:'Bearer '+k.groqKey},{model:model('groq',k.groqModel,'llama-3.3-70b-versatile'),messages:msgs(sys),temperature:.7})).choices[0].message.content],
   ['OpenRouter',k.orKey,async()=>(await post('https://openrouter.ai/api/v1/chat/completions',{Authorization:'Bearer '+k.orKey},{model:model('openrouter',k.orModel,'meta-llama/llama-3.3-70b-instruct:free'),messages:msgs(sys),temperature:.7})).choices[0].message.content]];
  for(const[name,key,fn]of chain){if(!key)continue;try{const r=parse(await fn());return Object.assign(r,{by:name,ai:true})}catch(e){}}
- return Object.assign(offline(hist[hist.length-1].text),{by:'오프라인 채점',ai:false})}
+ return Object.assign(offline(hist[hist.length-1].text),{by:tr('오프라인 채점','offline check'),ai:false})}
 async function send(text){text=String(text||'').trim();if(!text)return;
  const l=myLimit(),hasAI=!!(secret.geminiKey||secret.groqKey||secret.orKey);
- if(hasAI&&usedToday()>=l){note(`오늘 AI 사용 한도(${l}회)를 다 썼어요. 오프라인 채점으로 계속하거나, 마스터에게 "AI 한도 설정"에서 늘려 달라고 하세요.`)}
+ if(hasAI&&usedToday()>=l){note(tr(`오늘 AI 사용 한도(${l}회)를 다 썼어요. 오프라인 채점으로 계속하거나, 마스터에게 "AI 한도 설정"에서 늘려 달라고 하세요.`,`You've used today's AI limit (${l}). Continue with the offline check, or ask the master to raise it.`))}
  startTimer();hist.push({role:'user',text});cap(loginId(),text);renderTx();setS('think');
- let r;if(hasAI&&usedToday()<l){r=await ask();if(r.ai){countUse();renderQuota()}}else r=Object.assign(offline(text),{by:'오프라인 채점'});
+ let r;if(hasAI&&usedToday()<l){r=await ask();if(r.ai){countUse();renderQuota()}}else r=Object.assign(offline(text),{by:tr('오프라인 채점','offline check')});
  hist.push({role:'coach',text:r.reply,better:r.better,tip:r.tip_ko,by:r.by});renderTx();
  cap(TT().n+' · '+r.by,r.reply);showFix(r);
  speak(r.reply,()=>{if($('#hfBtn').getAttribute('aria-pressed')==='true'&&!micBlocked&&tick)listen()})}
@@ -193,34 +214,34 @@ async function send(text){text=String(text||'').trim();if(!text)return;
 /* ---- 음성 인식 ---- */
 function openKb(msg){if(msg)note(msg);$('#kb').classList.add('on');$('#kbBtn').setAttribute('aria-pressed','true');$('#kbIn').focus()}
 function listen(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!SR||micBlocked){openKb('이 브라우저는 음성 인식을 지원하지 않아요. 크롬이나 엣지에서 열거나 자판으로 입력하세요.');return}
+ if(!SR||micBlocked){openKb(tr('이 브라우저는 음성 인식을 지원하지 않아요. 크롬이나 엣지에서 열거나 자판으로 입력하세요.','This browser has no speech recognition. Use Chrome or Edge, or type instead.'));return}
  if(listening){rec&&rec.stop();return}
  try{speechSynthesis.cancel()}catch(e){}rec=new SR();rec.lang='en-US';rec.interimResults=true;let fin='';
  rec.onstart=()=>{listening=true;setS('listen');note('')};
  rec.onresult=e=>{let s='';for(const r of e.results){s+=r[0].transcript;if(r.isFinal)fin=s}cap(loginId(),s)};
- rec.onerror=e=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(e.error)){micBlocked=true;openKb('마이크가 막혀 있어요. 주소창 왼쪽의 자물쇠 아이콘에서 마이크를 허용한 뒤 새로고침하세요. 지금은 자판으로 연습할 수 있어요.')}};
+ rec.onerror=e=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(e.error)){micBlocked=true;openKb(tr('마이크가 막혀 있어요. 주소창 왼쪽의 자물쇠 아이콘에서 마이크를 허용한 뒤 새로고침하세요. 지금은 자판으로 연습할 수 있어요.','The microphone is blocked. Allow it from the lock icon in the address bar and reload. You can type meanwhile.'))}};
  rec.onend=()=>{listening=false;if($('#call').dataset.s==='listen')setS('idle');if(fin)send(fin)};
- try{rec.start()}catch(e){openKb('마이크를 시작하지 못했어요. 자판으로 입력하세요.')}}
+ try{rec.start()}catch(e){openKb(tr('마이크를 시작하지 못했어요. 자판으로 입력하세요.','Could not start the microphone. Please type instead.'))}}
 
-function greet(){if(live)live.stop();hist=[];qi=0;$('#fixes').innerHTML='';const g=`Hi ${loginId()}, I'm ${TT().n}! Today: ${scene().n}. ${nextQ()}`;hist.push({role:'coach',text:g,by:'코치'});cap(TT().n,g);renderTx();setS('idle');$('#appTeacher').textContent=TT().n;$('#promptBox').value=appPrompt()}
+function greet(){if(live)live.stop();hist=[];qi=0;$('#fixes').innerHTML='';const g=`Hi ${loginId()}, I'm ${TT().n}! Today: ${scene().ne}. ${nextQ()}`;hist.push({role:'coach',text:g,by:'coach'});cap(TT().n,g);renderTx();setS('idle');$('#appTeacher').textContent=TT().n;$('#promptBox').value=appPrompt()}
 function report(){const me=hist.filter(m=>m.role==='user'),fx=hist.filter(m=>m.role==='coach'&&(m.better||m.tip));
  const words=me.reduce((a,m)=>a+m.text.split(/\s+/).filter(Boolean).length,0),dur=$('#timer').textContent,r=$('#report');r.classList.add('on');
- r.innerHTML=`<h3>오늘 연습 리포트 · ${esc(TT().n)} · ${esc(scene().n)}</h3>
- <div class="stats"><div><b>${me.length}</b><span>말한 문장</span></div><div><b>${words}</b><span>말한 단어</span></div><div><b>${esc(dur)}</b><span>연습 시간</span></div></div>
- ${fx.length?`<ul class="rl">${fx.map(m=>`<li>${m.better?`<b>${esc(m.better)}</b><br>`:''}<span class="small">${esc(m.tip||'')}</span></li>`).join('')}</ul>`:'<p class="small">고칠 문장이 없었어요. 다음엔 더 긴 문장으로 도전해 보세요.</p>'}
- <div class="row"><button class="btn pri" id="again">같은 상황 다시</button><button class="btn" id="copyRep">리포트 복사 (Daniel에게 공유)</button></div>`;
+ r.innerHTML=`<h3>${tr('오늘 연습 리포트','Today\'s practice report')} · ${esc(TT().n)} · ${esc(SN(scene()))}</h3>
+ <div class="stats"><div><b>${me.length}</b><span>${tr('말한 문장','sentences')}</span></div><div><b>${words}</b><span>${tr('말한 단어','words')}</span></div><div><b>${esc(dur)}</b><span>${tr('연습 시간','time')}</span></div></div>
+ ${fx.length?`<ul class="rl">${fx.map(m=>`<li>${m.better?`<b>${esc(m.better)}</b><br>`:''}<span class="small">${esc(m.tip||'')}</span></li>`).join('')}</ul>`:'<p class="small">'+tr('고칠 문장이 없었어요. 다음엔 더 긴 문장으로 도전해 보세요.','Nothing to fix. Try longer sentences next time.')+'</p>'}
+ <div class="row"><button class="btn pri" id="again">${tr('같은 상황 다시','Same scenario again')}</button><button class="btn" id="copyRep">${tr('리포트 복사 (Daniel에게 공유)','Copy report (for Daniel)')}</button></div>`;
  $('#again').addEventListener('click',()=>{r.classList.remove('on');greet()});
- $('#copyRep').addEventListener('click',async e=>{const t=`[${loginId()}] ${TT().n} · ${scene().n} · ${dur} · ${me.length}문장\n`+fx.map(m=>'- '+(m.better||'')+' '+(m.tip||'')).join('\n');try{await navigator.clipboard.writeText(t);e.target.textContent='복사했어요'}catch(x){e.target.textContent='복사가 막혀 있어요'}});
+ $('#copyRep').addEventListener('click',async e=>{const t=`[${loginId()}] ${TT().n} · ${scene().n} · ${dur} · ${me.length}문장\n`+fx.map(m=>'- '+(m.better||'')+' '+(m.tip||'')).join('\n');try{await navigator.clipboard.writeText(t);e.target.textContent=tr('복사했어요','Copied')}catch(x){e.target.textContent=tr('복사가 막혀 있어요','Copy blocked')}});
  r.scrollIntoView({behavior:'smooth',block:'start'})}
 
 /* ---- 유료 구독 앱 음성 모드로 넘기기 ---- */
 function appPrompt(){const t=TT(),s=scene();
- return COACH+'\n'+t.p+`\nSpeak with a natural ${t.lang==='en-GB'?'British':t.lang==='en-AU'?'Australian':t.lang==='en-CA'?'Canadian':'American'} accent.\nToday's practice scenario: ${s.n} (${s.d}). Start by greeting me as ${t.n} and asking the first question. We will talk in voice mode, so keep every turn short.`}
+ return COACH+'\n'+t.p+`\nSpeak with a natural ${t.lang==='en-GB'?'British':t.lang==='en-AU'?'Australian':t.lang==='en-CA'?'Canadian':'American'} accent.\nToday's practice scenario: ${s.ne} (${s.de}). Start by greeting me as ${t.n} and asking the first question. We will talk in voice mode, so keep every turn short.`}
 const APPS={claude:{n:'Claude',url:q=>'https://claude.ai/new?q='+encodeURIComponent(q)},chatgpt:{n:'ChatGPT',url:q=>'https://chatgpt.com/?q='+encodeURIComponent(q)},gemini:{n:'Gemini',url:()=>'https://gemini.google.com/app'}};
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-app]');if(!b)return;const a=APPS[b.dataset.app],p=appPrompt();let copied=false;
  try{await navigator.clipboard.writeText(p);copied=true}catch(x){}
  window.open(a.url(p),'_blank','noopener');
- $('#appMsg').textContent=`${a.n}을(를) 열었어요. ${copied?'코치 지침이 복사돼 있으니, 입력칸이 비어 있으면 붙여 넣어 보내세요.':'복사가 막혀서 아래 "코치 지침 전문"에서 직접 복사하세요.'} 보낸 뒤 앱의 음성 대화 단추를 누르면 ${TT().n} 선생님처럼 말로 연습할 수 있어요. 앱 목소리는 앱의 음성 설정에서 ${TT().g==='f'?'여자':'남자'} 목소리로 골라 두세요.`});
+ $('#appMsg').textContent=lang==='en'?`Opened ${a.n}. ${copied?'The instructions are copied — paste and send them if the box is empty.':'Copy was blocked — copy them from "Show the full coaching instructions" below.'} Then press the app's voice button to practise with ${TT().n}. Pick a ${TT().g==='f'?'female':'male'} voice in the app's voice settings.`:`${a.n}을(를) 열었어요. ${copied?'코치 지침이 복사돼 있으니, 입력칸이 비어 있으면 붙여 넣어 보내세요.':'복사가 막혀서 아래 "코치 지침 전문"에서 직접 복사하세요.'} 보낸 뒤 앱의 음성 대화 단추를 누르면 ${TT().n} 선생님처럼 말로 연습할 수 있어요. 앱 목소리는 앱의 음성 설정에서 ${TT().g==='f'?'여자':'남자'} 목소리로 골라 두세요.`});
 
 /* ---- 화상 모드: ChatGPT·Claude 음성 탭 소리 → 사진 입 움직임, 항상 위 선생님 창 ---- */
 let unlink=null,linkedState='';
@@ -260,39 +281,40 @@ async function savePhoto(){if(!pending)return;const t=TT(),st=$('#photoSt'),big=
 
 /* ---- 실시간 음성 대화 (Gemini Live): 이 화면 안에서 말하고 듣기 + 글자 기록 ---- */
 let live=null;
+const liveLabel=()=>live?tr('■ 대화 끝내기','■ End conversation'):tr('▶ 실시간 음성 대화 시작','▶ Start live conversation');
 function liveSystem(){const t=TT(),s=scene(),acc=t.lang==='en-GB'?'British':t.lang==='en-AU'?'Australian':t.lang==='en-CA'?'Canadian':'American';
- return COACH+'\n'+t.p+`\nThis is a live VOICE call. Speak with a natural ${acc} accent. The learner's name is ${loginId()}. Today's scenario: ${s.n} (${s.d}).\nKeep every turn to 1-3 short sentences. When the learner makes a mistake, say "A more natural way is: ..." with the better sentence, then continue the conversation. Only use a few Korean words if the learner is clearly stuck.`}
+ return COACH+'\n'+t.p+`\nThis is a live VOICE call. Speak with a natural ${acc} accent. The learner's name is ${loginId()}. Today's scenario: ${s.ne} (${s.de}).\nKeep every turn to 1-3 short sentences. When the learner makes a mistake, say "A more natural way is: ..." with the better sentence, then continue the conversation. Only use a few Korean words if the learner is clearly stuck.`}
 function liveMsg(role,text,final){const last=hist[hist.length-1];
  if(last&&last.role===role&&last.partial){last.text=text;last.partial=!final}else hist.push({role,text,partial:!final,by:'Gemini Live'});
  renderTx();if(role!=='user')cap(TT().n+' · Gemini Live',text);else cap(loginId(),text)}
 async function toggleLive(){const b=$('#liveBtn');
  if(live){live.stop();return}
  const key=secret.geminiKey;
- if(!key){note('실시간 대화는 Gemini 키가 필요해요. 마스터는 Edward English Coach → 설정에서 Gemini 키를 넣고 학생과 공유해 주세요.');return}
- const l=myLimit();if(usedToday()>=l){note(`오늘 AI 사용 한도(${l}회)를 다 썼어요.`);return}
+ if(!key){note(tr('실시간 대화는 Gemini 키가 필요해요. 마스터는 Edward English Coach → 설정에서 Gemini 키를 넣고 학생과 공유해 주세요.','Live conversation needs a Gemini key. The master can add it in Writing practice → 설정 and share it with students.'));return}
+ const l=myLimit();if(usedToday()>=l){note(tr(`오늘 AI 사용 한도(${l}회)를 다 썼어요.`,`You've used today's AI limit (${l}).`));return}
  try{speechSynthesis.cancel()}catch(e){}
- b.disabled=true;b.textContent='연결 중…';note('');startTimer();
+ b.disabled=true;b.textContent=tr('연결 중…','Connecting…');note('');startTimer();
  try{
   live=await LiveCoach.start({key,system:liveSystem(),gender:TT().g,voiceIndex:TEACHERS.filter(x=>x.g===TT().g).findIndex(x=>x.k===TT().k),
-   onModel:m=>{$('#linkState').textContent='실시간 연결됨 · '+m},
+   onModel:m=>{$('#linkState').textContent=tr('실시간 연결됨 · ','Live · ')+m},
    onUser:(t,f)=>liveMsg('user',t,f),onTeacher:(t,f)=>liveMsg('coach',t,f),
-   onLevel:fn=>{if(talker){let hold=0;talker.setLevelSource(fn,lv=>{if(lv>0.05)hold=performance.now();const s=performance.now()-hold<350?'speak':'listen';if($('#call').dataset.s!==s){$('#call').dataset.s=s;$('#stateTx').textContent=s==='speak'?TT().n+' 선생님이 말하는 중':'듣는 중 · 편하게 말하세요 (말을 끊어도 돼요)'}})}},
+   onLevel:fn=>{if(talker){let hold=0;talker.setLevelSource(fn,lv=>{if(lv>0.05)hold=performance.now();const s=performance.now()-hold<350?'speak':'listen';if($('#call').dataset.s!==s){$('#call').dataset.s=s;$('#stateTx').textContent=s==='speak'?tr(TT().n+' 선생님이 말하는 중',TT().n+' is speaking'):tr('듣는 중 · 편하게 말하세요 (말을 끊어도 돼요)','Listening · speak freely (you can interrupt)')}})}},
    onError:msg=>note(msg),
-   onEnd:()=>{live=null;if(talker)talker.setLevelSource(null);b.setAttribute('aria-pressed','false');b.textContent='▶ 실시간 음성 대화 시작';setS('idle');$('#linkState').textContent='실시간 대화를 끝냈어요.'}});
+   onEnd:()=>{live=null;if(talker)talker.setLevelSource(null);b.setAttribute('aria-pressed','false');b.textContent=liveLabel();setS('idle');$('#linkState').textContent=tr('실시간 대화를 끝냈어요.','Live conversation ended.')}});
   countUse();renderQuota();
-  b.setAttribute('aria-pressed','true');b.textContent='■ 대화 끝내기';$('#voiceWarn').style.display='none';
+  b.setAttribute('aria-pressed','true');b.textContent=tr('■ 대화 끝내기','■ End conversation');$('#voiceWarn').style.display='none';
   $('#tx').classList.add('on');$('#txBtn').setAttribute('aria-pressed','true');$('#hfBtn').setAttribute('aria-pressed','false');
   if(hist.length===1&&hist[0].role==='coach')hist=[];renderTx();setS('listen');
  }catch(e){live=null;const m=String(e&&e.message||'');
-  note(m==='mic'?'마이크를 쓸 수 없어요. 주소창 왼쪽 자물쇠에서 마이크를 허용한 뒤 다시 누르세요.':'Gemini 실시간 음성에 연결하지 못했어요 ('+m+'). Gemini 키가 맞는지, 무료 한도가 남았는지 확인하세요. 아래 "자판"으로는 계속 연습할 수 있어요.');
-  b.textContent='▶ 실시간 음성 대화 시작'}
+  note(m==='mic'?tr('마이크를 쓸 수 없어요. 주소창 왼쪽 자물쇠에서 마이크를 허용한 뒤 다시 누르세요.','Microphone not available. Allow it from the lock icon in the address bar and try again.'):tr('Gemini 실시간 음성에 연결하지 못했어요 ('+m+'). Gemini 키가 맞는지, 무료 한도가 남았는지 확인하세요. 입력칸으로는 계속 연습할 수 있어요.','Could not connect to Gemini Live ('+m+'). Check the Gemini key and its free quota. You can keep practising by typing.'));
+  b.textContent=liveLabel()}
  finally{b.disabled=false}}
 
 /* ---- 화면 단계: 선생님 고르기 ↔ 한 선생님과 대화 ---- */
 const COACH_URL=window.__COACH_URL||'../coach.html?embed=1';
 function setMode(m){const w=m==='write';$('#mTalk').setAttribute('aria-selected',!w);$('#mWrite').setAttribute('aria-selected',w);
  $('#talkBox').hidden=w;$('#writePane').hidden=!w;$('#session').classList.toggle('writing',w);
- $('#chatHint').textContent=w?`채점하면 ${TT().n} 선생님이 결과를 말해 줘요`:'말한 내용이 글자로 남아요';
+ $('#chatHint').textContent=w?tr(`채점하면 ${TT().n} 선생님이 결과를 말해 줘요`,`${TT().n} reacts when you check an answer`):tr('말한 내용이 글자로 남아요','What you say is kept as text');
  if(w){const f=$('#coachFrame');if(!f.src)f.src=COACH_URL}
  store.set('mode',m)}
 /* 글쓰기 훈련(코치) → 선생님 반응: 실시간 대화 중이면 Gemini가 자연스럽게, 아니면 선생님 목소리로 읽기 */
@@ -310,8 +332,13 @@ window.addEventListener('message',e=>{
   else speak(say);
  }
 });
-function showSession(){$('#picker').hidden=true;$('#session').hidden=false;$('#subline').textContent='선생님 얼굴이나 ▶ 단추를 누르면 대화가 시작돼요. 말한 내용은 대화창에 글자로 남아요.';window.scrollTo({top:0})}
-function showPicker(){if(live)live.stop();try{speechSynthesis.cancel()}catch(e){}$('#session').hidden=true;$('#picker').hidden=false;$('#subline').textContent='오늘 함께할 선생님을 고르세요.';renderTeacher()}
+function showSession(){$('#picker').hidden=true;$('#session').hidden=false;$('#subline').textContent=tr('선생님 얼굴이나 ▶ 단추를 누르면 대화가 시작돼요. 말한 내용은 대화창에 글자로 남아요.','Tap the teacher or ▶ to start talking. Everything you say is kept as text in the chat.');window.scrollTo({top:0})}
+function showPicker(){if(live)live.stop();try{speechSynthesis.cancel()}catch(e){}$('#session').hidden=true;$('#picker').hidden=false;$('#subline').textContent=tr('오늘 함께할 선생님을 고르세요.','Choose your teacher for today.');renderTeacher()}
+
+function setLang(l){lang=l==='en'?'en':'ko';try{localStorage.setItem(LANGKEY,lang)}catch(e){}
+ applyLang();renderTeacher();renderWho();renderScenes();setS($('#call').dataset.s||'idle');$('#liveBtn').textContent=liveLabel();
+ setMode($('#writePane').hidden?'talk':'write');
+ if(!$('#session').hidden)showSession();else $('#subline').textContent=tr('오늘 함께할 선생님을 고르세요.','Choose your teacher for today.');renderVoiceSel();voiceCheck()}
 
 /* ---- 시작 ---- */
 if(!loggedIn()){$('#locked').hidden=false;return}
@@ -339,8 +366,10 @@ $('#photoSave').addEventListener('click',savePhoto);
 $('#pipBtn').addEventListener('click',togglePip);
 $('#voiceSel').addEventListener('change',e=>store.set('voice_'+TT().k,e.target.value));
 $('#voiceTest').addEventListener('click',()=>speak(`Hi, I'm ${TT().n}. Let's talk about your LPDDR5X customer meeting.`));
+applyLang();document.querySelectorAll('[data-lang]').forEach(b=>b.addEventListener('click',()=>setLang(b.dataset.lang)));
+$('#liveBtn').textContent=liveLabel();
 renderTeacher();renderWho();renderScenes();greet();probeRepo();
-if(new URLSearchParams(location.search).get('t'))showSession();
+showSession();   // 바로 선생님 화면으로 (처음엔 Emma, 그다음엔 마지막 선생님) — 선생님 바꾸기로 고르기 화면
 try{speechSynthesis.onvoiceschanged=voiceCheck;setTimeout(voiceCheck,600)}catch(e){}
 loadShared();loadLimits();
 })();
