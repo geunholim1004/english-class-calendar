@@ -90,13 +90,16 @@ const LS_SECRET = "edward-coach-secret-v1"; // API key + model, never synced
 function blankState(){ return {v:1, updatedAt:0, progress:{}, custom:[], sessions:[], days:{}, importedFb:[], expressions:[], settings:{autoSpeak:false, rate:1}}; }
 let state = blankState();
 let secret = {provider:"", apiKey:"", model:"claude-sonnet-5-5", geminiKey:"", geminiModel:"gemini-flash-latest",
-  groqKey:"", groqModel:"llama-3.3-70b-versatile", orKey:"", orModel:""};
+  groqKey:"", groqModel:"", orKey:"", orModel:""};
 try{ const raw=localStorage.getItem(LS_KEY); if(raw) state=Object.assign(blankState(), JSON.parse(raw)); }catch(e){}
 try{ const raw=localStorage.getItem(LS_SECRET); if(raw) secret=Object.assign(secret, JSON.parse(raw)); }catch(e){}
+if(secret.groqModel==="llama-3.3-70b-versatile") secret.groqModel="";      // 예전 기본값 → 자동 선택
+if(secret.geminiModel==="gemini-flash-latest") secret.geminiModel="";
+if(/^openrouter\/(free|auto)$/i.test(secret.orModel||"")) secret.orModel="";
 /* AI 순서: Gemini → Groq → OpenRouter 무료 모델 → (선택) Claude 유료 키 → 오프라인 자동 판정 */
 const AI_CHAIN = [
-  {id:"gemini",     name:"Gemini",     key:()=>secret.geminiKey, model:()=>(secret.geminiModel||"gemini-flash-latest").replace(/^models\//,"")},
-  {id:"groq",       name:"Groq",       key:()=>secret.groqKey,   model:()=>secret.groqModel||"llama-3.3-70b-versatile"},
+  {id:"gemini",     name:"Gemini",     key:()=>secret.geminiKey, model:()=>secret.geminiModel||"자동"},
+  {id:"groq",       name:"Groq",       key:()=>secret.groqKey,   model:()=>secret.groqModel||"자동"},
   {id:"openrouter", name:"OpenRouter", key:()=>secret.orKey,     model:()=>secret.orModel||"자동(무료 모델)"},
   {id:"anthropic",  name:"Claude",     key:()=>secret.apiKey,    model:()=>secret.model||"claude-sonnet-5-5", paid:true}
 ];
@@ -338,40 +341,65 @@ async function callOpenAI(url, key, model, system, messages, opts, label, extra)
   const msg = ((data.choices||[])[0]||{}).message||{};
   return String(msg.content||"").replace(/<think>[\s\S]*?<\/think>/g,"").trim();
 }
-// OpenRouter 무료 모델은 자주 바뀌므로 목록을 받아 좋은 순서로 고름 (하루 캐시)
-const OR_CACHE = "edward-coach-or-free-v1";
-const OR_PREF = [/llama-3\.3-70b/i, /gpt-oss-120b/i, /deepseek-(chat|v3)/i, /qwen.*(72b|235b|-max)/i, /gemma-[34].*(27b|31b)/i, /mistral-(small|medium)/i, /llama-4/i, /nemotron/i];
-async function orFreeModels(){
-  try{ const c = JSON.parse(localStorage.getItem(OR_CACHE)||"null"); if(c && Date.now()-c.t < 864e5 && c.ids.length) return c.ids; }catch(e){}
+// 각 업체의 모델은 자주 바뀌므로, 지정한 모델이 없거나 막히면 그 업체의 "지금 쓸 수 있는 모델" 목록에서 골라 다시 시도
+const MODEL_CACHE = "edward-coach-models-v2";
+const PREF = {
+  gemini:     [/flash-latest$/, /flash-lite-latest$/, /\d-flash$/, /\d-flash-lite$/, /flash/],
+  groq:       [/gpt-oss-120b/i, /llama-3\.3-70b/i, /llama-4-maverick/i, /kimi-k2/i, /qwen3?-.*32b/i, /llama-4-scout/i, /gpt-oss-20b/i, /llama/i],
+  openrouter: [/llama-3\.3-70b/i, /gpt-oss-120b/i, /deepseek-(chat|v3)/i, /qwen.*(72b|235b|-max)/i, /gemma-[34].*(27b|31b)/i, /mistral-(small|medium)/i, /llama-4/i, /nemotron/i]
+};
+function rankIds(ids, prefs){ const r = id => { const i = prefs.findIndex(rx=>rx.test(id)); return i<0 ? 99 : i; }; return ids.slice().sort((a,b)=>r(a)-r(b)); }
+function cacheGet(id){ try{ const c = JSON.parse(localStorage.getItem(MODEL_CACHE)||"{}")[id]; if(c && Date.now()-c.t < 864e5 && c.ids.length) return c.ids; }catch(e){} return null; }
+function cacheSet(id, ids){ try{ const all = JSON.parse(localStorage.getItem(MODEL_CACHE)||"{}"); if(ids) all[id]={t:Date.now(), ids}; else delete all[id]; localStorage.setItem(MODEL_CACHE, JSON.stringify(all)); }catch(e){} }
+async function listModels(id){
+  const c = cacheGet(id); if(c) return c;
   let ids = [];
   try{
-    const r = await fetch("https://openrouter.ai/api/v1/models"); const d = await r.json();
-    ids = (d.data||[]).filter(m => /:free$/.test(m.id) && (m.context_length||0) >= 8000 && !/vision|image|embed|audio/i.test(m.id)).map(m=>m.id);
-    const rank = id => { const i = OR_PREF.findIndex(rx=>rx.test(id)); return i<0 ? 99 : i; };
-    ids.sort((a,b)=>rank(a)-rank(b));
-    try{ localStorage.setItem(OR_CACHE, JSON.stringify({t:Date.now(), ids})); }catch(e){}
+    if(id==="gemini"){
+      const d = await (await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {headers:{"x-goog-api-key":secret.geminiKey}})).json();
+      ids = (d.models||[]).filter(m => (m.supportedGenerationMethods||[]).includes("generateContent") && /gemini/.test(m.name) && /flash/.test(m.name) && !/image|tts|live|audio|embed|thinking-exp|computer|robotics/i.test(m.name)).map(m=>m.name.replace(/^models\//,""));
+    } else if(id==="groq"){
+      const d = await (await fetch("https://api.groq.com/openai/v1/models", {headers:{authorization:"Bearer "+secret.groqKey}})).json();
+      ids = (d.data||[]).filter(m => m.active!==false && !/whisper|tts|guard|playai|orpheus|distil|compound|prompt|safeguard/i.test(m.id) && (m.context_window||8192) >= 8000).map(m=>m.id);
+    } else if(id==="openrouter"){
+      const d = await (await fetch("https://openrouter.ai/api/v1/models")).json();
+      ids = (d.data||[]).filter(m => /:free$/.test(m.id) && (m.context_length||0) >= 8000 && !/vision|image|embed|audio/i.test(m.id)).map(m=>m.id);
+    }
   }catch(e){}
-  return ids.length ? ids : ["meta-llama/llama-3.3-70b-instruct:free"];
+  ids = rankIds(ids, PREF[id]||[]);
+  if(ids.length) cacheSet(id, ids);
+  return ids;
+}
+async function callModel(id, m, system, messages, opts){
+  if(id==="gemini") return callGemini(m, system, messages);
+  if(id==="groq") return callOpenAI("https://api.groq.com/openai/v1/chat/completions", secret.groqKey, m, system, messages, opts, "Groq");
+  return callOpenAI("https://openrouter.ai/api/v1/chat/completions", secret.orKey, m, system, messages, opts, "OpenRouter", {"HTTP-Referer": location.origin, "X-Title": "Edward English Coach"});
 }
 async function callProvider(p, system, messages, opts){
-  if(p.id==="gemini") return {text: await callGemini(p.model(), system, messages), model:p.model()};
-  if(p.id==="groq") return {text: await callOpenAI("https://api.groq.com/openai/v1/chat/completions", secret.groqKey, p.model(), system, messages, opts, "Groq"), model:p.model()};
-  if(p.id==="openrouter"){
-    const hdr = {"HTTP-Referer": location.origin, "X-Title": "Edward English Coach"};
-    const list = secret.orModel ? [secret.orModel] : (await orFreeModels()).slice(0,3);
-    let last;
-    for(const m of list){   // 무료 모델 하나가 막히면 다른 무료 모델로
-      try{ return {text: await callOpenAI("https://openrouter.ai/api/v1/chat/completions", secret.orKey, m, system, messages, opts, "OpenRouter", hdr), model:m.replace(/:free$/,"")}; }
-      catch(e){ last = e; if(e.why==="키 오류") break; if(e.why==="모델 없음") try{ localStorage.removeItem(OR_CACHE); }catch(_){} }
-    }
-    throw last;
+  if(p.id==="anthropic"){
+    const data = await fetchJSON("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"content-type":"application/json","x-api-key":secret.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body: JSON.stringify({model: p.model(), max_tokens: opts.maxTokens||1200, system, messages})
+    }, "Claude");
+    return {text:(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""), model:p.model()};
   }
-  const data = await fetchJSON("https://api.anthropic.com/v1/messages", {
-    method:"POST",
-    headers:{"content-type":"application/json","x-api-key":secret.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body: JSON.stringify({model: p.model(), max_tokens: opts.maxTokens||1200, system, messages})
-  }, "Claude");
-  return {text:(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""), model:p.model()};
+  const mine = p.id==="gemini" ? secret.geminiModel : p.id==="groq" ? secret.groqModel : secret.orModel;
+  const tried = new Set(); let last = null, listed = false;
+  let queue = mine ? [mine.replace(/^models\//,"")] : [];
+  for(let n=0; n<4; n++){
+    if(!queue.length && !listed){ listed = true; queue = (await listModels(p.id)).filter(m=>!tried.has(m)); }
+    const m = queue.shift(); if(!m) break;
+    tried.add(m);
+    try{ return {text: await callModel(p.id, m, system, messages, opts), model: m.replace(/:free$/,"")}; }
+    catch(e){
+      last = e;
+      if(e.why==="키 오류") break;                                   // 키가 틀리면 다른 모델도 안 됨
+      if(e.why==="모델 없음") cacheSet(p.id, null);                  // 목록이 바뀐 것 — 다음에 새로 받기
+      if(!(e.why==="모델 없음" || e.why==="사용량 한도" || e.why==="서버 혼잡")) break;  // 모델별 한도·혼잡이면 같은 업체의 다른 모델로
+    }
+  }
+  throw last || new AIErr(p.name+" 쓸 수 있는 모델이 없음", 404, "모델 없음");
 }
 async function aiChain(system, messages, opts){
   const now = Date.now();
@@ -958,8 +986,8 @@ function renderPill(){
   pill.title = "자동 전환 순서: "+keyedNames().join(" → ")+" → 오프라인 자동 판정";
 }
 const KEY_FIELDS = [
-  {k:"geminiKey", m:"geminiModel", key:"#kGemini", model:"#mGemini", def:"gemini-flash-latest"},
-  {k:"groqKey",   m:"groqModel",   key:"#kGroq",   model:"#mGroq",   def:"llama-3.3-70b-versatile"},
+  {k:"geminiKey", m:"geminiModel", key:"#kGemini", model:"#mGemini", def:""},
+  {k:"groqKey",   m:"groqModel",   key:"#kGroq",   model:"#mGroq",   def:""},
   {k:"orKey",     m:"orModel",     key:"#kOR",     model:"#mOR",     def:""},
   {k:"apiKey",    m:"model",       key:"#kClaude", model:"#mClaude", def:"claude-sonnet-5-5"}
 ];
