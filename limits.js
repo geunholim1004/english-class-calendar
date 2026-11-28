@@ -26,7 +26,16 @@ async function putJSON(repo, path, obj, message, sha){
   return (await r.json()).content.sha;
 }
 
-let cfg = JSON.parse(JSON.stringify(DEF)), sha = null, people = [];
+let cfg = JSON.parse(JSON.stringify(DEF)), sha = null, people = [], usage = {};
+const kstDay = () => new Date(Date.now() + 9*3600e3).toISOString().slice(0,10);
+const coachFile = id => "coach-" + String(id).replace(/[^a-z0-9._-]/gi,"") + ".json";   // coach.js 와 같은 파일 이름
+async function loadUsage(){
+  await Promise.all(people.filter(u => !u.master).map(async u => {
+    try{ const g = await getJSON(SHARE_REPO, coachFile(u.id)); const a = (g.data && g.data.aiUse) || {}; usage[u.id] = a.d === kstDay() ? (a.n||0) : 0; }
+    catch(e){ usage[u.id] = null; }
+  }));
+  renderTable();
+}
 const masterId = () => String(auth.login || auth.owner || "master");
 const num = (v, d) => { const n = Number(v); return isFinite(n) && n >= 0 ? n : d; };
 const infSet = () => new Set((cfg.unlimited||[]).map(s => String(s).toLowerCase()));
@@ -66,7 +75,8 @@ function renderTable(){
       : r === "teacher" ? '<input type="number" min="0" data-lim="'+i+'" value="'+esc(num(p.lim, cfg.teacherDefault))+'" aria-label="'+esc(u.id)+' 하루 한도">'
       : esc(limitOf(u)) + '회';
     const enr = r === "student" ? '<input type="checkbox" data-enr="'+i+'"'+(p.enr ? " checked" : "")+' aria-label="'+esc(u.id)+' 수강 중">' : '<span class="hint">—</span>';
-    return '<tr><td data-l="아이디"><b>'+esc(u.id)+'</b></td><td data-l="이름">'+esc(u.name||"")+'</td><td data-l="역할">'+ROLE[r]+'</td><td data-l="수강 중">'+enr+'</td><td data-l="하루 한도">'+lim+'</td></tr>';
+    const n = u.master ? "—" : (usage[u.id]===undefined ? "…" : usage[u.id]===null ? "—" : usage[u.id] + "회");
+    return '<tr><td data-l="아이디"><b>'+esc(u.id)+'</b></td><td data-l="이름">'+esc(u.name||"")+'</td><td data-l="역할">'+ROLE[r]+'</td><td data-l="수강 중">'+enr+'</td><td data-l="하루 한도">'+lim+'</td><td data-l="오늘 공용 사용">'+esc(n)+'</td></tr>';
   }).join("");
 }
 
@@ -154,7 +164,7 @@ async function load(){
     cfg.people = Object.assign({}, (lim.data && lim.data.people) || {});
     const list = ((us.data && us.data.users) || []).map(u => ({id: String(u.id||""), name: String(u.name||""), role: u.role})).filter(u => u.id);
     people = [{id: masterId(), name: "마스터", master: true}].concat(list.filter(u => u.id.toLowerCase() !== masterId().toLowerCase()));
-    fillForm(); renderTable(); renderTop();
+    fillForm(); renderTable(); renderTop(); loadUsage();
     msg.textContent = lim.data ? "저장된 설정을 불러왔어요." : "아직 저장된 설정이 없어 기본값(학생 10회)으로 보여줘요.";
   }catch(e){ msg.className = "msg bad"; msg.textContent = "불러오기 실패: " + e.message; }
 }

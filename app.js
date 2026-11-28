@@ -185,7 +185,7 @@ function renderAcct(){
   document.body.classList.toggle("subm", sb);
   if (typeof renderPending === "function") renderPending();
   $("roleBadge").textContent = m ? t("roleMaster")(auth.login || auth.owner) : sb ? t(isStudent() ? "roleStudent" : "roleUser")(auth.name || auth.login) : t("roleViewer");
-  $("coachLink").style.display = (m || isStudent() || (sb && ["edward1004","uihee"].includes(String(auth.login || "").toLowerCase()))) ? "" : "none";   // 코치: 마스터·모든 학생·edward1004·uihee
+  $("coachLink").style.display = (m || sb) ? "" : "none";   // 코치: 마스터·학생·선생님 모두 (사용 횟수는 limits.html 에서 마스터가 정함)
   $("roleBadge").className = "badge " + (m ? "master" : sb ? "subm" : "viewer");
   $("loginBtn").style.display = (m || sb) ? "none" : "";
   $("logoutBtn").style.display = (m || sb) ? "" : "none";

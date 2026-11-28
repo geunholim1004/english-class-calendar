@@ -99,14 +99,14 @@ td input[type=number]{width:90px}
 
     <div class="card">
       <h2>사람별 한도</h2>
-      <table class="stack" id="tbl"><thead><tr><th>아이디</th><th>이름</th><th>역할</th><th>수강 중</th><th>하루 한도</th></tr></thead><tbody></tbody></table>
+      <table class="stack" id="tbl"><thead><tr><th>아이디</th><th>이름</th><th>역할</th><th>수강 중</th><th>하루 한도</th><th>오늘 공용 사용</th></tr></thead><tbody></tbody></table>
       <p class="hint">사용자 목록은 달력의 사용자 관리에서 그대로 읽어 와요. 선생님 한도는 칸에서 직접 고치고, 학생은 수강 중에 체크하면 수강생 한도가 적용돼요.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" id="save">저장</button><button type="button" class="ghost" id="reload">다시 불러오기</button></div>
       <div class="msg" id="msg"></div>
     </div>
-    <p class="hint">시연 단계: 여기서 저장한 한도는 아직 코치에 적용되지 않아요. 결정하시면 코치가 이 설정을 읽어 남은 횟수를 확인하도록 연결해요.</p>
+    <p class="hint">저장하면 코치가 다음에 열릴 때부터 이 한도를 따라요. 공용 무료 키로 쓴 횟수만 세고, 본인 키·Claude 안에서 쓴 횟수는 세지 않아요. 하루는 한국 시간 자정에 새로 시작돼요.</p>
   </div>
 </div>
-<script src="limits.js?v=20261128a"></script>
+<script src="limits.js?v=20261128b"></script>
 </body>
 </html>

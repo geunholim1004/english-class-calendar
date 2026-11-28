@@ -87,7 +87,7 @@ const INTERVALS = [0,1,3,7,14,30];
 /* ============ State & storage ============ */
 const LS_KEY = "edward-coach-state-v1";
 const LS_SECRET = "edward-coach-secret-v1"; // API key + model, never synced
-function blankState(){ return {v:1, updatedAt:0, progress:{}, custom:[], sessions:[], days:{}, importedFb:[], expressions:[], settings:{autoSpeak:false, rate:1}}; }
+function blankState(){ return {v:1, updatedAt:0, progress:{}, custom:[], sessions:[], days:{}, importedFb:[], expressions:[], aiUse:{}, settings:{autoSpeak:false, rate:1}}; }
 let state = blankState();
 let secret = {provider:"", apiKey:"", model:"claude-sonnet-5-5", geminiKey:"", geminiModel:"gemini-flash-latest",
   groqKey:"", groqModel:"", orKey:"", orModel:""};
@@ -121,6 +121,29 @@ async function loadSharedKeys(){
     if(g.data && g.data.k){ sharedKeys = {}; Object.keys(g.data.k).forEach(f=>{ if(SHARE_FIELDS.includes(f)) sharedKeys[f] = /Key$/.test(f) ? unmask(g.data.k[f]) : String(g.data.k[f]); }); applySharedKeys(); renderAll(); }
   }catch(e){}
 }
+/* ---- AI 사용 한도: 마스터가 limits.html 에서 정한 coach-limits.json 을 따름 (공용 키로 쓴 횟수만 셈) ---- */
+const LIMITS_FILE = "coach-limits.json";
+let LIM = null;
+const kstDay = () => new Date(Date.now() + 9*3600e3).toISOString().slice(0,10);
+const KEY_FIELD = {gemini:"geminiKey", groq:"groqKey", openrouter:"orKey"};
+function myLimit(){
+  if(MODE!=="github" || cap.sample || ghMaster() || !ghSub()) return Infinity;
+  const c = Object.assign({base:10, enrolled:30, teacherDefault:5, unlimited:["edward100","edward1004"], people:{}}, LIM||{});
+  const id = String(GH.auth.login||"");
+  if((c.unlimited||[]).some(x => String(x).toLowerCase()===id.toLowerCase())) return Infinity;
+  const p = (c.people||{})[id] || {};
+  if(ghTeacher()) return (p.lim!==undefined && p.lim!==null && isFinite(+p.lim)) ? +p.lim : +c.teacherDefault;
+  return p.enr ? +c.enrolled : +c.base;
+}
+const usedToday = () => { const u = state.aiUse||{}; return u.d===kstDay() ? (u.n||0) : 0; };
+function countUse(){ state.aiUse = {d:kstDay(), n:usedToday()+1}; save(); }
+const isShared = p => !!(sharedKeys && KEY_FIELD[p.id] && secret[KEY_FIELD[p.id]] && secret[KEY_FIELD[p.id]]===sharedKeys[KEY_FIELD[p.id]]);
+const limitLeft = () => { const l = myLimit(); return l===Infinity ? Infinity : Math.max(0, l - usedToday()); };
+async function loadLimits(){
+  if(!ghCoach()) return;
+  try{ const g = await ghGetJSON(SHARE_REPO, LIMITS_FILE); LIM = g.data || null; }catch(e){}
+  renderAll();
+}
 async function shareKeysToStudents(){
   const k = {}; SHARE_FIELDS.forEach(f=>{ if(secret[f]) k[f] = /Key$/.test(f) ? mask(secret[f]) : secret[f]; });
   let sha = null; try{ sha = (await ghGetJSON(SHARE_REPO, SHARED_AI)).sha; }catch(e){}
@@ -139,8 +162,10 @@ const ghSub = () => !!(GH.auth && GH.auth.token && GH.auth.owner && GH.auth.role
 const extraOf = () => ghSub() ? COACH_EXTRA[String(GH.auth.login||"").toLowerCase()] : "";
 const ghStudent = () => ghSub() && (GH.auth.kind === "student" || extraOf() === "student");
 const ghEdward = () => ghSub() && extraOf() === "edward";
-const ghCoach = () => ghMaster() || ghStudent() || ghEdward();     // 마스터·모든 학생·edward1004가 코치 사용, Daniel(선생님)은 제외
-const whoLabel = () => ghMaster() ? "마스터" : ghEdward() ? "Edward · " + GH.auth.login : "학생 · " + (GH.auth.name || GH.auth.login);
+const ghTeacher = () => ghSub() && !ghStudent() && !ghEdward();
+const ghGeneric = () => ghStudent() || ghTeacher();   // Edward 전용 실수 목록 대신 일반 학습자 프로필
+const ghCoach = () => ghMaster() || ghSub();          // 마스터·학생·선생님(t.danel 포함)·edward1004 모두 코치 사용
+const whoLabel = () => ghMaster() ? "마스터" : ghEdward() ? "Edward · " + GH.auth.login : (ghTeacher() ? "선생님 · " : "학생 · ") + (GH.auth.name || GH.auth.login);
 const ghPriv = () => (GH.auth && GH.auth.privRepo) || "english-class-private";
 // where this person's coach notebook lives: master → private repo, student → share repo (their token has no private access)
 const coachLoc = () => ghMaster() ? {repo: ghPriv(), path: COACH_FILE} : {repo: SHARE_REPO, path: "coach-" + String(GH.auth.login||"student").replace(/[^a-z0-9._-]/gi,"") + ".json"};
@@ -225,6 +250,8 @@ function mergeStates(a, b){
   const emap = new Map();
   [...(b.expressions||[]), ...(a.expressions||[])].forEach(x=>{ if(x && x.en) emap.set(norm(x.en), x); });
   out.expressions = [...emap.values()].slice(-200);
+  const ua = a.aiUse||{}, ub = b.aiUse||{};
+  out.aiUse = ua.d===ub.d ? {d:ua.d, n:Math.max(ua.n||0, ub.n||0)} : ((ua.d||"") > (ub.d||"") ? ua : ub);
   out.updatedAt = Math.max(a.updatedAt||0, b.updatedAt||0);
   return out;
 }
@@ -232,7 +259,7 @@ function mergeStates(a, b){
 /* ============ Mistake model ============ */
 function allItems(){
   // Edward's 21 recurring mistakes are his own; a student account starts with only their own notes
-  const items = ghStudent() ? [] : CORE.map(c=>Object.assign({source:"daniel", core:true}, c));
+  const items = ghGeneric() ? [] : CORE.map(c=>Object.assign({source:"daniel", core:true}, c));
   state.custom.forEach(c=>items.push(Object.assign({core:false}, c)));
   return items.map(it=>{
     const p = state.progress[it.id] || {};
@@ -259,7 +286,7 @@ function markPractice(){ const d=todayStr(); state.days[d]=(state.days[d]||0)+1;
 function addCorrection(c, source){
   // c: {wrong,right,why,tag}
   if(!c || !c.wrong || !c.right) return;
-  const useCore = !ghStudent();           // the built-in list is Edward's; students keep their own entries
+  const useCore = !ghGeneric();           // the built-in list is Edward's; students keep their own entries
   if(useCore && c.tag && CORE_BY_ID[c.tag]){ bumpMistake(c.tag); return; }
   const key = norm(c.wrong);
   const coreHit = useCore && CORE.find(x=>norm(x.wrong).split(" / ").some(w=>w && key.includes(w)));
@@ -402,13 +429,18 @@ async function callProvider(p, system, messages, opts){
   throw last || new AIErr(p.name+" 쓸 수 있는 모델이 없음", 404, "모델 없음");
 }
 async function aiChain(system, messages, opts){
+  opts = opts || {};
   const now = Date.now();
   const list = AI_CHAIN.filter(p=>p.key());
   const order = list.filter(p=>!(aiCool[p.id]>now)).concat(list.filter(p=>aiCool[p.id]>now));
   const skipped = [];
+  let limited = false;
   for(const p of order){
+    const shared = isShared(p);
+    if(shared && limitLeft() <= 0){ limited = true; skipped.push({name:p.name, why:"오늘 공용 한도"}); continue; }
     try{
       const r = await callProvider(p, system, messages, opts);
+      if(shared && !opts.noCount && r.text && r.text.trim()) countUse();
       if(!r.text || !r.text.trim()) throw new AIErr(p.name+" 답이 비어 있음", 0, "빈 답");
       delete aiCool[p.id];
       lastAI = {name:p.name, model:r.model, skipped, offline:false, paid:!!p.paid, t:Date.now()};
@@ -422,8 +454,10 @@ async function aiChain(system, messages, opts){
   }
   lastAI = {name:"", model:"", skipped, offline:true, t:Date.now()};
   showAIUsed(false);
-  const err = new Error("연결된 AI가 모두 응답하지 않아요 ("+skipped.map(x=>x.name+": "+x.why).join(", ")+"). 잠시 뒤 다시 해 주세요.");
-  err.allFailed = true;
+  const err = limited && skipped.every(x=>x.why==="오늘 공용 한도")
+    ? new Error("오늘 공용 AI "+myLimit()+"회를 모두 썼어요. 설정 탭에 내 무료 키(Gemini·Groq)를 넣으면 계속 쓸 수 있고, 내일 다시 "+myLimit()+"회가 채워져요.")
+    : new Error("연결된 AI가 모두 응답하지 않아요 ("+skipped.map(x=>x.name+": "+x.why).join(", ")+"). 잠시 뒤 다시 해 주세요.");
+  err.allFailed = true; err.limit = limited;
   throw err;
 }
 // 어떤 AI가 답했는지 한 줄 표시용
@@ -441,7 +475,7 @@ async function aiJSON(system, messages, opts){
   const t = await ai(system, messages, opts);
   try{ return parseJSON(t); }
   catch(e){
-    const t2 = await ai(system, messages.concat([{role:"assistant", content:t},{role:"user", content:"That was not valid JSON. Reply again with ONLY the JSON object."}]), opts);
+    const t2 = await ai(system, messages.concat([{role:"assistant", content:t},{role:"user", content:"That was not valid JSON. Reply again with ONLY the JSON object."}]), Object.assign({}, opts, {noCount:true}));
     return parseJSON(t2);
   }
 }
@@ -717,7 +751,7 @@ async function loadDrillItem(){
     if(!aiReady()){ drill.ko = it.ko || ('“'+it.right+'”를 써서 문장을 하나 만들어 보세요.'); drill.answer = it.answer || it.right; renderDrill(); return; }
     try{
       const r = await aiJSON(LEARNER+' Create ONE translation drill. Target: the learner tends to say "'+it.wrong+'" instead of "'+it.right+'". Write a natural Korean sentence from his real work life (semiconductor marketing, customers, meetings, family life is also fine) whose natural English translation REQUIRES the correct form "'+it.right+'". Vary topics. Respond with ONLY JSON: {"ko":"한국어 문장","answer":"model English answer"}',
-        [{role:"user", content:"New drill, different from: "+(it.ko||"")}], {tier:"quick"});
+        [{role:"user", content:"New drill, different from: "+(it.ko||"")}], {tier:"quick", noCount:true});
       drill.ko=r.ko; drill.answer=r.answer;
     }catch(e){ drill.ko = it.ko || ('“'+it.right+'”를 써서 문장을 만들어 보세요.'); drill.answer = it.answer || it.right; }
     renderDrill();
@@ -747,7 +781,7 @@ async function checkDrill(){
       '<div class="row"><button class="btn primary" id="drillNext" type="button">다음 →</button></div>';
     renderDrill(); renderStats();
   }catch(e){
-    if(e.allFailed){ offlineGrade(it, ans, "AI가 모두 혼잡해서 자동 판정으로 채점했어요."); return; }
+    if(e.allFailed){ offlineGrade(it, ans, e.limit ? e.message+" 이번 문제는 자동 판정으로 채점했어요." : "AI가 모두 혼잡해서 자동 판정으로 채점했어요."); return; }
     toast(e.message); btn.disabled=false; btn.textContent="채점";
   }
 }
@@ -981,7 +1015,8 @@ function renderPill(){
   if(cap.sample){ pill.textContent="● "+who+" · AI 연결됨 (Claude)"; pill.className="mode-pill on"; return; }
   if(!hasKey()){ pill.textContent="● "+who+" · AI 키 필요"; pill.className="mode-pill off"; return; }
   const now = lastAI && !lastAI.offline ? lastAI.name : (lastAI && lastAI.offline ? "오프라인" : keyedNames()[0]);
-  pill.textContent = "● "+who+" · AI: "+now+(lastAI?"":" 대기")+" ("+keyedNames().length+"곳 연결)";
+  const lim = myLimit();
+  pill.textContent = "● "+who+" · AI: "+now+(lastAI?"":" 대기")+" ("+keyedNames().length+"곳 연결)"+(lim===Infinity ? "" : " · 오늘 공용 "+usedToday()+"/"+lim+"회");
   pill.className = "mode-pill "+(lastAI && lastAI.offline ? "off" : "on");
   pill.title = "자동 전환 순서: "+keyedNames().join(" → ")+" → 오프라인 자동 판정";
 }
@@ -998,7 +1033,8 @@ function renderApiCard(){
     const st=$(f.key+"St"); if(st) st.textContent = v ? "✓ 연결됨" : "미입력";
     if(mel) mel.value = secret[f.m] || f.def;
   });
-  const used=$("#aiUsedNow"); if(used) used.textContent = lastAI ? "마지막 사용: "+aiUsedText().replace(/^🤖 /,"") : "아직 이번 화면에서 AI를 쓰지 않았어요.";
+  const lim=myLimit(), limTxt = MODE==="github" && ghSub() ? (lim===Infinity ? "AI 사용 한도: 무제한. " : "오늘 공용 AI "+usedToday()+" / "+lim+"회 사용 (내 키로 쓴 횟수는 세지 않아요). ") : "";
+  const used=$("#aiUsedNow"); if(used) used.textContent = limTxt + (lastAI ? "마지막 사용: "+aiUsedText().replace(/^🤖 /,"") : "아직 이번 화면에서 AI를 쓰지 않았어요.");
   const sh=$("#apiShareRow"); if(sh) sh.style.display = (MODE==="github" && ghMaster()) ? "" : "none";
   const sn=$("#sharedNote"); if(sn) sn.textContent = (!ghMaster() && sharedKeys) ? "마스터가 공유한 무료 키를 쓰고 있어요. 내 키를 넣으면 내 키가 먼저 쓰여요." : "";
   const ord=$("#aiOrder"); if(ord) ord.textContent = hasKey() ? keyedNames().join(" → ")+" → 오프라인 자동 판정" : "키가 없어서 오프라인 자동 판정만 동작해요.";
@@ -1071,7 +1107,7 @@ function renderAll(){ renderStats(); renderSettings(); renderSessions(); renderN
 
 /* ============ Boot ============ */
 async function bootGithub(){
-  if(ghStudent()){
+  if(ghGeneric()){
     const nm = String(GH.auth.name || GH.auth.login || "the learner").replace(/[^\p{L}\p{N} ._-]/gu,"").slice(0,30);
     LEARNER = "The learner, "+nm+", is a Korean student of English taking a weekly online class with tutor Daniel. Adjust to their level; keep examples from everyday life, school and travel unless they bring up work.";
     const h1 = document.querySelector("header.top h1"); if(h1) h1.textContent = "English Coach · " + nm;
@@ -1084,7 +1120,7 @@ async function bootGithub(){
       setSync(g.data ? "저장소와 동기화됨 ✓" : "첫 저장 때 저장소에 기록 파일이 만들어져요");
       if(!g.data || (state.updatedAt||0) > (g.data.updatedAt||0)){ dirty = true; save(); }
     }catch(e){ setSync("저장소를 읽지 못했어요 ("+e.message+"). 이 기기에만 저장돼요.", true); MODE="standalone"; }
-    renderAll(); loadDanielFeedback(); loadSharedKeys();
+    renderAll(); loadDanielFeedback(); loadSharedKeys(); loadLimits();
 }
 
 renderChatTopics(); renderRoles(); renderAll();
