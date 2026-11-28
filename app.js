@@ -357,7 +357,8 @@ ko: {
   zIn:(m) => m < 60 ? `${m}분 후 시작` : m < 1440 ? `${Math.floor(m/60)}시간 ${m%60}분 후` : `${Math.floor(m/1440)}일 후`, zLeftL:(m) => `수업 중 · ${m}분 남음`,
   zBig:"🎥 Zoom 수업 입장하기", zPractice:"🎙 수업 전 AI 영어 코치로 연습하기", zUntil:"입장까지", zOpensHM:hm => `🔒 ${hm}에 열려요`, zTeachL:"AI 코치", zSetLink:"⚙ Zoom 링크 넣기 (한 번만)", zNoLinkT:"Edward가 Zoom 링크를 넣으면 여기서 입장할 수 있어요", zOpensAt2:(d, hm) => `🔒 ${d} ${hm}부터 입장할 수 있어요`,
   zTeacherL:"👨‍🏫 선생님", zStudentL:"🧑 학생 Edward", zOnS:"📷 ON", zOffS:"📷 OFF", zJoinedAt:(hm) => `${hm} 입장`, zNotYet:"아직 입장 안 함", zLateL:(m) => `${m}분 지났는데 아직 입장 안 함`,
-  zLegend:"🔒 = 아직 입장 시간 전 · 파란 칸 = 지금 누르면 Zoom 입장 · 칸 안의 점 🟢 = 상대방 입장함(ON), 회색 = 아직(OFF)",
+  zLegend:"🔒 = 아직 입장 시간 전 · 파란 칸 = 지금 누르면 Zoom 입장 · 칸 안의 파란 점 = 상대방 입장함(ON), 회색 = 아직(OFF)",
+  zLgPre:hm => [`🔒 아직 입장 시간 전 — ${hm}부터 파란 단추로 입장`, "수업 전 AI 코치 연습"], zLgLive:["파란 단추 = 지금 누르면 Zoom 입장", "파란 점 = 입장함 (ON)", "회색 점 = 아직 (OFF)", "빨간 칸 = 시작했는데 아직 안 들어옴"],
   zJoinChip:(l) => `🎥 ${l} 입장`, zLock:"16:55부터 Zoom 입장 버튼이 켜져요", zBarHead:(l, m) => m < 0 ? `${l} 수업 · ${-m}분 후 시작` : `${l} 수업 중 · ${m}분 남음`,
   zJoin:"🎥 Zoom 입장", zOther:(isT) => isT ? "Edward" : "선생님", zOn:"📷 ON · 입장함", zWait:"📷 OFF · 아직 입장 전", zLate:(m) => `📷 OFF · ${m}분 늦음`, zMe:"내 상태: 📷 ON",
   zChipTitle:"지금 누르면 Zoom 수업에 입장 · 점 🟢 = 상대방 입장함", zBadUrl:"Zoom 링크는 https://…zoom.us/… 형식이어야 해요",
@@ -583,7 +584,8 @@ en: {
   zIn:(m) => m < 60 ? `starts in ${m} min` : m < 1440 ? `in ${Math.floor(m/60)} h ${m%60} min` : `in ${Math.floor(m/1440)} days`, zLeftL:(m) => `In class · ${m} min left`,
   zBig:"🎥 Join the Zoom class", zPractice:"🎙 Practise with the AI English coach before class", zUntil:"Until you can join", zOpensHM:hm => `🔒 opens at ${hm}`, zTeachL:"AI coach", zSetLink:"⚙ Add the Zoom link (once)", zNoLinkT:"You can join here once Edward adds the Zoom link", zOpensAt2:(d, hm) => `🔒 You can join from ${d} ${hm}`,
   zTeacherL:"👨‍🏫 Teacher", zStudentL:"🧑 Student Edward", zOnS:"📷 ON", zOffS:"📷 OFF", zJoinedAt:(hm) => `joined ${hm}`, zNotYet:"Not joined yet", zLateL:(m) => `${m} min past start, not joined yet`,
-  zLegend:"🔒 = not open yet · blue = tap to join Zoom · dot 🟢 = the other person has joined (ON), grey = not yet (OFF)",
+  zLegend:"🔒 = not open yet · blue = tap to join Zoom · blue dot = the other person has joined (ON), grey = not yet (OFF)",
+  zLgPre:hm => [`🔒 Not open yet — join with the blue button from ${hm}`, "Practise with the AI coach before class"], zLgLive:["Blue button = tap to join Zoom", "Blue dot = joined (ON)", "Grey dot = not yet (OFF)", "Red box = class started, not joined yet"],
   zJoinChip:(l) => `🎥 Join ${l}`, zLock:"The Zoom join button turns on 5 min before class", zBarHead:(l, m) => m < 0 ? `Class ${l} · starts in ${-m} min` : `Class ${l} · ${m} min left`,
   zJoin:"🎥 Join Zoom", zOther:(isT) => isT ? "Edward" : "Teacher", zOn:"📷 ON · joined", zWait:"📷 OFF · not joined yet", zLate:(m) => `📷 OFF · ${m} min late`, zMe:"You: 📷 ON",
   zChipTitle:"Tap to join the Zoom class · green dot = the other person has joined", zBadUrl:"The Zoom link must look like https://…zoom.us/…",
@@ -967,7 +969,10 @@ function renderZCard(){
       return `<div class="zp ${w ? "on" : late ? "late" : ""}"><div>${nm}</div><div class="zs"><span class="dot"></span>${w ? t("zOnS") : t("zOffS")}</div><div class="zsub">${w ? esc(t("zJoinedAt")(String(w.at).slice(11))) : late ? esc(t("zLateL")(m)) : t("zNotYet")}</div></div>`; };
     pres = `<div class="zpres">${boxH(t("zTeacherL"), "sub", isTeacher())}${boxH(t("zStudentL"), "master", isMaster() || isStudent())}</div>`;
   }
-  box.innerHTML = `<h3>${t("zCardT")(!!cur)}</h3><div class="zwhen">${esc(when)}</div>${btn}${pres}<div class="zlegend">${t("zLegend")}</div>`;
+  const lg = cur ? (L => `<div class="zlegend zlg"><span><i class="lg-blue"></i>${esc(L[0])}</span><span><i class="lg-dot on"></i>${esc(L[1])}</span><span><i class="lg-dot"></i>${esc(L[2])}</span><span><i class="lg-red"></i>${esc(L[3])}</span></div>`)(t("zLgLive"))
+    : (hasUrl && zPracticeOK()) ? (L => `<div class="zlegend zlg"><span>${esc(L[0])}</span><span><i class="lg-green"></i>${esc(L[1])}</span></div>`)(t("zLgPre")(`${op.hour}:${op.minute}`))
+    : `<div class="zlegend">${t("zLegend")}</div>`;
+  box.innerHTML = `<h3>${t("zCardT")(!!cur)}</h3><div class="zwhen">${esc(when)}</div>${btn}${pres}${lg}`;
   if (cur) $("zBigBtn").onclick = () => joinZoom(cur);
   if (!hasUrl && isMaster()) $("zSetBtn").onclick = () => { $("openSettings").click(); setTimeout(() => { $("zoom").scrollIntoView({block:"center"}); $("zoom").focus(); }, 300); };
 }
