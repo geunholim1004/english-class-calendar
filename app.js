@@ -19,6 +19,8 @@ function cleanReq(r){
   if (!["pending","teacherOk","approved","rejected", undefined].includes(o.status)) o.status = "pending";
   o.byKind = o.byKind === "student" ? "student" : "teacher";
   o.decidedBy = o.decidedBy ? String(o.decidedBy).replace(/[^a-z0-9._-]/g, "").slice(0, 40) : undefined;
+  o.auto = o.auto === true ? true : undefined; o.undone = o.undone === true ? true : undefined;
+  o.undoReq = o.undoReq && typeof o.undoReq === "object" ? {by: String(o.undoReq.by || "").replace(/[^a-z0-9._-]/g, "").slice(0, 40), at: /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(o.undoReq.at || "") ? o.undoReq.at : "", closed: o.undoReq.closed === true || undefined} : undefined;
   return o;
 }
 // 사용자가 입력한 글자는 화면에 그릴 때 반드시 이스케이프 (악성 코드 실행 방지)
@@ -51,7 +53,7 @@ const isStudent = () => isSub() && auth.kind === "student";
 const isTeacher = () => isSub() && !isStudent();
 const roleOf = u => (u && u.role === "student") ? "student" : "teacher";
 let remoteSha = null, lastUpdated = null, syncStatus = "", saveTimer = null, loadingRemote = false;
-const SETTING_IDS = ["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate","zoom"];
+const SETTING_IDS = ["start","months","count","time","dur","price","alertN","minNotice","autoMin","rate","rateDate","zoom"];
 function snapshot(){ const settings = {}; SETTING_IDS.forEach(id => settings[id] = $(id).value);
   return {version:1, updatedAt:new Date().toISOString(), settings, state, log, extras, fixes}; }
 let baseState = null;   // 선생님·학생 화면: 저장소에서 받은 달력 (선생님이 승인한 학생 요청을 그 위에 바로 보여 줌)
@@ -227,6 +229,21 @@ ko: {
   nfFb:(cls, who) => `${cls} 수업 피드백이 올라왔어요 (${who}). 사이트에서 확인하세요.`,
   nfZoom:"Zoom 수업 링크가 바뀌었어요. 사이트의 Zoom 입장 버튼으로 들어오세요 (수업 5분 전부터 열려요).",
   hPend:"승인 대기 요청", hPendT:"학생 변경 요청 · 승인해 주세요", pendWaitT:"선생님 승인 대기 (마스터가 바로 승인해도 돼요)", tdAskOk:n => `${n}님의 요청을 승인할까요? 승인하면 달력 일정이 바로 바뀝니다.`, tdAskNo:n => `${n}님의 요청을 거절할까요?`, tdDone:"승인했어요 · 달력이 바뀌었어요", tdYes:"✓ 승인 확정", tdNo:"취소", tdYesNo:"✕ 거절 확정", tdDeclined:"거절했어요", tdApplied:n => `선생님이 승인한 학생 요청 ${n}건을 달력에 반영했어요`, tdNeedPw:n => `선생님이 승인한 학생 요청 ${n}건 반영 — 비밀번호를 확인해 주세요`, tdLater:"반영을 미뤘어요 · 승인 대기 카드에서 언제든 반영할 수 있어요", tdApplyBtn:"📥 달력에 반영", tdMsg:(ok, what, stu, tch, url) => `[영어 수업 변경 요청 ${ok ? "승인" : "거절"}]\n• ${what}\n${stu}님의 요청을 ${tch} 선생님이 ${ok ? "승인했어요. 달력이 바뀌었어요." : "거절했어요."}\n${url}`, pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ 승인", pendReject:"✕ 거절",
+  sAuto:"학생 요청 자동 반영 (선생님이 답하지 않을 때)", autoOpt:{0:"끄기", 10:"수업 10분 전", 30:"수업 30분 전 (추천)", 60:"수업 1시간 전", 180:"수업 3시간 전", 1440:"수업 하루 전"},
+  autoHint:"선생님이 놓쳤을 때를 위한 마지막 안전장치예요. 등록·하루 전·3시간 전에 알림 공지를 만들고, Zoom이 열리기 전에 반영해요.",
+  bMut:"🤝 사전 합의", bMe:"🙋 학생 사정", bTch:"👨‍🏫 선생님 사정", bStuReq:"🎓 학생 요청", bTchReq:"👨‍🏫 선생님 요청", bLate:"⚠ 늦은 요청 · 기준 미달",
+  lateNote:"사전 합의 기준보다 늦게 낸 요청이라 기존 규칙대로 기록돼요 (학생 사정이면 선불 1회 차감 등).",
+  autoIn:(when, left) => `⏱ 선생님 응답이 없으면 ${when}에 자동 반영 · ${left} 남음`, autoSoon:when => `⏰ 곧 자동 반영 (${when})`, autoOff:"자동 반영 꺼짐 · 선생님 또는 마스터가 처리해요", autoNoLate:"수업 직전에 낸 요청이라 자동 반영하지 않아요 · 선생님이 확인해 주세요",
+  autoSame:"👀 이 카드와 자동 반영 시각은 학생·선생님 화면에 똑같이 보여요",
+  remSteps:{filed:"요청 등록 공지", day:"하루 전 알림", three:"3시간 전 알림", due:"자동 반영"}, remSent:"✓", remWait:"예정",
+  nfRemind:(who, what, due) => `확인 부탁드려요 🙏 ${who}님의 변경 요청이 아직 승인 대기 중이에요: ${what}. 답이 없으면 규칙에 따라 ${due}에 자동 반영돼요.`,
+  nfAuto:(what, m) => `${what} 수업 변경 요청이 규칙에 따라 자동 반영되었어요 (수업 ${m} 전 기준). 바쁘셨을 텐데 따로 신경 쓰지 않으셔도 돼요. 다음 수업에서 뵐게요! 🙂`,
+  autoDone:"✓ 자동 반영", autoTagNo:"선생님 응답 없음", autoRec:(at, ap) => `등록 ${at} → 자동 반영 ${ap}`,
+  undoBtn:"↩ 되돌리기 요청 (→ 마스터)", undoSent:"↩ 되돌리기 요청을 보냈어요 · 마스터 확인 대기", undoAsk:(who, at) => `↩ ${who} 선생님이 되돌리기를 요청했어요 (${at})`,
+  undoDo:"↩ 원래대로 되돌리기", undoKeep:"그대로 두기", undoDone:"되돌렸어요", undoKept:"그대로 두었어요",
+  nfUndoReq:(who, what) => `${who} 선생님이 자동 반영된 요청의 되돌리기를 요청했어요: ${what} (마스터 확인 대기)`, nfUndone:what => `자동 반영된 변경을 원래대로 되돌렸어요: ${what}`,
+  rqTagAuto:at => `자동 반영 · 선생님 응답 없음 · 등록 ${at}`, logUndo:x => `자동 반영 되돌림: ${x}`,
+  mins:m => m >= 1440 ? "하루" : m >= 60 ? (m / 60) + "시간" : m + "분", leftFmt:ms => { const m = Math.max(0, Math.round(ms / 60e3)); return m >= 1440 ? Math.floor(m / 1440) + "일 " + Math.floor(m % 1440 / 60) + "시간" : m >= 60 ? Math.floor(m / 60) + "시간 " + (m % 60) + "분" : m + "분"; },
   autoTag:" (자동)", fbHas:"피드백 있음", fbDue:"피드백 작성 대기", fbHead:"선생님 피드백", fbNone:"아직 선생님 피드백이 없어요.",
   fbL:{topics:"오늘 배운 내용", expr:"핵심 표현·단어", good:"잘한 점·고칠 점", hw:"숙제·다음 준비"},
   fbPh:{topics:"예: 반도체 고객 미팅 롤플레이", expr:"예: lead time, ramp-up, yield", good:"예: 발음 좋음 / 시제 주의", hw:"예: 이메일 3문장 써 오기"},
@@ -454,6 +471,21 @@ en: {
   nfFb:(cls, who) => `Feedback for ${cls} is up (${who}). Check it on the site.`,
   nfZoom:"The Zoom class link was updated. Join from the Zoom button on the site (opens 5 min before class).",
   hPend:"Pending requests", hPendT:"Student change requests · please review", pendWaitT:"Waiting for teacher (master may approve directly)", tdAskOk:n => `Approve ${n}\u2019s request? The calendar changes right away.`, tdAskNo:n => `Decline ${n}\u2019s request?`, tdDone:"Approved · calendar updated", tdYes:"✓ Yes, approve", tdNo:"Cancel", tdYesNo:"✕ Yes, decline", tdDeclined:"Declined", tdApplied:n => `Applied ${n} teacher-approved student request(s) to the calendar`, tdNeedPw:n => `Applying ${n} teacher-approved request(s) — confirm your password`, tdLater:"Postponed · apply any time from the pending card", tdApplyBtn:"📥 Apply to calendar", tdMsg:(ok, what, stu, tch, url) => `[English class – request ${ok ? "approved" : "declined"}]\n• ${what}\n${tch} ${ok ? "approved" : "declined"} ${stu}\u2019s request.${ok ? " The calendar has been updated." : ""}\n${url}`, pendBy:(n,id,at) => `${n} (${id}) · ${at}`, pendApprove:"✓ Approve", pendReject:"✕ Decline",
+  sAuto:"Auto-apply student requests (if the teacher doesn’t answer)", autoOpt:{0:"Off", 10:"10 min before class", 30:"30 min before class (recommended)", 60:"1 hour before class", 180:"3 hours before class", 1440:"1 day before class"},
+  autoHint:"A last safety net if the teacher misses a request. Notices are drafted when filed, 1 day and 3 hours before, and it applies before Zoom opens.",
+  bMut:"🤝 Mutual agreement", bMe:"🙋 Student’s reason", bTch:"👨‍🏫 Teacher’s reason", bStuReq:"🎓 Student’s request", bTchReq:"👨‍🏫 Teacher’s request", bLate:"⚠ Late request · below the notice rule",
+  lateNote:"Filed later than the notice rule, so it is recorded under the existing rules (e.g. one prepaid class deducted if it’s the student’s reason).",
+  autoIn:(when, left) => `⏱ If the teacher doesn’t answer, auto-applies at ${when} · ${left} left`, autoSoon:when => `⏰ Auto-applying soon (${when})`, autoOff:"Auto-apply is off · the teacher or master will handle it", autoNoLate:"Filed right before class, so it won’t auto-apply · teacher, please check",
+  autoSame:"👀 The student and the teacher see this same card and time",
+  remSteps:{filed:"Notice when filed", day:"1-day reminder", three:"3-hour reminder", due:"Auto-apply"}, remSent:"✓", remWait:"scheduled",
+  nfRemind:(who, what, due) => `Friendly reminder 🙏 ${who}’s change request is still waiting: ${what}. If there’s no answer, it will be applied automatically at ${due} under our rules.`,
+  nfAuto:(what, m) => `The class change request for ${what} was applied automatically under our rules (${m} before class). No need to worry about it — see you next class! 🙂`,
+  autoDone:"✓ Auto-applied", autoTagNo:"no teacher answer", autoRec:(at, ap) => `Filed ${at} → auto-applied ${ap}`,
+  undoBtn:"↩ Ask to undo (→ master)", undoSent:"↩ Undo request sent · waiting for the master", undoAsk:(who, at) => `↩ ${who} asked to undo this (${at})`,
+  undoDo:"↩ Undo the change", undoKeep:"Keep it", undoDone:"Undone", undoKept:"Kept as is",
+  nfUndoReq:(who, what) => `${who} asked the master to undo an auto-applied request: ${what}`, nfUndone:what => `An auto-applied change was undone: ${what}`,
+  rqTagAuto:at => `Auto-applied · no teacher answer · filed ${at}`, logUndo:x => `Auto-apply undone: ${x}`,
+  mins:m => m >= 1440 ? "1 day" : m >= 60 ? (m / 60) + (m === 60 ? " hour" : " hours") : m + " min", leftFmt:ms => { const m = Math.max(0, Math.round(ms / 60e3)); return m >= 1440 ? Math.floor(m / 1440) + "d " + Math.floor(m % 1440 / 60) + "h" : m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + " min"; },
   autoTag:" (auto)", fbHas:"Feedback written", fbDue:"Feedback to write", fbHead:"Teacher feedback", fbNone:"No feedback from the teacher yet.",
   fbL:{topics:"Topics covered", expr:"Key expressions & words", good:"Strengths & to improve", hw:"Homework / next class"},
   fbPh:{topics:"e.g. Role-play: customer meeting on memory chips", expr:"e.g. lead time, ramp-up, yield", good:"e.g. Clear pronunciation / watch past tense", hw:"e.g. Write a 3-sentence email"},
@@ -713,6 +745,7 @@ function cfg(){
     time: $("time").value || "17:00",
     dur: +$("dur").value || 25,
     minNotice: Math.max(0, +$("minNotice").value || 0),
+    autoMin: [0,10,30,60,180,1440].includes(+$("autoMin").value) && $("autoMin").value !== "" ? +$("autoMin").value : 30,   // 학생 요청 자동 반영: 수업 몇 분 전 (0 = 끄기)
     asof: parse($("asof").value || todayStr()),
   };
 }
@@ -791,6 +824,7 @@ function applyStatic(){
   document.querySelectorAll("[data-i18n]").forEach(el => el.textContent = t(el.dataset.i18n));
   document.querySelectorAll("[data-i18n-html]").forEach(el => el.innerHTML = t(el.dataset.i18nHtml));
   document.querySelectorAll("[data-i18n-ph]").forEach(el => el.placeholder = t(el.dataset.i18nPh));
+  document.querySelectorAll("#autoMin option").forEach(o => o.textContent = t("autoOpt")[o.value]);
   document.querySelectorAll("[data-i18n-title]").forEach(el => el.title = t(el.dataset.i18nTitle));
   document.querySelectorAll("[data-i18n-fb]").forEach(el => { const k = el.dataset.i18nFb; el.textContent = t("fbL")[k]; const ta = $("fb_" + k); if (ta) ta.placeholder = t("fbPh")[k]; });
   document.querySelectorAll("[data-lang]").forEach(b => b.classList.toggle("on", b.dataset.lang === lang));
@@ -1657,7 +1691,7 @@ async function fetchRequests(){
   const g = await ghGet(SHARE_REPO, "requests.json");
   return {list: ((g.data && g.data.requests) || []).map(cleanReq).filter(Boolean), sha: g.sha};
 }
-async function loadRequests(){ if (!isEditor()) return; try { requests = (await fetchRequests()).list; } catch(e) {} overlayApprovals(); render(); renderPending(); if (isMaster()) applyTeacherApproved(); }
+async function loadRequests(){ if (!isEditor()) return; try { requests = (await fetchRequests()).list; } catch(e) {} overlayApprovals(); render(); renderPending(); runReminders(); await runAutoApply(); if (isMaster()) applyTeacherApproved(); }
 async function mutateRequests(fn, message, retry){
   const {list, sha} = await fetchRequests();
   fn(list);
@@ -1667,10 +1701,108 @@ async function mutateRequests(fn, message, retry){
   if (!r.ok) throw new Error("HTTP " + r.status);
   requests = list;
 }
+// 저장된 사유("학생 요청 – 메모")를 지금 언어로: 한국어·영어 목록에서 앞부분을 찾아 바꿔 줌
+function reasonTr(s){
+  s = String(s || "");
+  for (const l of ["ko","en"]){ const i = L[l].rqReasons.findIndex(x => s === x || s.startsWith(x + " – ")); if (i >= 0) return t("rqReasons")[i] + s.slice(L[l].rqReasons[i].length); }
+  return s;
+}
+const reasonIdx = s => { s = String(s || ""); for (const l of ["ko","en"]){ const i = L[l].rqReasons.findIndex(x => s === x || s.startsWith(x + " – ")); if (i >= 0) return i; } return -1; };
+const stampMs = st => { const m = String(st || "").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/); return m ? Date.UTC(+m[1], m[2]-1, +m[3], m[4]-9, +m[5]) : NaN; };   // KST 기록 → 시각
+const msStamp = ms => { const p = kstParts(new Date(ms)); return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`; };
+const msHM = ms => { const p = kstParts(new Date(ms)); return `${+p.month}/${+p.day} ${p.hour}:${p.minute}`; };
+function classStartMs(s){ const [h, m] = safeTime(s.time, "17:00").split(":").map(Number); return s.d.getTime() + (h - 9) * 3600e3 + m * 60e3; }
+// 학생 요청 자동 반영 정보: 대상이면 {due, start}, 아니면 null (끄기·늦게 낸 요청·이미 바뀐 수업 제외)
+function autoInfo(r, C, s){
+  if (!s || r.byKind !== "student" || !C.autoMin || fmt(s.d) !== r.d || s.act !== "plan") return null;
+  const start = classStartMs(s), due = start - C.autoMin * 60e3, filed = stampMs(r.at);
+  return {start, due, filed, late: !(filed < due)};
+}
+const lateReq = (r, C) => Math.round((parse(r.d) - parse(String(r.at || todayStr()).slice(0, 10))) / 86400000) < C.minNotice;
+function reqBadges(r, C){
+  const b = [];
+  if (r.cause === "mutual") b.push(`<span class="rqb mut">${t("bMut")}</span>`);
+  b.push(r.byKind === "student" ? `<span class="rqb stu">${t("bStuReq")}</span>` : `<span class="rqb tch">${t("bTchReq")}</span>`);
+  if (r.cause === "teacher") b.push(`<span class="rqb plain">${t("bTch")}</span>`);
+  if (r.cause === "me") b.push(`<span class="rqb plain">${r.byKind === "student" ? t("bMe") : t("bTch")}</span>`);
+  if (reasonIdx(r.reason) === 4 && r.byKind !== "student") b.push(`<span class="rqb stu">${t("bStuReq")}</span>`);
+  if (r.act === "move" && lateReq(r, C) && r.status === "pending") b.push(`<span class="rqb late">${t("bLate")}</span>`);
+  return `<div class="rqbs">${b.join("")}</div>`;
+}
+// 대기 중 학생 요청: 알림 일정 + 자동 반영까지 남은 시간 (학생·선생님 화면 같은 내용)
+function autoHtml(r, C, s){
+  if (r.byKind !== "student" || r.status !== "pending") return "";
+  if (!C.autoMin) return `<div class="hint">${t("autoOff")}</div>`;
+  const a = autoInfo(r, C, s); if (!a) return "";
+  if (a.late) return `<div class="hint">${t("autoNoLate")}</div>`;
+  const now = Date.now(), left = a.due - now, soon = left < 60 * 60e3;
+  const steps = [[a.filed, "filed"], [a.start - 1440 * 60e3, "day"], [a.start - 180 * 60e3, "three"]].filter(x => x[1] === "filed" || (x[0] > a.filed && x[0] < a.due));
+  const tl = steps.map(([ms, k]) => `<li class="${ms <= now ? "ok" : ""}"><span>${ms <= now ? t("remSent") : t("remWait")}</span><span class="mono">${msHM(ms)}</span><span>${t("remSteps")[k]}</span></li>`).join("") + `<li class="due"><span>⏱</span><span class="mono">${msHM(a.due)}</span><span>${t("remSteps").due}</span></li>`;
+  return `<div class="rqauto${soon ? " soon" : ""}">${soon ? t("autoSoon")(msHM(a.due)) : t("autoIn")(msHM(a.due), t("leftFmt")(left))}</div><ul class="rqtl">${tl}</ul><div class="hint">${t("autoSame")}</div>`;
+}
 function reqLines(r, C){
   const s = buildSessions(sundays(C.start, C.months, C.count), C).find(x => x.id === r.id);
-  return {s, html: `<div><b>${kdate(parse(r.d))} ${s ? labelOf(s) : ""}</b> · ${reqWhat(r, C)}</div>
-    <div class="hint">${(r.cause ? t("cause")[r.cause] + " · " : "") + String(r.reason || "").replace(/</g,"&lt;")}</div>`};
+  const late = r.act === "move" && r.status === "pending" && lateReq(r, C);
+  const auto = r.auto && !r.undone ? `<div class="rqdone">${t("autoDone")} <span class="rqb plain">${t("autoTagNo")}</span> <span class="hint">${esc(t("autoRec")(r.at, r.decidedAt || ""))}</span></div>` : "";
+  return {s, html: `<div><b>${kdate(parse(r.d))} ${s ? labelOf(s) : ""}</b> · ${reqWhat(r, C)}</div>${reqBadges(r, C)}
+    <div class="hint">${esc(reasonTr(r.reason))}</div>${late ? `<div class="hint">${t("lateNote")}</div>` : ""}${auto}${autoHtml(r, C, s)}`};
+}
+/* ---------- 학생 요청 자동 반영 + 알림 ----------
+   서버 없이 동작: 누구든(학생·선생님·마스터) 사이트를 열어 두면 1분마다 확인해서
+   반영 시각이 지난 대기 요청을 teacherOk(auto) 로 바꿈 → 선생님 승인과 같은 길로 달력에 반영 */
+let autoRunning = false;
+async function runAutoApply(){
+  if (!isEditor() || autoRunning || !requests.length) return;
+  const C = cfg(), sess = buildSessions(sundays(C.start, C.months, C.count), C), now = Date.now();
+  const due = requests.filter(r => r.status === "pending").filter(r => { const a = autoInfo(r, C, sess.find(x => x.id === r.id)); return a && !a.late && now >= a.due && now < a.start + C.dur * 60e3; });
+  if (!due.length) return;
+  autoRunning = true; const ids = due.map(r => r.rid), stamp = nowStamp(), done = [];
+  try {
+    await mutateRequests(list => list.forEach(x => { if (ids.includes(x.rid) && x.status === "pending"){ x.status = "teacherOk"; x.auto = true; x.decidedAt = stamp; x.decidedBy = "auto"; done.push(x.rid); } }), `Auto-apply ${ids.length} student request(s) (no teacher answer)`);
+  } catch(e){ autoRunning = false; return; }
+  autoRunning = false;
+  due.filter(r => done.includes(r.rid)).forEach(r => announceB("approved", () => t("nfAuto")(`${kdate(parse(r.d))} · ${reqWhat(r, C)}`, t("mins")(C.autoMin))));
+  overlayApprovals(); render(); renderPending();
+  if (isMaster()) applyTeacherApproved();
+}
+const REMKEY = "ecc-rq-reminded";
+function runReminders(){
+  if (!(isMaster() || isStudent()) || !requests.length) return;
+  const C = cfg(); if (!C.autoMin) return;
+  const sess = buildSessions(sundays(C.start, C.months, C.count), C), now = Date.now();
+  let seen = []; try { seen = JSON.parse(localStorage.getItem(REMKEY) || "[]"); } catch(e) {}
+  requests.filter(r => r.status === "pending" && (isMaster() || r.by === auth.login)).forEach(r => {
+    const a = autoInfo(r, C, sess.find(x => x.id === r.id)); if (!a || a.late || now >= a.due) return;
+    const stage = [["three", a.start - 180 * 60e3], ["day", a.start - 1440 * 60e3]].find(([, ms]) => ms > a.filed && ms < a.due && now >= ms);
+    if (!stage || seen.includes(r.rid + ":" + stage[0]) || seen.includes(r.rid + ":three")) return;
+    seen.push(r.rid + ":" + stage[0]);
+    announceB("request", () => t("nfRemind")(r.name || r.by, `${kdate(parse(r.d))} · ${reqWhat(r, C)}`, msHM(a.due)));
+  });
+  try { localStorage.setItem(REMKEY, JSON.stringify(seen.slice(-200))); } catch(e) {}
+}
+setInterval(() => { if (!requests.length) return; runAutoApply(); runReminders(); renderPending(); }, 60e3);
+// 선생님: 자동 반영에 이의 → 마스터에게 되돌리기 요청
+async function askUndo(rid){
+  if (!isTeacher()) return; const r = requests.find(x => x.rid === rid); if (!r || !r.auto) return;
+  try { await mutateRequests(list => { const x = list.find(y => y.rid === rid); if (x && x.auto && !x.undoReq) x.undoReq = {by: auth.login, at: nowStamp()}; }, `Undo request for auto-applied ${rid} by ${auth.login}`); }
+  catch(e){ setSync(t("rqSaveFail")(e.message), true); return; }
+  announceB("request", () => t("nfUndoReq")(auth.name || auth.login, `${kdate(parse(r.d))} · ${reqWhat(r, cfg())}`)); renderPending();
+}
+// 마스터: 되돌리기 (아직 달력 반영 전이면 요청만 거절, 반영 후면 그 수업을 원래대로)
+async function masterUndo(rid, undo){
+  if (!isMaster()) return; const r = requests.find(x => x.rid === rid); if (!r) return;
+  if (!(await confirmMaster())) return;
+  const C = cfg(), what = `${kdate(parse(r.d))} · ${reqWhat(r, C)}`;
+  if (undo && r.status === "approved"){
+    const m = state[r.id];
+    if (m){ if (r.act === "edit"){ const n = {...m}; delete n.ed; delete n.edCause; delete n.edSameDay; if (Object.keys(n).some(k => !["agreed","notice"].includes(k))) state[r.id] = n; else delete state[r.id]; }
+      else if (m.ed) state[r.id] = {ed: m.ed, ...(m.edCause ? {edCause: m.edCause} : {})}; else delete state[r.id]; }
+    addLog(bothLangs(() => t("logUndo")(what)), r.id); save();
+  }
+  try { await mutateRequests(list => { const x = list.find(y => y.rid === rid); if (!x) return; if (x.undoReq) x.undoReq.closed = true; if (undo){ x.undone = true; if (x.status === "teacherOk") x.status = "rejected"; } }, `${undo ? "Undo" : "Keep"} auto-applied ${rid}`); }
+  catch(e){ setSync(t("rqSaveFail")(e.message), true); return; }
+  if (undo) announceB("info", () => t("nfUndone")(what));
+  setSync(undo ? t("undoDone") : t("undoKept")); render(); renderPending();
 }
 // 마스터: 승인 대기 목록
 /* ---------- 학생 요청 → 선생님 승인 → 달력 변경 ----------
@@ -1685,7 +1817,7 @@ function reqMeta(r, sess, prev){
 }
 function overlayApprovals(){
   if (isMaster() || !baseState) return;
-  const ok = requests.filter(r => r.status === "teacherOk");
+  const ok = requests.filter(r => r.status === "teacherOk" && !r.undone);
   state = baseState;
   if (!ok.length) return;
   const C = cfg(), P = sundays(C.start, C.months, C.count), next = JSON.parse(JSON.stringify(baseState));
@@ -1722,16 +1854,20 @@ async function applyTeacherApproved(){
 }
 function renderPending(){
   const box = $("pendList"); if (!box) return;
-  const C = cfg(), list = requests.filter(r => (r.status === "pending" || (isMaster() && r.status === "teacherOk")) && (isMaster() || (isTeacher() && r.byKind === "student"))).sort((a,b) => String(a.at).localeCompare(String(b.at)));
+  const C = cfg(), today = todayStr();
+  const autoShown = r => r.auto && !r.undone && r.d >= today && (isTeacher() ? !(r.undoReq && r.undoReq.closed) : (r.undoReq && !r.undoReq.closed));
+  const list = requests.filter(r => (r.status === "pending" || (isMaster() && r.status === "teacherOk") || ((r.status === "teacherOk" || r.status === "approved") && autoShown(r))) && (isMaster() || (isTeacher() && r.byKind === "student"))).sort((a,b) => String(a.at).localeCompare(String(b.at)));
   $("pendCard").style.display = (isMaster() || isTeacher()) && list.length ? "" : "none";
   $("pendTitle").textContent = isTeacher() ? t("hPendT") : t("hPend");
   $("pendCount").textContent = list.length ? `(${list.length})` : "";
   box.innerHTML = list.map(r => {
     const {s, html} = reqLines(r, C);
-    const stale = !s || fmt(s.d) !== r.d || s.act !== "plan";
-    return `<div class="pendrow"><div class="hint">${r.byKind === "student" ? "🎓 " : "👨‍🏫 "}${esc(t("pendBy")(r.name || r.by, r.by, r.at))}${isMaster() && r.byKind === "student" ? ` · <b>${t("pendWaitT")}</b>` : ""}</div>${html}
+    const stale = r.status === "pending" && (!s || fmt(s.d) !== r.d || s.act !== "plan");
+    return `<div class="pendrow"><div class="hint">${r.byKind === "student" ? "🎓 " : "👨‍🏫 "}${esc(t("pendBy")(r.name || r.by, r.by, r.at))}${isMaster() && r.byKind === "student" && r.status === "pending" ? ` · <b>${t("pendWaitT")}</b>` : ""}</div>${html}
       ${stale ? `<div class="hint bad">${s ? t("rqStale") : t("rqGone")}</div>` : ""}
-      ${r.status === "teacherOk" ? `<div class="hint"><b>${t("st_teacherOk")}</b> · ${esc(r.decidedBy || "")} ${esc(r.decidedAt || "")}</div><div class="btns"><button class="sm" data-apply="1">${t("tdApplyBtn")}</button></div></div>` :
+      ${r.auto && !r.undone && isTeacher() ? `<div class="btns">${r.undoReq ? `<span class="hint">${t("undoSent")}</span>` : `<button class="ghost sm" data-undo="${esc(r.rid)}">${t("undoBtn")}</button>`}</div></div>` :
+      r.auto && r.undoReq && !r.undoReq.closed && isMaster() ? `<div class="hint"><b>${esc(t("undoAsk")(r.undoReq.by, r.undoReq.at))}</b></div><div class="btns"><button class="sm danger" data-mundo="${esc(r.rid)}">${t("undoDo")}</button><button class="ghost sm" data-mkeep="${esc(r.rid)}">${t("undoKeep")}</button>${r.status === "teacherOk" ? `<button class="sm" data-apply="1">${t("tdApplyBtn")}</button>` : ""}</div></div>` :
+      r.status === "teacherOk" ? `<div class="hint"><b>${t("st_teacherOk")}</b> · ${esc(r.decidedBy || "")} ${esc(r.decidedAt || "")}</div><div class="btns"><button class="sm" data-apply="1">${t("tdApplyBtn")}</button></div></div>` :
       `<div class="btns">${s ? `<button class="sm" data-pa="${esc(r.rid)}">${t("pendApprove")}</button>` : ""}<button class="ghost sm danger" data-pr="${esc(r.rid)}">${t("pendReject")}</button></div></div>`}`;
   }).join("");
   // 선생님: 팝업 대신 같은 자리에서 한 번 더 확인 (휴대폰·앱 안 브라우저에서도 동작)
@@ -1741,6 +1877,9 @@ function renderPending(){
     row.querySelector("[data-no]").onclick = () => renderPending(); };
   box.querySelectorAll("[data-pa]").forEach(b => b.onclick = () => isTeacher() ? askInline(b, b.dataset.pa, true) : decide(b.dataset.pa, true));
   box.querySelectorAll("[data-apply]").forEach(b => b.onclick = () => applyTeacherApproved());
+  box.querySelectorAll("[data-undo]").forEach(b => b.onclick = () => { b.disabled = true; askUndo(b.dataset.undo); });
+  box.querySelectorAll("[data-mundo]").forEach(b => b.onclick = () => masterUndo(b.dataset.mundo, true));
+  box.querySelectorAll("[data-mkeep]").forEach(b => b.onclick = () => masterUndo(b.dataset.mkeep, false));
   box.querySelectorAll("[data-pr]").forEach(b => b.onclick = () => isTeacher() ? askInline(b, b.dataset.pr, false) : decide(b.dataset.pr, false));
   renderMyRequests();
 }
@@ -1779,7 +1918,7 @@ $("unsentChip") && ($("unsentChip").onclick = () => { notifyItems = loadUnsent()
 function applyReq(r){
   selected = r.id; pick = {act: r.act, cause: r.cause || null, how: r.how || "end"};
   $("toDate").value = r.to || ""; $("toTime").value = r.toTime || $("time").value; $("agreed").value = String(r.at).slice(0,10);
-  $("memo").value = `[${t(r.byKind === "student" ? "rqTagS" : "rqTag")}${r.by ? " · " + r.by : ""}${r.status === "teacherOk" && r.decidedBy ? " · " + t("rqTagOk")(r.decidedBy) : ""}] ${r.reason || ""}`;
+  $("memo").value = `[${t(r.byKind === "student" ? "rqTagS" : "rqTag")}${r.by ? " · " + r.by : ""}${r.auto ? " · " + t("rqTagAuto")(r.at) : r.status === "teacherOk" && r.decidedBy ? " · " + t("rqTagOk")(r.decidedBy) : ""}] ${reasonTr(r.reason)}`;
   notifyKind = "approved"; try { $("applyBtn").onclick(); } finally { notifyKind = "change"; }
 }
 async function decide(rid, ok){
@@ -2394,7 +2533,7 @@ function drawFx(){
 /* ---------- 이벤트 ---------- */
 let zoomAnnounced = null;
 $("zoom").addEventListener("change", () => { const u = zoomUrl(); if (!isMaster() || !u) return; if (zoomAnnounced === null) zoomAnnounced = ""; if (u !== zoomAnnounced){ zoomAnnounced = u; announceB("info", () => t("nfZoom")); } });
-["start","months","count","time","dur","price","alertN","minNotice","rate","rateDate","zoom","asof"].forEach(id => $(id).addEventListener("input", () => { if (id === "zoom"){ const v = $("zoom").value.trim(); $("zoom").setCustomValidity(v && !zoomUrl() ? t("zBadUrl") : ""); $("zoom").title = v && !zoomUrl() ? t("zBadUrl") : ""; } render(); if (id !== "asof") queueRemoteSave(); }));
+["start","months","count","time","dur","price","alertN","minNotice","autoMin","rate","rateDate","zoom","asof"].forEach(id => $(id).addEventListener("input", () => { if (id === "zoom"){ const v = $("zoom").value.trim(); $("zoom").setCustomValidity(v && !zoomUrl() ? t("zBadUrl") : ""); $("zoom").title = v && !zoomUrl() ? t("zBadUrl") : ""; } render(); if (id !== "asof") queueRemoteSave(); }));
 $("loginBtn").onclick = () => { const tokMode = /^#master$/.test(location.hash);
   $("loginTabs").style.display = tokMode ? "" : "none";
   document.querySelector(`#loginTabs [data-v="${tokMode ? "master" : "sub"}"]`).click(); const c = repoCoords(); $("ghOwner").value = c.owner; $("ghRepo").value = c.repo; $("ghPriv").value = PRIV_DEFAULT; $("loginMsg").textContent = ""; openModal("loginModal"); };
