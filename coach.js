@@ -1,4 +1,7 @@
 "use strict";
+if(/[?&]embed=1\b/.test(location.search))document.documentElement.classList.add("embed");   // AI 음성 코치 안에 들어갈 때 제목줄 숨김
+// AI 음성 코치 안에서 열렸을 때만: 글쓰기 훈련 결과를 옆의 선생님에게 알려 선생님이 말로 반응하게 함
+const toTeacher = ev => { try{ if(window.parent!==window && document.documentElement.classList.contains("embed")) window.parent.postMessage(Object.assign({type:"coach-event"}, ev), location.origin); }catch(e){} };
 /* ============ Content: Edward's fossilized mistakes (from 4 years of Daniel's feedback) ============ */
 const CORE = [
   {id:"every-people", wrong:"every people", right:"everyone / every person", why:"every 뒤에는 단수. people은 이미 복수", seed:12,
@@ -747,6 +750,7 @@ async function loadDrillItem(){
   const fresh = aiReady() && (state.progress[it.id]?.lastSeen);  // first time uses the built-in sentence
   drill.ko = (!fresh && it.ko) ? it.ko : ""; drill.answer = (!fresh && it.answer) ? it.answer : "";
   renderDrill();
+  if(drill.ko) toTeacher({kind:"drill-ask", ko:drill.ko, right:it.right});
   if(!drill.ko){
     if(!aiReady()){ drill.ko = it.ko || ('“'+it.right+'”를 써서 문장을 하나 만들어 보세요.'); drill.answer = it.answer || it.right; renderDrill(); return; }
     try{
@@ -754,7 +758,7 @@ async function loadDrillItem(){
         [{role:"user", content:"New drill, different from: "+(it.ko||"")}], {tier:"quick", noCount:true});
       drill.ko=r.ko; drill.answer=r.answer;
     }catch(e){ drill.ko = it.ko || ('“'+it.right+'”를 써서 문장을 만들어 보세요.'); drill.answer = it.answer || it.right; }
-    renderDrill();
+    renderDrill(); toTeacher({kind:"drill-ask", ko:drill.ko, right:it.right});
   }
 }
 async function checkDrill(){
@@ -769,6 +773,7 @@ async function checkDrill(){
       [{role:"user", content:"Learner answer: "+ans}], {tier:"quick"});
     recordAttempt(it.id, !!r.pass); drill.done++; if(r.pass) drill.ok++;
     (r.other||[]).forEach(c=>addCorrection(c,"app"));
+    toTeacher({kind:"drill-graded", pass:!!r.pass, answer:ans, corrected:r.corrected||"", model:drill.answer, why:r.why||"", right:it.right});
     save();
     drill.phase="graded";
     drill.resultHTML = '<div class="bubble" style="background:var(--accent-soft)">'+esc(ans)+'</div>'+
@@ -789,6 +794,7 @@ async function checkDrill(){
 function offlineGrade(it, ans, note){
     const r = ruleJudge(it, ans);
     recordAttempt(it.id, r.pass); drill.done++; if(r.pass) drill.ok++; save();
+    toTeacher({kind:"drill-graded", pass:!!r.pass, answer:ans, corrected:"", model:drill.answer, why:r.why||"", right:it.right});
     drill.phase="graded";
     drill.resultHTML = '<div class="bubble" style="background:var(--accent-soft)">'+esc(ans)+'</div>'+
       '<div class="fix '+(r.pass?"clean":"")+'"><div class="fix-line"><span class="'+(r.pass?"ins":"del")+'">'+(r.pass?"✓ 통과":"✗ 다시 연습")+'</span><span class="why">자동 판정 · '+esc(r.why)+'</span></div>'+

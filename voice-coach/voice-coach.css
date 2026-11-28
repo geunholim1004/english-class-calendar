@@ -133,3 +133,66 @@ textarea{width:100%;min-height:140px;border-radius:10px;border:1px solid var(--l
 .tx p.t{align-self:flex-start;background:#0f2f2a;color:#e8f6f1;border-bottom-left-radius:4px}
 .tx p.partial{opacity:.75}
 .livehint{text-align:center;color:#9cc6bb;font-size:13px;padding:0 20px 8px}
+
+/* ===== 새 배치: 1단계 선생님 고르기 → 2단계 한 선생님 + 대화창 ===== */
+.app{display:block;max-width:1240px}
+.app>header{margin-bottom:18px}
+.picker h2{font:700 22px "Plus Jakarta Sans","Noto Sans KR";color:var(--ink);margin:6px 0 16px}
+.picker h2 span{font:500 14px "Noto Sans KR";color:var(--mut);margin-left:8px}
+.picker .teachers{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:0}
+.picker .tc{padding:18px 12px;gap:6px;border-radius:20px;transition:transform .15s,box-shadow .15s}
+.picker .tc:hover,.picker .tc:focus-visible{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.12);outline:none}
+.picker .tc img,.picker .tc svg{width:112px;height:112px}
+.picker .tc b{font-size:18px}.picker .tc span{font-size:14px}
+.picker .tc[aria-pressed=true]{box-shadow:0 0 0 2px var(--teal) inset}
+.sbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:10px 14px;margin-bottom:16px}
+.chosen{display:flex;align-items:center;gap:10px;min-width:0}
+.chosen img,.chosen svg{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:none}
+.chosen b{font:700 17px "Plus Jakarta Sans","Noto Sans KR";display:block}.chosen span{font-size:13px;color:var(--mut)}
+.sbar .scenes{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.sbar .sc{min-height:36px;padding:6px 12px;border-radius:999px;display:inline-flex;align-items:center}
+.sbar .sc span{display:none}.sbar .sc b{font:500 14px "Noto Sans KR"}
+.sbar .quota{margin:0;padding:6px 12px;border-radius:999px;font-size:13px;background:var(--bg)}
+.sbar .quota br{display:none}.sbar .quota>b{display:none}.sbar .quota .bar{display:none}
+.duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:stretch}
+.duo .call{min-height:560px;grid-template-rows:auto 1fr auto auto auto auto}
+.duo .cap{display:none}
+.duo .stage{gap:12px;padding:6px 20px}
+.duo .av{width:min(280px,60vw)}
+.chat{background:var(--card);border:1px solid var(--line);border-radius:28px;display:flex;flex-direction:column;min-height:560px;max-height:calc(100vh - 220px);overflow:hidden}
+.chat-h{display:flex;align-items:baseline;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.chat-h b{font:700 17px "Plus Jakarta Sans","Noto Sans KR"}.chat-h span{font-size:13px;color:var(--mut)}
+.chat .tx{display:flex;flex-direction:column;gap:8px;flex:1;max-height:none;margin:0;background:none;border-radius:0;padding:16px 18px;overflow:auto}
+.chat .tx p.me{background:light-dark(#d9f2e8,#1d4a43);color:var(--ink)}
+.chat .tx p.t{background:light-dark(#f1f4f3,#132a26);color:var(--ink)}
+.chat .tx p b{color:var(--mut)}
+.chat .kb{display:flex!important;padding:12px 14px;border-top:1px solid var(--line);margin:0}
+.chat .kb input{background:var(--bg);color:var(--ink);border-color:var(--line)}
+.more{margin-top:16px}.more summary{font-weight:700;min-height:28px}
+.session .report{margin-top:16px}
+@media(max-width:900px){.picker .teachers{grid-template-columns:repeat(2,minmax(0,1fr))}.duo{grid-template-columns:minmax(0,1fr)}.chat{min-height:380px;max-height:none}.duo .call{min-height:0}.sbar .scenes{margin-left:0;width:100%}}
+@media(max-width:600px){.picker .tc img,.picker .tc svg{width:84px;height:84px}.duo .av{width:min(200px,56vw)}}
+
+/* 말하기 대화 ↔ 글쓰기 훈련 탭 */
+.modes{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.modes button{min-height:38px;border:0;border-radius:999px;padding:6px 16px;background:none;color:var(--ink);font:600 14px "Noto Sans KR";cursor:pointer}
+.modes button[aria-selected=true]{background:var(--call);color:#fff}
+.writepane{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden}
+.wp-h{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+.wp-h #wpWho{display:flex;align-items:center;gap:8px;font-weight:700}
+.wp-h #wpWho img,.wp-h #wpWho svg{width:30px;height:30px;border-radius:50%;object-fit:cover}
+#coachFrame{display:block;width:100%;height:calc(100vh - 200px);min-height:620px;border:0;background:transparent}
+.session.writing .sbar .scenes{display:none}
+
+/* 오른쪽 창: 대화 ↔ 글쓰기 훈련 (선생님은 왼쪽에 그대로) */
+.duo{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)}
+.chat-h{flex-wrap:wrap;align-items:center;padding:10px 14px}
+.chat-h #chatHint{font-size:13px;color:var(--mut)}
+.talkbox{display:flex;flex-direction:column;flex:1;min-height:0}
+.talkbox[hidden]{display:none}
+.chat .writepane{flex:1;min-height:0;border:0;border-radius:0;background:none}
+.chat .writepane[hidden]{display:none}
+#coachFrame{height:100%;min-height:520px}
+.chat{max-height:none;height:calc(100vh - 190px);min-height:560px}
+.session.writing .duo .cap{display:block;font-size:17px;min-height:0;padding:0 6px}
+@media(max-width:900px){.chat{height:auto}#coachFrame{height:70vh}}
