@@ -97,8 +97,10 @@ function avatar(t){const H={
 const repo={};
 function face(t){const p=store.get('photo_'+t.k,'')||repo[t.k];return p?`<img src="${esc(p)}" alt="">`:avatar(t)}
 function probeRepo(){TEACHERS.forEach(t=>{const im=new Image();im.onload=()=>{repo[t.k]=im.src;renderTeacher()};im.src=`teachers/${t.k}.jpg?v=2`})}
-function renderTeacher(){const t=TT(),hasP=!!(store.get('photo_'+t.k,'')||repo[t.k]);
- const av=$('#orb');av.innerHTML=face(t)+'<span class="wave"><i></i><i></i><i></i><i></i><i></i></span>';av.classList.toggle('photo',hasP);
+let talker=null;
+function renderTeacher(){const t=TT(),src=store.get('photo_'+t.k,'')||repo[t.k],av=$('#orb');
+ if(src&&window.TalkingFace){if(!talker||!talker.c.isConnected||av.dataset.k!==t.k){av.innerHTML='<canvas aria-hidden="true"></canvas>';av.dataset.k=t.k;if(talker)talker.stop();talker=new TalkingFace(av.querySelector('canvas'));talker.load(t.k,src);talker.setMode($('#call').dataset.s||'idle')}}
+ else{av.innerHTML=face(t);av.dataset.k='';if(talker){talker.stop();talker=null}}
  $('#tname').innerHTML=`${esc(t.n)}<span>${esc(t.d)}</span>`;
  $('#teachers').innerHTML=TEACHERS.map(x=>`<button class="tc" data-k="${x.k}" aria-pressed="${x.k===t.k}">${face(x)}<b>${x.n}</b><span>${x.d}</span></button>`).join('')}
 
@@ -124,7 +126,7 @@ const RATES=[0.85,1,1.15];
 const scene=()=>SCENES.find(s=>s.k===sceneK);
 const nextQ=()=>{const q=scene().q;return q[qi++%q.length]};
 const STATES={idle:'대기 중 · 선생님을 누르면 듣기 시작',listen:'듣는 중 · 말을 마치면 잠시 멈추세요',think:'선생님이 생각하는 중',speak:'선생님이 말하는 중'};
-function setS(s){$('#call').dataset.s=s;$('#stateTx').textContent=STATES[s]}
+function setS(s){$('#call').dataset.s=s;$('#stateTx').textContent=STATES[s];if(talker)talker.setMode(s)}
 function cap(who,t){$('#cap').innerHTML=`<small>${esc(who)}</small>${esc(t)}`}
 function note(t){$('#note').textContent=t;$('#note').style.display=t?'block':'none'}
 function renderWho(){$('#who').textContent=whoLabel();renderQuota()}
@@ -151,7 +153,7 @@ function renderVoiceSel(){const sel=$('#voiceSel'),t=TT(),en=enVoices('en').sort
  sel.innerHTML=en.length?en.map(v=>`<option ${cur&&v.name===cur.name?'selected':''}>${esc(v.name)}</option>`).join(''):'<option>영어 음성 없음</option>'}
 function speak(t,after){try{speechSynthesis.cancel();const T=TT(),u=new SpeechSynthesisUtterance(t);u.lang=T.lang;u.rate=rate;u.pitch=T.g==='f'?1.12:0.88;
  const v=pickVoice(T);if(v){u.voice=v;u.lang=v.lang;if(NAT.test(v.name))u.pitch=1}
- u.onstart=()=>setS('speak');u.onend=()=>{setS('idle');after&&after()};u.onerror=()=>setS('idle');speechSynthesis.speak(u)}catch(e){setS('idle')}}
+ u.onstart=()=>setS('speak');u.onboundary=()=>{if(talker)talker.pulse(0.75+Math.random()*0.25)};u.onend=()=>{setS('idle');after&&after()};u.onerror=()=>setS('idle');speechSynthesis.speak(u)}catch(e){setS('idle')}}
 function startTimer(){if(tick)return;t0=Date.now();tick=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);$('#timer').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')},1000)}
 
 /* ---- AI 답변: Gemini → Groq → OpenRouter → 오프라인 채점 ---- */
@@ -211,6 +213,21 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-app]
  window.open(a.url(p),'_blank','noopener');
  $('#appMsg').textContent=`${a.n}을(를) 열었어요. ${copied?'코치 지침이 복사돼 있으니, 입력칸이 비어 있으면 붙여 넣어 보내세요.':'복사가 막혀서 아래 "코치 지침 전문"에서 직접 복사하세요.'} 보낸 뒤 앱의 음성 대화 단추를 누르면 ${TT().n} 선생님처럼 말로 연습할 수 있어요.`});
 
+/* ---- 화상 모드: ChatGPT·Claude 음성 탭 소리 → 사진 입 움직임, 항상 위 선생님 창 ---- */
+let unlink=null,linkedState='';
+async function toggleLink(){const b=$('#linkBtn'),st=$('#linkState');
+ if(unlink){unlink();return}
+ if(!talker){st.textContent='선생님 사진이 아직 안 불러와졌어요. 잠시 뒤 다시 누르세요.';return}
+ try{unlink=await linkTabAudio(talker,s=>{
+   if(s==='ended'){unlink=null;b.setAttribute('aria-pressed','false');b.textContent='ChatGPT·Claude 음성 소리 연결';st.textContent='연결을 끊었어요.';setS('idle');return}
+   if(s!==linkedState){linkedState=s;$('#call').dataset.s=s;$('#stateTx').textContent=s==='speak'?TT().n+' 선생님이 말하는 중 (연결된 음성)':'듣는 중 · 연결된 앱에 말하세요'}});
+  b.setAttribute('aria-pressed','true');b.textContent='소리 연결 끊기';st.textContent='연결됐어요. 이제 "선생님 창 띄우기"를 누르고 ChatGPT·Claude 탭에서 말하세요.';
+  try{speechSynthesis.cancel()}catch(e){}$('#hfBtn').setAttribute('aria-pressed','false');
+ }catch(e){st.textContent=e&&e.message==='noaudio'?'소리가 공유되지 않았어요. 공유 창에서 탭을 고르고 "탭 오디오도 공유"를 켜 주세요.':e&&e.message==='unsupported'?'이 브라우저는 탭 소리 공유를 지원하지 않아요. 데스크톱 크롬·엣지를 써 주세요.':'공유를 취소했거나 막혔어요. 다시 눌러 주세요.'}}
+async function togglePip(){const st=$('#linkState');
+ try{await popOut($('#call'),{width:360,height:470,onClose:()=>{$('#pipBtn').setAttribute('aria-pressed','false')}});$('#pipBtn').setAttribute('aria-pressed','true')}
+ catch(e){st.textContent=e&&e.message==='unsupported'?'이 브라우저는 "항상 위" 창을 지원하지 않아요 (크롬·엣지 116 이상). 대신 창 두 개를 나란히 놓고 쓰세요.':'창을 띄우지 못했어요. 다시 눌러 주세요.'}}
+
 /* ---- 시작 ---- */
 if(!loggedIn()){$('#locked').hidden=false;return}
 $('#app').hidden=false;
@@ -224,6 +241,8 @@ $('#txBtn').addEventListener('click',e=>tog(e.currentTarget,on=>$('#tx').classLi
 $('#hfBtn').addEventListener('click',e=>tog(e.currentTarget));
 $('#spdBtn').addEventListener('click',e=>{rate=RATES[(RATES.indexOf(rate)+1)%RATES.length];e.currentTarget.textContent=(rate===1?'1.0':String(rate))+'×'});
 $('#endBtn').addEventListener('click',()=>{try{rec&&rec.stop();speechSynthesis.cancel()}catch(x){}clearInterval(tick);tick=null;setS('idle');report()});
+$('#linkBtn').addEventListener('click',toggleLink);
+$('#pipBtn').addEventListener('click',togglePip);
 $('#voiceSel').addEventListener('change',e=>store.set('voice_'+TT().k,e.target.value));
 $('#voiceTest').addEventListener('click',()=>speak(`Hi, I'm ${TT().n}. Let's talk about your LPDDR5X customer meeting.`));
 renderTeacher();renderWho();renderScenes();greet();probeRepo();

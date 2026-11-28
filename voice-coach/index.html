@@ -46,6 +46,11 @@
       </div>
       <div class="fixes" id="fixes"></div>
       <div>
+        <div class="vlink" id="vlink">
+          <button class="vbtn" id="linkBtn" type="button">ChatGPT·Claude 음성 소리 연결</button>
+          <button class="vbtn" id="pipBtn" type="button">선생님 창 띄우기 (항상 위)</button>
+          <span class="small vstate" id="linkState"></span>
+        </div>
         <div class="note" id="voiceWarn"></div>
         <div class="note" id="note"></div>
         <div class="tx" id="tx"></div>
@@ -71,12 +76,19 @@
         <div class="ap"><b>Gemini · 유료</b><p>보낸 뒤 Gemini Live로 말하기</p><button class="btn pri" data-app="gemini">Gemini로 음성 연습</button></div>
       </div>
       <p class="small" id="appMsg" aria-live="polite"></p>
+      <ol class="guide">
+        <li>위 단추로 Claude나 ChatGPT를 엽니다 (지침이 복사돼요). 그 탭에서 지침을 보내고 <b>음성 모드</b>를 켜세요.</li>
+        <li>이 화면으로 돌아와 <b>"ChatGPT·Claude 음성 소리 연결"</b>을 누르고, 공유 창에서 그 탭을 고른 뒤 <b>"탭 오디오도 공유"</b>를 켜세요.</li>
+        <li><b>"선생님 창 띄우기"</b>를 누르면 선생님 얼굴이 작은 창으로 항상 위에 떠요. 그 탭으로 가서 말하면, 선생님이 대답할 때 사진 속 입이 소리에 맞춰 움직여요.</li>
+      </ol>
+      <p class="small">크롬·엣지 데스크톱에서 됩니다. Claude 데스크톱 앱을 쓸 때는 윈도우에서 "전체 화면 + 시스템 오디오 공유"를 고르면 됩니다. 휴대폰 앱의 소리는 연결할 수 없어요.</p>
       <div class="row"><label class="small" style="display:flex;gap:8px;align-items:center">선생님 목소리<select id="voiceSel" aria-label="선생님 목소리"></select></label><button class="btn" id="voiceTest" type="button">들어 보기</button><a class="btn" href="../coach.html">Edward English Coach로 돌아가기</a></div>
       <details style="margin-top:12px"><summary>코치 지침 전문 보기</summary><textarea id="promptBox" readonly></textarea></details>
     </section>
   </div>
 </div>
 
+<script src="face-anim.js"></script>
 <script src="voice-coach.js"></script>
 </body>
 </html>

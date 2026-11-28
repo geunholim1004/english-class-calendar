@@ -97,3 +97,16 @@ textarea{width:100%;min-height:140px;border-radius:10px;border:1px solid var(--l
 @media(max-width:600px){.teachers{grid-template-columns:repeat(2,minmax(0,1fr))}.call{min-height:560px;border-radius:22px}.scenes{grid-template-columns:minmax(0,1fr)}.form{grid-template-columns:minmax(0,1fr)}.stats b{font-size:22px}}
 .locked{max-width:560px;margin:12vh auto;padding:28px;text-align:center}
 .locked a{display:inline-block;margin-top:14px}
+
+.av canvas{width:100%;height:100%;border-radius:50%;display:block;box-shadow:0 20px 60px rgba(0,0,0,.45);transform-origin:50% 80%;will-change:transform}
+.call[data-s=listen] .av canvas{animation:none}
+.vlink{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:0 20px 10px}
+.vbtn{min-height:40px;border-radius:999px;border:1px solid #23524a;background:#0c2925;color:#d8f3ea;padding:0 16px;font:500 14px "Noto Sans KR";cursor:pointer}
+.vbtn[aria-pressed=true]{background:var(--mint);color:#06221e;border-color:var(--mint)}
+.vstate{color:#9cc6bb;align-self:center;width:100%;text-align:center}
+.guide{margin:12px 0 4px;padding-left:20px;font-size:15px;line-height:1.6}.guide li{margin-bottom:6px}
+.pip-placeholder{background:var(--call);color:#cfe9df;border-radius:28px;padding:40px 24px;text-align:center}
+.pipbody{margin:0;background:#071a17;overflow:hidden}
+.pipbody .call{min-height:100vh;border-radius:0}
+.pipbody .call .fixes,.pipbody .call .note,.pipbody .call .tx,.pipbody .call .kb,.pipbody .call .dock,.pipbody .call .vlink,.pipbody .call .bar-top #timer{display:none!important}
+.pipbody .stage{gap:10px;padding:6px 12px}.pipbody .av{width:min(240px,62vw)}.pipbody .cap{font-size:15px;min-height:0}
