@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai; media-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
+<title>Edward English Coach · 음성</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="voice-coach.css">
+</head>
+<body>
+
+<section class="panel locked" id="locked" hidden>
+  <h3>로그인이 필요해요</h3>
+  <p class="small">음성 코치는 영어 수업 달력에 로그인한 사람만 쓸 수 있어요. 마스터, edward1004, uihee 등 등록된 아이디로 먼저 로그인하세요.</p>
+  <a class="btn pri" href="../index.html">달력에서 로그인하기</a>
+</section>
+
+<div class="app" id="app" hidden>
+  <header>
+    <div><h1>Edward English Coach · 음성</h1><p>선생님과 상황을 고르고, 선생님 얼굴을 눌러 말하세요. 코치가 답하고 바로 고쳐 줍니다.</p></div>
+    <div class="who" id="who"></div>
+  </header>
+
+  <aside>
+    <h2>선생님 고르기 · 여자 4명, 남자 4명</h2>
+    <div class="teachers" id="teachers"></div>
+    <h2>오늘의 연습 상황</h2>
+    <div class="scenes" id="scenes"></div>
+    <div class="quota" id="quota"></div>
+  </aside>
+
+  <div class="main">
+    <section class="call" id="call" data-s="idle" aria-label="음성 통화">
+      <div class="bar-top">
+        <span class="state"><span class="dot"></span><span id="stateTx">대기 중 · 선생님을 누르면 듣기 시작</span></span>
+        <span id="timer">00:00</span>
+      </div>
+      <div class="stage">
+        <button class="av" id="orb" aria-label="선생님을 눌러 말하기 시작/멈춤"></button>
+        <div class="tname" id="tname"></div>
+        <div class="cap" id="cap" aria-live="polite"></div>
+      </div>
+      <div class="fixes" id="fixes"></div>
+      <div>
+        <div class="vlink" id="vlink">
+          <button class="vbtn" id="linkBtn" type="button">ChatGPT·Claude 음성 소리 연결</button>
+          <button class="vbtn" id="pipBtn" type="button">선생님 창 띄우기 (항상 위)</button>
+          <span class="small vstate" id="linkState"></span>
+        </div>
+        <div class="note" id="voiceWarn"></div>
+        <div class="note" id="note"></div>
+        <div class="tx" id="tx"></div>
+        <form class="kb" id="kb"><input id="kbIn" placeholder="영어로 입력하세요" aria-label="영어 입력" autocomplete="off"><button>보내기</button></form>
+        <div class="dock">
+          <button class="round" id="kbBtn" aria-pressed="false" title="자판으로 입력">자판</button>
+          <button class="round" id="txBtn" aria-pressed="false" title="대화 전체 보기">기록</button>
+          <button class="round" id="hfBtn" aria-pressed="true" title="코치가 말한 뒤 자동으로 다시 듣기">자동</button>
+          <button class="round" id="spdBtn" title="코치 말하기 속도">1.0×</button>
+          <button class="round end" id="endBtn">통화 종료 · 리포트</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel report" id="report"></section>
+
+    <section class="panel">
+      <h3>내 유료 구독 앱의 음성 대화로 이어가기</h3>
+      <p class="small" style="margin:0 0 12px">단추를 누르면 지금 고른 <b id="appTeacher"></b> 선생님과 연습 상황의 코치 지침이 복사되고 앱이 열려요. 앱에서 붙여 넣어 보낸 뒤 음성 대화 단추를 누르면 그 선생님처럼 말로 연습할 수 있어요.</p>
+      <div class="apps">
+        <div class="ap"><b>Claude · Pro</b><p>보낸 뒤 휴대폰 Claude 앱의 음성 모드로 대화</p><button class="btn pri" data-app="claude">Claude로 음성 연습</button></div>
+        <div class="ap"><b>ChatGPT · Pro</b><p>보낸 뒤 ChatGPT 음성 대화로 연습</p><button class="btn pri" data-app="chatgpt">ChatGPT로 음성 연습</button></div>
+        <div class="ap"><b>Gemini · 유료</b><p>보낸 뒤 Gemini Live로 말하기</p><button class="btn pri" data-app="gemini">Gemini로 음성 연습</button></div>
+      </div>
+      <p class="small" id="appMsg" aria-live="polite"></p>
+      <ol class="guide">
+        <li>위 단추로 Claude나 ChatGPT를 엽니다 (지침이 복사돼요). 그 탭에서 지침을 보내고 <b>음성 모드</b>를 켜세요.</li>
+        <li>이 화면으로 돌아와 <b>"ChatGPT·Claude 음성 소리 연결"</b>을 누르고, 공유 창에서 그 탭을 고른 뒤 <b>"탭 오디오도 공유"</b>를 켜세요.</li>
+        <li><b>"선생님 창 띄우기"</b>를 누르면 선생님 얼굴이 작은 창으로 항상 위에 떠요. 그 탭으로 가서 말하면, 선생님이 대답할 때 사진 속 입이 소리에 맞춰 움직여요.</li>
+      </ol>
+      <p class="small">크롬·엣지 데스크톱에서 됩니다. Claude 데스크톱 앱을 쓸 때는 윈도우에서 "전체 화면 + 시스템 오디오 공유"를 고르면 됩니다. 휴대폰 앱의 소리는 연결할 수 없어요.</p>
+      <div class="row"><label class="small" style="display:flex;gap:8px;align-items:center">선생님 목소리<select id="voiceSel" aria-label="선생님 목소리"></select></label><button class="btn" id="voiceTest" type="button">들어 보기</button><a class="btn" href="../coach.html">Edward English Coach로 돌아가기</a></div>
+      <details style="margin-top:12px"><summary>코치 지침 전문 보기</summary><textarea id="promptBox" readonly></textarea></details>
+    </section>
+  </div>
+</div>
+
+<script src="face-anim.js"></script>
+<script src="voice-coach.js"></script>
+</body>
+</html>
