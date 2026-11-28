@@ -62,12 +62,19 @@ header.top .sub{color:var(--muted);font-size:13px}
 .hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .backlink{text-decoration:none;color:var(--accent);font-size:13px;min-height:0;padding:4px 8px}
 a.btn.voicelink{text-decoration:none;font-size:14px;font-weight:700;border-radius:999px;padding:6px 16px;min-height:36px;box-shadow:0 2px 8px rgba(31,111,92,.25)}
-.voicebox{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-.vteachers{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
-.vteachers .vt{display:block;width:34px;height:34px;border-radius:50%;overflow:hidden;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line);transition:transform .15s,box-shadow .15s}
-.vteachers .vt:hover,.vteachers .vt:focus-visible{transform:translateY(-2px);box-shadow:0 0 0 2px var(--accent);outline:none}
-.vteachers img{width:100%;height:100%;object-fit:cover;display:block}
-@media (max-width:560px){.voicebox{align-items:flex-start}.vteachers{justify-content:flex-start}}
+.voicebox{position:relative}
+.voicebox>summary{list-style:none}
+.voicebox>summary::-webkit-details-marker{display:none}
+.voicebox .caret{font-size:11px;transition:transform .15s;display:inline-block}
+.voicebox[open] .caret{transform:rotate(180deg)}
+.vpop{position:absolute;right:0;top:calc(100% + 8px);z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.14);padding:12px;width:min(340px,calc(100vw - 32px))}
+.vpop-h{font-size:13px;color:var(--muted);margin:0 0 8px 2px}
+.vgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.vgrid .vt{display:grid;justify-items:center;gap:2px;padding:6px 2px;border-radius:10px;text-decoration:none;color:var(--ink)}
+.vgrid .vt:hover,.vgrid .vt:focus-visible{background:var(--accent-soft);outline:none}
+.vgrid img{width:44px;height:44px;border-radius:50%;object-fit:cover;display:block}
+.vgrid b{font-size:13px;font-weight:600}.vgrid span{font-size:11px;color:var(--muted)}
+@media (max-width:560px){.vpop{right:auto;left:0}}
 .sync-note{font-size:11.5px;color:var(--muted);min-height:15px}
 .sync-note.bad{color:var(--bad)}
 @media (max-width:560px){.hdr-right{align-items:flex-start}}
@@ -204,10 +211,13 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
     </div>
     <div class="hdr-right">
       <a class="btn ghost backlink" href="./">← 수업 달력</a>
-      <div class="voicebox">
-        <a class="btn primary voicelink" href="voice-coach/" title="실사 선생님과 음성으로 대화 (ChatGPT·Claude·Gemini 음성 연결)">🎙 AI 음성 코치</a>
-        <div class="vteachers" aria-label="음성 코치 선생님 고르기"><a class="vt" href="voice-coach/?t=sophie" title="Sophie 선생님 (영국 · 여)과 음성 대화"><img src="voice-coach/teachers/thumbs/sophie.jpg" alt="Sophie" width="34" height="34" loading="lazy"></a><a class="vt" href="voice-coach/?t=emma" title="Emma 선생님 (미국 · 여)과 음성 대화"><img src="voice-coach/teachers/thumbs/emma.jpg" alt="Emma" width="34" height="34" loading="lazy"></a><a class="vt" href="voice-coach/?t=clara" title="Clara 선생님 (캐나다 · 여)과 음성 대화"><img src="voice-coach/teachers/thumbs/clara.jpg" alt="Clara" width="34" height="34" loading="lazy"></a><a class="vt" href="voice-coach/?t=luna" title="Luna 선생님 (호주 · 여)과 음성 대화"><img src="voice-coach/teachers/thumbs/luna.jpg" alt="Luna" width="34" height="34" loading="lazy"></a><a class="vt" href="voice-coach/?t=james" title="James 선생님 (영국 · 남)과 음성 대화"><img src="voice-coach/teachers/thumbs/james.jpg" alt="James" width="34" height="34" loading="lazy"></a><a class="vt" href="voice-coach/?t=noah" title="Noah 선생님 (캐나다 · 남)과 음성 대화"><img src="voice-coach/teachers/thumbs/noah.jpg" alt="Noah" width="34" height="34" loading="lazy"></a><a class="vt" href="voice-coach/?t=ryan" title="Ryan 선생님 (미국 · 남)과 음성 대화"><img src="voice-coach/teachers/thumbs/ryan.jpg" alt="Ryan" width="34" height="34" loading="lazy"></a><a class="vt" href="voice-coach/?t=leo" title="Leo 선생님 (호주 · 남)과 음성 대화"><img src="voice-coach/teachers/thumbs/leo.jpg" alt="Leo" width="34" height="34" loading="lazy"></a></div>
-      </div>
+      <details class="voicebox">
+        <summary class="btn primary voicelink" title="실사 선생님과 음성으로 대화 (ChatGPT·Claude·Gemini 음성 연결)">🎙 AI 음성 코치 <span class="caret" aria-hidden="true">▾</span></summary>
+        <div class="vpop" role="group" aria-label="음성 코치 선생님 고르기">
+          <div class="vpop-h">선생님을 고르세요</div>
+          <div class="vgrid"><a class="vt" href="voice-coach/?t=sophie" title="Sophie 선생님과 음성 대화"><img src="voice-coach/teachers/thumbs/sophie.jpg" alt="" width="44" height="44" loading="lazy"><b>Sophie</b><span>영국</span></a><a class="vt" href="voice-coach/?t=emma" title="Emma 선생님과 음성 대화"><img src="voice-coach/teachers/thumbs/emma.jpg" alt="" width="44" height="44" loading="lazy"><b>Emma</b><span>미국</span></a><a class="vt" href="voice-coach/?t=clara" title="Clara 선생님과 음성 대화"><img src="voice-coach/teachers/thumbs/clara.jpg" alt="" width="44" height="44" loading="lazy"><b>Clara</b><span>캐나다</span></a><a class="vt" href="voice-coach/?t=luna" title="Luna 선생님과 음성 대화"><img src="voice-coach/teachers/thumbs/luna.jpg" alt="" width="44" height="44" loading="lazy"><b>Luna</b><span>호주</span></a><a class="vt" href="voice-coach/?t=james" title="James 선생님과 음성 대화"><img src="voice-coach/teachers/thumbs/james.jpg" alt="" width="44" height="44" loading="lazy"><b>James</b><span>영국</span></a><a class="vt" href="voice-coach/?t=noah" title="Noah 선생님과 음성 대화"><img src="voice-coach/teachers/thumbs/noah.jpg" alt="" width="44" height="44" loading="lazy"><b>Noah</b><span>캐나다</span></a><a class="vt" href="voice-coach/?t=ryan" title="Ryan 선생님과 음성 대화"><img src="voice-coach/teachers/thumbs/ryan.jpg" alt="" width="44" height="44" loading="lazy"><b>Ryan</b><span>미국</span></a><a class="vt" href="voice-coach/?t=leo" title="Leo 선생님과 음성 대화"><img src="voice-coach/teachers/thumbs/leo.jpg" alt="" width="44" height="44" loading="lazy"><b>Leo</b><span>호주</span></a></div>
+        </div>
+      </details>
       <span id="modePill" class="mode-pill">연결 확인 중…</span>
       <span id="syncNote" class="sync-note"></span>
     </div>
