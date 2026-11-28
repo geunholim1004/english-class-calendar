@@ -207,7 +207,7 @@ body.locked .lockcard{display:block}
 body.locked .grid{display:none}
 .it.zlive{background:#2d8cff;color:#fff;border-color:#1a6fd6;cursor:pointer;animation:zpulse 1.6s infinite}
 .it.zlive .zd{display:inline-block;width:7px;height:7px;border-radius:50%;background:#c8ccd0;margin-left:4px;vertical-align:1px}
-.it.zlive .zd.on{background:#4ee08a;box-shadow:0 0 0 2px rgba(78,224,138,.4)}
+.it.zlive .zd.on{width:10px;height:10px;vertical-align:0;background:radial-gradient(circle,#2d8cff 0 55%,#fff 60%);box-shadow:0 0 0 1px rgba(255,255,255,.6)}
 @keyframes zpulse{0%{box-shadow:0 0 0 0 rgba(45,140,255,.55)}70%{box-shadow:0 0 0 7px rgba(45,140,255,0)}100%{box-shadow:0 0 0 0 rgba(45,140,255,0)}}
 @media(prefers-reduced-motion:reduce){.it.zlive{animation:none}}
 .zcard{margin-bottom:14px;padding:14px 16px}
@@ -221,9 +221,12 @@ body.locked .grid{display:none}
 .zp .zs{display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px;margin-top:2px}
 .zp .dot{width:11px;height:11px;border-radius:50%;background:#b9bcc0;flex:none}
 .zp .zsub{font-size:12px;color:var(--muted)}
-.zp.on{border-color:#9fd3bf;background:#eaf7f1}.zp.on .dot{background:#1fa35b;box-shadow:0 0 0 3px #c9ecd9}
+.zp.on{border-color:#9fc6f5;background:#eaf3ff}.zp.on .zs{color:#1a6fd6}.zp.on .dot{background:#2d8cff;box-shadow:0 0 0 3px #cfe3fd}
 .zp.late{border-color:#f1c7c2;background:var(--tc-soft)}.zp.late .zs,.zp.late .zsub{color:var(--tc)}
 .zlegend{font-size:12px;color:var(--muted);margin-top:8px}
+.zlg{display:flex;flex-wrap:wrap;gap:3px 12px}.zlg span{display:inline-flex;align-items:center;gap:5px}
+.zlg i{display:inline-block;flex:none}.lg-dot{width:10px;height:10px;border-radius:50%;background:#b9bcc0}.lg-dot.on{background:#2d8cff;box-shadow:0 0 0 2px #cfe3fd}
+.lg-blue,.lg-green,.lg-red{width:16px;height:11px;border-radius:3px}.lg-blue{background:#2d8cff}.lg-green{background:var(--accent)}.lg-red{background:var(--tc-soft);border:1px solid #f1c7c2}
 /* 수업 전 AI 연습: 왼쪽 입장까지 남은 시간, 오른쪽 초록 연습 단추, 아래 선생님 4명 */
 .zpr{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:stretch}
 .zclock{display:grid;justify-items:center;align-content:center;background:#eceae4;border-radius:10px;padding:6px 16px;min-width:140px;text-align:center}
@@ -754,6 +757,6 @@ input:disabled{opacity:.75;background:#f3f2ee}
 </div>
 
 <div class="zbar" id="zBar"><div class="in" id="zBarIn"></div></div>
-<script src="app.js?v=20261128x"></script>
+<script src="app.js?v=20261128w"></script>
 </body>
 </html>
