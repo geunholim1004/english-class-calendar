@@ -937,8 +937,8 @@ function joinZoom(s){
 }
 function zWho(role){ const cur = zCurrent(); if (!cur || !zLive || zLive.key !== zKey(cur)) return null; return Object.values(zLive.in || {}).find(v => v && v.role === role) || null; }
 function zDay(s){ return `${sdate(s.d)}(${t("dow")[s.d.getUTCDay()]})`; }
-// 수업 전 AI 연습: 마스터·학생·edward1004·uihee 에게만 (Daniel 선생님 화면은 그대로)
-const zPracticeOK = () => isMaster() || isStudent() || ["edward1004","uihee"].includes(String((auth && auth.login) || "").toLowerCase());
+// 수업 전 AI 연습: 로그인한 모든 사람 (마스터·학생·선생님 t.danel 포함) — AI 사용 횟수는 limits.html 의 한도를 따름
+const zPracticeOK = () => isEditor();
 const Z_TEACH = [["emma","Emma"],["sophie","Sophie"],["james","James"],["ryan","Ryan"]];
 function zCountdown(ms){ const s = Math.max(0, Math.floor(ms/1000)), h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
   return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(x).padStart(2,"0"); }
