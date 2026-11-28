@@ -96,13 +96,15 @@ function avatar(t){const H={
  <ellipse class="mo" cx="100" cy="119" rx="8" ry="5.5" fill="#5a2026" stroke="${t.lip}" stroke-width="2"/>
  </svg>`}
 const repo={};
-function face(t){const p=store.get('photo_'+t.k,'')||repo[t.k];return p?`<img src="${esc(p)}" alt="">`:avatar(t)}
-function probeRepo(){TEACHERS.forEach(t=>{const im=new Image();im.onload=()=>{repo[t.k]=im.src;renderTeacher()};im.src=`teachers/${t.k}.jpg?v=2`})}
+function face(t){const p=fresh[t.k]||repo[t.k];return p?`<img src="${esc(p)}" alt="">`:avatar(t)}
+let photoVer='2';const fresh={};
+async function probeRepo(){try{const r=await fetch('teachers/version.json?t='+Date.now(),{cache:'no-store'});if(r.ok){const d=await r.json();if(d&&d.v)photoVer=String(d.v).replace(/[^0-9a-z]/gi,'')}}catch(e){}
+ TEACHERS.forEach(t=>{const im=new Image();im.onload=()=>{if(!fresh[t.k]){repo[t.k]=im.src;renderTeacher()}};im.src=`teachers/${t.k}.jpg?v=${photoVer}`})}
 let talker=null;
-function renderTeacher(){const t=TT(),src=store.get('photo_'+t.k,'')||repo[t.k],av=$('#orb');
- if(src&&window.TalkingFace){if(!talker||!talker.c.isConnected||av.dataset.k!==t.k){av.innerHTML='<canvas aria-hidden="true"></canvas>';av.dataset.k=t.k;if(talker)talker.stop();talker=new TalkingFace(av.querySelector('canvas'));talker.load(t.k,src);talker.setMode($('#call').dataset.s||'idle')}}
+function renderTeacher(){const t=TT(),src=fresh[t.k]||repo[t.k],av=$('#orb');
+ if(src&&window.TalkingFace){if(!talker||!talker.c.isConnected||av.dataset.k!==t.k||av.dataset.src!==src){av.dataset.src=src;av.innerHTML='<canvas aria-hidden="true"></canvas>';av.dataset.k=t.k;if(talker)talker.stop();talker=new TalkingFace(av.querySelector('canvas'));talker.load(t.k,src);talker.setMode($('#call').dataset.s||'idle')}}
  else{av.innerHTML=face(t);av.dataset.k='';if(talker){talker.stop();talker=null}}
- $('#tname').innerHTML=`${esc(t.n)}<span>${esc(t.d)}</span>`;
+ $('#tname').innerHTML=`${esc(t.n)}<span>${esc(t.d)}</span>`+(isMaster()?'<button class="photoBtn" id="photoBtn" type="button">사진 바꾸기 (마스터)</button>':'');
  $('#teachers').innerHTML=TEACHERS.map(x=>`<button class="tc" data-k="${x.k}" aria-pressed="${x.k===t.k}">${face(x)}<b>${x.n}</b><span>${x.d}</span></button>`).join('')}
 
 /* ---- 상황 · 코치 지침 ---- */
@@ -122,7 +124,7 @@ Rules:
 const JSONRULE=`\nReturn ONLY JSON: {"reply":"spoken English reply incl. follow-up question","better":"more natural version of the learner's sentence, or empty","tip_ko":"one short Korean tip, or empty"}`;
 const RULES=[[/\bdiscuss about\b/gi,'discuss','discuss 뒤에는 about을 쓰지 않아요.'],[/\bI am agree\b/gi,'I agree','agree는 동사라 am 없이 씁니다.'],[/\bexplain me\b/gi,'explain to me','explain은 "to + 사람"을 씁니다.'],[/\bmore better\b/gi,'better','better 자체가 비교급이에요.'],[/\bcan able to\b/gi,'can','can과 be able to 중 하나만 씁니다.'],[/\bquestion to you\b/gi,'question for you','질문은 "for you"가 자연스러워요.'],[/\bdepend of\b/gi,'depend on','depend는 on과 함께 씁니다.'],[/\bcontact to\b/gi,'contact','contact 뒤에는 바로 사람이 옵니다.'],[/\bsend me the mail\b/gi,'send me an email','업무 메일은 an email이 자연스러워요.'],[/\bhow do you think\b/gi,'what do you think','의견은 what do you think로 묻습니다.'],[/\bi\b/g,'I','나를 뜻하는 I는 항상 대문자예요.']];
 
-let teacherK=store.get('teacher','sophie'),sceneK='cust',hist=[],qi=0,rec=null,listening=false,micBlocked=false,t0=0,tick=null,rate=1;
+let teacherK=(()=>{const q=new URLSearchParams(location.search).get('t');if(q&&/^[a-z]+$/.test(q)){store.set('teacher',q);return q}return store.get('teacher','sophie')})(),sceneK='cust',hist=[],qi=0,rec=null,listening=false,micBlocked=false,t0=0,tick=null,rate=1;
 const RATES=[0.85,1,1.15];
 const scene=()=>SCENES.find(s=>s.k===sceneK);
 const nextQ=()=>{const q=scene().q;return q[qi++%q.length]};
@@ -141,21 +143,24 @@ function showFix(m){const box=$('#fixes');if(!m.better&&!m.tip){box.innerHTML=''
 /* ---- 목소리: 자연스러운 영어 음성 우선 ---- */
 const NAT=/natural|online|neural|google|premium|enhanced|siri/i;
 function enVoices(lang){try{return speechSynthesis.getVoices().filter(v=>v.lang.replace('_','-').toLowerCase().startsWith((lang||'en').toLowerCase()))}catch(e){return []}}
-function score(v,t){const F=/female|samantha|victoria|karen|serena|moira|tessa|aria|jenny|sonia|libby|emma|ava|allison|susan|zira|hazel|kate|fiona|maisie|natasha|michelle|clara/i,M=/\bmale|daniel|alex|fred|tom|guy|davis|ryan|thomas|george|arthur|oliver|david|mark|james|aaron|andrew|brian|christopher|eric|liam|william|steffan|roger/i;
- let s=0;if(NAT.test(v.name))s+=10;if(t.g==='f'?F.test(v.name):(M.test(v.name)&&!/female/i.test(v.name)))s+=5;if(v.lang.replace('_','-')===t.lang)s+=2;return s}
+const FEM=/female|samantha|victoria|karen|serena|moira|tessa|fiona|kate|susan|zira|hazel|allison|ava\b|aria|jenny|michelle|\bana\b|sonia|libby|maisie|natasha|clara|emma|ashley|cora|elizabeth|jane|nancy|amber|monica|sara\b|hollie|bella|abbi|olivia|freya|annette|carly|elsie|\bkim\b|tina|google us english$/i;
+const MAL=/\bmale|daniel|alex\b|fred|\btom\b|guy|davis|tony|jason|eric|christopher|roger|steffan|andrew|brian|ryan|thomas|alfie|ethan|elliot|noah|oliver|liam|william|darren|duncan|\bken\b|neil|\btim\b|arthur|george|aaron|david|mark|james/i;
+const genderOf=v=>{const n=v.name;if(/female/i.test(n)||FEM.test(n))return 'f';if(MAL.test(n))return 'm';return ''};
+function score(v,t){let s=0;const g=genderOf(v);if(g===t.g)s+=30;else if(g)s-=30;if(NAT.test(v.name))s+=10;const l=v.lang.replace('_','-');if(l===t.lang)s+=4;else if(l.slice(0,2)==='en')s+=1;return s}
 function pickVoice(t){const saved=store.get('voice_'+t.k,'');let all=[];try{all=speechSynthesis.getVoices()}catch(e){}
- if(saved){const v=all.find(v=>v.name===saved);if(v)return v}
- let vs=enVoices(t.lang);if(!vs.length)vs=enVoices('en');return vs.sort((a,b)=>score(b,t)-score(a,t))[0]}
+ if(saved){const v=all.find(v=>v.name===saved);if(v&&genderOf(v)!==(t.g==='f'?'m':'f'))return v}
+ const vs=enVoices('en');return vs.sort((a,b)=>score(b,t)-score(a,t))[0]}
 function voiceCheck(){const en=enVoices('en'),nat=en.filter(v=>NAT.test(v.name)),w=$('#voiceWarn');
  if(!en.length)w.innerHTML='<b>이 기기에 영어 음성이 없어요.</b> 그래서 한국어 음성이 영어를 읽어 어색하게 들립니다. <b>Microsoft Edge</b>로 열면 원어민 수준의 자연스러운 음성을 무료로 쓸 수 있어요.';
  else if(!nat.length)w.innerHTML='기본(로봇) 영어 음성뿐이에요. <b>Microsoft Edge</b>에서 열면 훨씬 자연스러운 "Natural" 음성을 쓸 수 있어요.';
  else w.innerHTML='';w.style.display=w.innerHTML?'block':'none';renderVoiceSel()}
 function renderVoiceSel(){const sel=$('#voiceSel'),t=TT(),en=enVoices('en').sort((a,b)=>score(b,t)-score(a,t)),cur=pickVoice(t);
- sel.innerHTML=en.length?en.map(v=>`<option ${cur&&v.name===cur.name?'selected':''}>${esc(v.name)}</option>`).join(''):'<option>영어 음성 없음</option>'}
+ sel.innerHTML=en.length?en.map(v=>{const g=genderOf(v);return `<option value="${esc(v.name)}" ${cur&&v.name===cur.name?'selected':''}>${g==='f'?'여자 · ':g==='m'?'남자 · ':''}${esc(v.name)}</option>`}).join(''):'<option>영어 음성 없음</option>';
+ const ok=en.some(v=>genderOf(v)===t.g);$('#voiceHint').textContent=ok?'':(t.g==='f'?'이 기기에 여자 영어 음성이 없어 다른 목소리로 읽어요. Edge에서 열면 여자 음성(Aria, Jenny, Sonia 등)을 쓸 수 있어요.':'이 기기에 남자 영어 음성이 없어 다른 목소리로 읽어요. Edge에서 열면 남자 음성(Guy, Davis, Ryan 등)을 쓸 수 있어요.')}
 let fakeT=null;
 function fakeSpeak(t,after){clearTimeout(fakeT);setS('speak');fakeT=setTimeout(()=>{setS('idle');after&&after()},Math.min(9000,600+String(t).split(/\s+/).length*330))}
 function speak(t,after){let started=false;clearTimeout(fakeT);const guard=setTimeout(()=>{if(!started)fakeSpeak(t,null)},900);try{speechSynthesis.cancel();const T=TT(),u=new SpeechSynthesisUtterance(t);u.lang=T.lang;u.rate=rate;u.pitch=T.g==='f'?1.12:0.88;
- const v=pickVoice(T);if(v){u.voice=v;u.lang=v.lang;if(NAT.test(v.name))u.pitch=1}
+ const v=pickVoice(T);if(v){u.voice=v;u.lang=v.lang;if(genderOf(v)===T.g||NAT.test(v.name))u.pitch=1}
  u.onstart=()=>{started=true;clearTimeout(fakeT);setS('speak')};u.onboundary=()=>{if(talker)talker.pulse(0.75+Math.random()*0.25)};u.onend=()=>{if(!started)return;setS('idle');after&&after()};u.onerror=()=>{if(started)setS('idle')};speechSynthesis.speak(u)}catch(e){clearTimeout(guard);fakeSpeak(t,null)}}
 function startTimer(){if(tick)return;t0=Date.now();tick=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);$('#timer').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')},1000)}
 
@@ -214,7 +219,7 @@ const APPS={claude:{n:'Claude',url:q=>'https://claude.ai/new?q='+encodeURICompon
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-app]');if(!b)return;const a=APPS[b.dataset.app],p=appPrompt();let copied=false;
  try{await navigator.clipboard.writeText(p);copied=true}catch(x){}
  window.open(a.url(p),'_blank','noopener');
- $('#appMsg').textContent=`${a.n}을(를) 열었어요. ${copied?'코치 지침이 복사돼 있으니, 입력칸이 비어 있으면 붙여 넣어 보내세요.':'복사가 막혀서 아래 "코치 지침 전문"에서 직접 복사하세요.'} 보낸 뒤 앱의 음성 대화 단추를 누르면 ${TT().n} 선생님처럼 말로 연습할 수 있어요.`});
+ $('#appMsg').textContent=`${a.n}을(를) 열었어요. ${copied?'코치 지침이 복사돼 있으니, 입력칸이 비어 있으면 붙여 넣어 보내세요.':'복사가 막혀서 아래 "코치 지침 전문"에서 직접 복사하세요.'} 보낸 뒤 앱의 음성 대화 단추를 누르면 ${TT().n} 선생님처럼 말로 연습할 수 있어요. 앱 목소리는 앱의 음성 설정에서 ${TT().g==='f'?'여자':'남자'} 목소리로 골라 두세요.`});
 
 /* ---- 화상 모드: ChatGPT·Claude 음성 탭 소리 → 사진 입 움직임, 항상 위 선생님 창 ---- */
 let unlink=null,linkedState='';
@@ -231,6 +236,27 @@ async function togglePip(){const st=$('#linkState');
  try{await popOut($('#call'),{width:360,height:470,onClose:()=>{$('#pipBtn').setAttribute('aria-pressed','false')}});$('#pipBtn').setAttribute('aria-pressed','true')}
  catch(e){st.textContent=e&&e.message==='unsupported'?'이 브라우저는 "항상 위" 창을 지원하지 않아요 (크롬·엣지 116 이상). 대신 창 두 개를 나란히 놓고 쓰세요.':'창을 띄우지 못했어요. 다시 눌러 주세요.'}}
 
+/* ---- 마스터: 선생님 사진 바꾸기 (사이트 저장소 voice-coach/teachers/ 에 저장 → 모두에게 반영) ---- */
+const CODE_REPO=()=>(auth&&auth.repo)||'english-class-calendar';
+const ghHdr=()=>({Accept:'application/vnd.github+json',Authorization:'Bearer '+auth.token});
+async function ghSha(path){const r=await fetch(`https://api.github.com/repos/${encodeURIComponent(auth.owner)}/${encodeURIComponent(CODE_REPO())}/contents/${path}?ref=${BRANCH}&t=${Date.now()}`,{headers:ghHdr(),cache:'no-store'});if(r.status===404)return null;if(!r.ok)throw new Error('HTTP '+r.status);return (await r.json()).sha}
+async function ghPutB64(path,b64,msg){const sha=await ghSha(path);const body={message:msg,content:b64,branch:BRANCH};if(sha)body.sha=sha;
+ const r=await fetch(`https://api.github.com/repos/${encodeURIComponent(auth.owner)}/${encodeURIComponent(CODE_REPO())}/contents/${path}`,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ghHdr()),body:JSON.stringify(body)});if(!r.ok)throw new Error('HTTP '+r.status)}
+let pending=null;
+function cropTo(im,S,zoom){const c=document.createElement('canvas');c.width=c.height=S;const w=im.naturalWidth,h=im.naturalHeight,side=Math.min(w,h)/zoom;
+ const sx=(w-side)/2,sy=h>w?Math.max(0,Math.min(h-side,(h-side)*0.12)):(h-side)/2;c.getContext('2d').drawImage(im,sx,sy,side,side,0,0,S,S);return c}
+function openPhotoEditor(file){const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{pending={im,zoom:1};drawPreview();$('#photoDlg').hidden=false};im.src=fr.result};fr.readAsDataURL(file)}
+function drawPreview(){if(!pending)return;const c=cropTo(pending.im,240,pending.zoom),p=$('#photoPrev');p.getContext('2d').clearRect(0,0,240,240);p.getContext('2d').drawImage(c,0,0);$('#photoWho').textContent=TT().n}
+async function savePhoto(){if(!pending)return;const t=TT(),st=$('#photoSt'),big=cropTo(pending.im,480,pending.zoom),th=cropTo(pending.im,96,pending.zoom*1.45);
+ const b64=c=>c.toDataURL('image/jpeg',.88).split(',')[1];st.textContent='저장 중…';$('#photoSave').disabled=true;
+ try{await ghPutB64(`voice-coach/teachers/${t.k}.jpg`,b64(big),`Voice coach: new photo for ${t.n}`);
+  await ghPutB64(`voice-coach/teachers/thumbs/${t.k}.jpg`,b64(th),`Voice coach: new thumbnail for ${t.n}`);
+  const v=Date.now();await ghPutB64('voice-coach/teachers/version.json',btoa(JSON.stringify({v})),'Voice coach: photo version');
+  fresh[t.k]=big.toDataURL('image/jpeg',.88);renderTeacher();
+  st.textContent='저장했어요. 1~2분 뒤 모든 사람 화면에 바뀐 사진이 보여요 (코치 화면의 작은 사진은 최대 10분).';setTimeout(()=>{$('#photoDlg').hidden=true;st.textContent=''},3500)}
+ catch(e){st.textContent='저장하지 못했어요 ('+(e.message||'오류')+'). 마스터 토큰에 english-class-calendar 쓰기 권한이 있는지 확인하세요.'}
+ finally{$('#photoSave').disabled=false}}
+
 /* ---- 시작 ---- */
 if(!loggedIn()){$('#locked').hidden=false;return}
 $('#app').hidden=false;
@@ -245,6 +271,11 @@ $('#hfBtn').addEventListener('click',e=>tog(e.currentTarget));
 $('#spdBtn').addEventListener('click',e=>{rate=RATES[(RATES.indexOf(rate)+1)%RATES.length];e.currentTarget.textContent=(rate===1?'1.0':String(rate))+'×'});
 $('#endBtn').addEventListener('click',()=>{try{rec&&rec.stop();speechSynthesis.cancel()}catch(x){}clearInterval(tick);tick=null;setS('idle');report()});
 $('#linkBtn').addEventListener('click',toggleLink);
+$('#tname').addEventListener('click',e=>{if(e.target.id==='photoBtn'&&isMaster())$('#photoIn').click()});
+$('#photoIn').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f&&isMaster())openPhotoEditor(f)});
+$('#photoZoom').addEventListener('input',e=>{if(pending){pending.zoom=+e.target.value;drawPreview()}});
+$('#photoCancel').addEventListener('click',()=>{pending=null;$('#photoDlg').hidden=true});
+$('#photoSave').addEventListener('click',savePhoto);
 $('#pipBtn').addEventListener('click',togglePip);
 $('#voiceSel').addEventListener('change',e=>store.set('voice_'+TT().k,e.target.value));
 $('#voiceTest').addEventListener('click',()=>speak(`Hi, I'm ${TT().n}. Let's talk about your LPDDR5X customer meeting.`));
