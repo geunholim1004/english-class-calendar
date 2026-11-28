@@ -259,6 +259,17 @@ body.subm .subonly{display:block}
 .myreqcard{margin-bottom:14px}
 .pendrow{padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .pendrow:last-child{border-bottom:0}
+.rqbs{display:flex;gap:6px;flex-wrap:wrap;margin:5px 0 2px}
+.rqb{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:2px 9px;font-weight:700;font-size:12.5px;border:1px solid var(--line);background:#fff;color:var(--muted)}
+.rqb.mut{background:#dff3ef;color:#0f7b6c;border-color:#b7e3da}
+.rqb.stu{background:var(--bonus-soft);color:var(--bonus);border-color:#d4cbf3}
+.rqb.tch{background:var(--move-soft);color:var(--move);border-color:#c6d8f3}
+.rqb.late{background:#fff4e0;color:#a05a00;border-color:#f0d29c}
+.rqauto{margin-top:6px;font-size:13px;font-weight:700;color:var(--ink)}.rqauto.soon{color:var(--tc)}
+.rqtl{list-style:none;margin:4px 0 0;padding:0;font-size:12.5px;color:var(--muted);display:grid;gap:2px}
+.rqtl li{display:flex;gap:8px;flex-wrap:wrap}.rqtl li.ok span:first-child{color:var(--accent);font-weight:700}.rqtl li.due{color:var(--ink)}
+.rqtl .mono{font-variant-numeric:tabular-nums}
+.rqdone{margin-top:5px;font-weight:700;color:var(--accent);font-size:13px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}.rqdone .hint{margin:0;font-weight:400}
 .st-pending{color:var(--warn)} .st-approved{color:var(--accent)} .st-rejected{color:var(--tc)}
 .it.pending{box-shadow:inset 0 0 0 1px var(--warn)}
 .bytag{color:var(--bonus);font-weight:500}
@@ -700,6 +711,9 @@ input:disabled{opacity:.75;background:#f3f2ee}
     <input id="zoom" type="url" placeholder="https://us05web.zoom.us/j/…" autocomplete="off">
     <label data-i18n="sNotice"></label>
     <input id="minNotice" type="number" min="0" value="1">
+    <label data-i18n="sAuto"></label>
+    <select id="autoMin"><option value="10"></option><option value="30" selected></option><option value="60"></option><option value="180"></option><option value="1440"></option><option value="0"></option></select>
+    <div class="hint" data-i18n="autoHint"></div>
     <div class="row2 money">
       <div><label>1 USD = ? UZS (CBU)</label><input id="rate" type="number" step="0.01" value="12004.48"></div>
       <div><label data-i18n="sRateDate"></label><input id="rateDate" type="date" value="2026-11-21"></div>
@@ -757,6 +771,6 @@ input:disabled{opacity:.75;background:#f3f2ee}
 </div>
 
 <div class="zbar" id="zBar"><div class="in" id="zBarIn"></div></div>
-<script src="app.js?v=20261128w"></script>
+<script src="app.js?v=20261128x"></script>
 </body>
 </html>
