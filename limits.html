@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>AI 한도 설정 · 영어 수업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1d2125;--muted:#6b7177;--line:#e4e1d8;--accent:#1f6f5c;--accent-soft:#e3f1ec;--bad:#c0392b;--blue:#257de0;--orange:#f47230;--aqua:#00b894;--hl:#ffd84a}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Noto Sans KR",system-ui,sans-serif;font-size:15px;line-height:1.55}
+.wrap{max-width:920px;margin:0 auto;padding:18px 14px 40px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.top h1{font-size:19px;margin:0}
+.who{font-size:12.5px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+.card h2{font-size:16px;margin:0 0 8px}
+.hint{font-size:12.5px;color:var(--muted)}
+a.back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent);border-radius:8px;padding:4px 10px;background:#fff}
+button{font:inherit;cursor:pointer;border-radius:11px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;padding:9px 16px;font-weight:500;min-height:40px}
+button.ghost{background:#fff;color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+input,select{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fcfcfa;width:100%}
+input[type=checkbox]{width:20px;height:20px}
+label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.head{display:grid;grid-template-columns:minmax(0,240px) minmax(0,1fr);gap:12px}
+.key{background:var(--hl);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:4px}
+.key .big{font-size:52px;font-weight:700;line-height:1}
+.key .s{font-size:13px}
+.fig{position:relative;min-height:260px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12.5px;color:var(--muted);margin-bottom:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:12.5px;padding:5px 8px;border-radius:8px;white-space:nowrap;opacity:0}
+.srow{display:grid;grid-template-columns:96px minmax(0,1fr) 72px;gap:8px;align-items:center;font-size:13px;margin-top:6px}
+.track{height:14px;background:#f0eee8;border-radius:4px;overflow:hidden}.track span{display:block;height:100%;border-radius:0 4px 4px 0}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-size:12.5px;color:var(--muted);font-weight:500}
+td input[type=number]{width:90px}
+.inf{font-weight:700}
+.msg{font-size:13px;margin-top:8px;min-height:20px}.msg.bad{color:var(--bad)}.msg.good{color:var(--accent)}
+.lock{text-align:center;padding:30px 16px}
+@media(max-width:640px){.head{grid-template-columns:minmax(0,1fr)}
+ .stack thead{display:none}.stack tr{display:grid;padding:8px 0;border-bottom:1px solid var(--line)}.stack td{border:0;padding:3px 0;display:flex;gap:10px;align-items:center}.stack td::before{content:attr(data-l);width:6.5em;flex:none;color:var(--muted);font-size:12.5px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div><h1>⚙ AI 한도 설정</h1><div class="who" id="who"></div></div><a class="back" href="./">← 수업 달력</a></div>
+
+  <div class="card lock" id="lockCard" hidden>
+    <h2>마스터만 열 수 있어요</h2>
+    <p class="hint">수업 달력에서 마스터로 로그인한 뒤 다시 열어 주세요.</p>
+    <a class="back" href="./">수업 달력으로</a>
+  </div>
+
+  <div id="main" hidden>
+    <div class="head">
+      <div class="key">
+        <div class="s">하루 무료 AI 사용 가능 (추정)</div>
+        <div class="big" id="kUses">—</div>
+        <div class="s" id="kSub"></div>
+        <div class="s" id="kLeft" style="margin-top:auto"></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h2 id="title">학생 수에 따른 하루 사용량</h2>
+        <div class="legend"><span><i style="background:var(--blue)"></i>공용 키 사용량 (한도를 다 쓸 때)</span><span><i style="background:var(--ink);height:3px;vertical-align:3px"></i>무료 처리량 한계</span></div>
+        <div class="fig"><svg id="chart" role="img" aria-label="학생 수에 따른 하루 AI 사용량과 무료 한도"></svg><div class="tip" id="tip"></div></div>
+        <div id="supply"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h2>한도 규칙 (하루 기준)</h2>
+      <div class="grid">
+        <label>학생 기본 한도 (회)<input type="number" id="base" min="0"></label>
+        <label>수강생 한도 (회)<input type="number" id="enr" min="0"></label>
+        <label>새 선생님 기본 한도 (회)<input type="number" id="tch" min="0"></label>
+        <label>무제한 아이디 (쉼표로 구분)<input type="text" id="inf"></label>
+      </div>
+      <details style="margin-top:12px"><summary class="hint">계산에 쓴 가정 바꾸기</summary>
+        <div class="grid" style="margin-top:8px">
+          <label>Gemini 무료 요청/일 (추정)<input type="number" id="aGem" min="0"></label>
+          <label>Groq 무료 요청/일<input type="number" id="aGroq" min="0"></label>
+          <label>OpenRouter 무료 요청/일<input type="number" id="aOR" min="0"></label>
+          <label>사용 1회당 AI 요청 수<input type="number" id="aPer" min="1" step="0.5"></label>
+          <label>무제한 계정 하루 예상 사용<input type="number" id="aInf" min="0"></label>
+        </div>
+        <p class="hint">업체 무료 한도는 자주 바뀌어요. 숫자는 그래프 계산에만 쓰여요.</p>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>사람별 한도</h2>
+      <table class="stack" id="tbl"><thead><tr><th>아이디</th><th>이름</th><th>역할</th><th>수강 중</th><th>하루 한도</th></tr></thead><tbody></tbody></table>
+      <p class="hint">사용자 목록은 달력의 사용자 관리에서 그대로 읽어 와요. 선생님 한도는 칸에서 직접 고치고, 학생은 수강 중에 체크하면 수강생 한도가 적용돼요.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" id="save">저장</button><button type="button" class="ghost" id="reload">다시 불러오기</button></div>
+      <div class="msg" id="msg"></div>
+    </div>
+    <p class="hint">시연 단계: 여기서 저장한 한도는 아직 코치에 적용되지 않아요. 결정하시면 코치가 이 설정을 읽어 남은 횟수를 확인하도록 연결해요.</p>
+  </div>
+</div>
+<script src="limits.js?v=20261128a"></script>
+</body>
+</html>
