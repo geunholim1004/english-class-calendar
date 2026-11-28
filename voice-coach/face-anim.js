@@ -24,6 +24,7 @@ class TalkingFace{
     this.open=0;this.target=0;this.mode='idle';this.level=null;this.onLevel=null;
     this.blinkAt=performance.now()+2000;this.blinkT=-1e9;this.raf=null;this.lm=null;this.base=null;
     this.reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.still=true;   // 사진은 그대로 두고, 말할 때 테두리만 빛나게 (움직이려면 false)
     this.loop=this.loop.bind(this);
   }
   load(key,src){
@@ -51,6 +52,8 @@ class TalkingFace{
     this.open+=(tgt-this.open)*(tgt>this.open?0.45:0.28);
     if(this.open<0.01)this.open=0;
     // 2) 그리기
+    const host=this.c.parentElement;if(host)host.style.setProperty('--lv',this.open.toFixed(3));
+    if(this.still){if(!this.drawn){this.x.putImageData(this.base,0,0);this.drawn=true;this.c.style.transform=''}return}
     this.x.putImageData(this.base,0,0);
     if(this.lm&&this.open>0.02)this.drawMouth();
     if(this.lm)this.drawBlink(now);
