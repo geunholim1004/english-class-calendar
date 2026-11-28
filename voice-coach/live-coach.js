@@ -71,7 +71,8 @@ async function start(o){
   ws.onclose=ev=>{if(!ended){o.onError&&o.onError('연결이 끊겼어요 ('+ev.code+(ev.reason?' '+ev.reason:'')+').');stop()}};
   // 선생님이 먼저 인사하도록
   ws.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'(The learner just joined the voice call. Greet them briefly by name and ask your first question.)'}]}],turnComplete:true}}));
-  return {stop,model,setMuted:v=>{muted=!!v}};
+  const sendText=t=>{if(ws.readyState===1)ws.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:t}]}],turnComplete:true}}))};
+  return {stop,model,sendText,setMuted:v=>{muted=!!v}};
 }
 window.LiveCoach={start,VOICES,MODELS};
 })();

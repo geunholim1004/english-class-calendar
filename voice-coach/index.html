@@ -36,15 +36,10 @@
     <div class="sbar">
       <div class="chosen" id="chosen"></div>
       <button class="btn" id="changeT" type="button">선생님 바꾸기</button>
-      <div class="modes" role="tablist" aria-label="연습 방식">
-        <button role="tab" id="mTalk" aria-selected="true" aria-controls="talkPane">🎙 말하기 대화</button>
-        <button role="tab" id="mWrite" aria-selected="false" aria-controls="writePane">✍ 글쓰기 훈련</button>
-      </div>
       <div class="scenes" id="scenes" role="group" aria-label="연습 상황"></div>
       <div class="quota" id="quota"></div>
     </div>
 
-    <div id="talkPane">
     <div class="duo">
       <section class="call" id="call" data-s="idle" aria-label="음성 통화">
         <div class="bar-top">
@@ -73,10 +68,21 @@
         </div>
       </section>
 
-      <section class="chat" aria-label="대화 기록">
-        <div class="chat-h"><b>대화</b><span>말한 내용이 글자로 남아요</span></div>
-        <div class="tx on" id="tx" aria-live="polite"></div>
-        <form class="kb on" id="kb"><input id="kbIn" placeholder="말 대신 영어로 입력해도 돼요" aria-label="영어 입력" autocomplete="off"><button>보내기</button></form>
+      <section class="chat" aria-label="대화와 글쓰기">
+        <div class="chat-h">
+          <div class="modes" role="tablist" aria-label="연습 방식">
+            <button role="tab" id="mTalk" aria-selected="true" aria-controls="talkBox">💬 대화</button>
+            <button role="tab" id="mWrite" aria-selected="false" aria-controls="writePane">✍ 글쓰기 훈련</button>
+          </div>
+          <span id="chatHint">말한 내용이 글자로 남아요</span>
+        </div>
+        <div class="talkbox" id="talkBox">
+          <div class="tx on" id="tx" aria-live="polite"></div>
+          <form class="kb on" id="kb"><input id="kbIn" placeholder="말 대신 영어로 입력해도 돼요" aria-label="영어 입력" autocomplete="off"><button>보내기</button></form>
+        </div>
+        <div class="writepane" id="writePane" hidden>
+          <iframe id="coachFrame" title="글쓰기 훈련" allow="microphone; autoplay"></iframe>
+        </div>
       </section>
     </div>
 
@@ -105,11 +111,6 @@
       <div class="row"><label class="small" style="display:flex;gap:8px;align-items:center">선생님 목소리<select id="voiceSel" aria-label="선생님 목소리"></select></label><button class="btn" id="voiceTest" type="button">들어 보기</button><span class="small" id="voiceHint"></span><a class="btn" href="../coach.html">Edward English Coach로 돌아가기</a></div>
       <details style="margin-top:12px"><summary>코치 지침 전문 보기</summary><textarea id="promptBox" readonly></textarea></details>
     </details>
-    </div>
-    <section id="writePane" class="writepane" hidden aria-label="글쓰기 훈련">
-      <div class="wp-h"><span id="wpWho"></span><span class="small">오늘 훈련 · 교정 대화 · 롤플레이 · Daniel 수업 · 실수 노트 — 기록은 말하기 대화와 같은 곳에 저장돼요.</span></div>
-      <iframe id="coachFrame" title="글쓰기 훈련" allow="microphone; autoplay"></iframe>
-    </section>
   </section>
 </div>
 

@@ -183,3 +183,16 @@ textarea{width:100%;min-height:140px;border-radius:10px;border:1px solid var(--l
 .wp-h #wpWho img,.wp-h #wpWho svg{width:30px;height:30px;border-radius:50%;object-fit:cover}
 #coachFrame{display:block;width:100%;height:calc(100vh - 200px);min-height:620px;border:0;background:transparent}
 .session.writing .sbar .scenes{display:none}
+
+/* 오른쪽 창: 대화 ↔ 글쓰기 훈련 (선생님은 왼쪽에 그대로) */
+.duo{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)}
+.chat-h{flex-wrap:wrap;align-items:center;padding:10px 14px}
+.chat-h #chatHint{font-size:13px;color:var(--mut)}
+.talkbox{display:flex;flex-direction:column;flex:1;min-height:0}
+.talkbox[hidden]{display:none}
+.chat .writepane{flex:1;min-height:0;border:0;border-radius:0;background:none}
+.chat .writepane[hidden]{display:none}
+#coachFrame{height:100%;min-height:520px}
+.chat{max-height:none;height:calc(100vh - 190px);min-height:560px}
+.session.writing .duo .cap{display:block;font-size:17px;min-height:0;padding:0 6px}
+@media(max-width:900px){.chat{height:auto}#coachFrame{height:70vh}}

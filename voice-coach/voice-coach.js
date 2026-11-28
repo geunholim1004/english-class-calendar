@@ -291,10 +291,25 @@ async function toggleLive(){const b=$('#liveBtn');
 /* ---- 화면 단계: 선생님 고르기 ↔ 한 선생님과 대화 ---- */
 const COACH_URL=window.__COACH_URL||'../coach.html?embed=1';
 function setMode(m){const w=m==='write';$('#mTalk').setAttribute('aria-selected',!w);$('#mWrite').setAttribute('aria-selected',w);
- $('#talkPane').hidden=w;$('#writePane').hidden=!w;$('#session').classList.toggle('writing',w);
- if(w){if(live)live.stop();try{speechSynthesis.cancel()}catch(e){}const f=$('#coachFrame');if(!f.src)f.src=COACH_URL;
-  $('#wpWho').innerHTML=face(TT())+`${esc(TT().n)} 선생님과 글쓰기 훈련`}
+ $('#talkBox').hidden=w;$('#writePane').hidden=!w;$('#session').classList.toggle('writing',w);
+ $('#chatHint').textContent=w?`채점하면 ${TT().n} 선생님이 결과를 말해 줘요`:'말한 내용이 글자로 남아요';
+ if(w){const f=$('#coachFrame');if(!f.src)f.src=COACH_URL}
  store.set('mode',m)}
+/* 글쓰기 훈련(코치) → 선생님 반응: 실시간 대화 중이면 Gemini가 자연스럽게, 아니면 선생님 목소리로 읽기 */
+window.addEventListener('message',e=>{
+ if(e.origin!==location.origin||!e.data||e.data.type!=='coach-event')return;const d=e.data,t=TT();
+ if(d.kind==='drill-ask'){
+  const say="Here's your next sentence. Take your time and try using \""+String(d.right||'')+"\".";
+  cap(t.n,say);if(live&&live.sendText)live.sendText('(The learner started a written translation drill. Target expression: "'+d.right+'". Encourage them in ONE short sentence. Do not give the answer.)');else speak(say);
+ }else if(d.kind==='drill-graded'){
+  const fixed=d.corrected&&d.corrected.trim()&&d.corrected.trim().toLowerCase()!==String(d.answer||'').trim().toLowerCase()?d.corrected:'';
+  const say=d.pass?('Nice work! '+(fixed?'Just one small touch: '+fixed:'That sounds natural.')+' A model answer is: '+d.model):('Almost there. '+(fixed?'A more natural way is: '+fixed+'. ':'')+'Try this model: '+d.model);
+  cap(t.n,say);
+  hist.push({role:'user',text:'✍ '+d.answer});hist.push({role:'coach',text:say,better:fixed,tip:d.why,by:'글쓰기 훈련'});renderTx();
+  if(live&&live.sendText)live.sendText('(The learner just wrote: "'+d.answer+'". Result: '+(d.pass?'PASS':'NEEDS PRACTICE')+'. Corrected: "'+(fixed||d.answer)+'". Model answer: "'+d.model+'". Give short spoken feedback: praise or correct, then have them say the model sentence out loud once.)');
+  else speak(say);
+ }
+});
 function showSession(){$('#picker').hidden=true;$('#session').hidden=false;$('#subline').textContent='선생님 얼굴이나 ▶ 단추를 누르면 대화가 시작돼요. 말한 내용은 대화창에 글자로 남아요.';window.scrollTo({top:0})}
 function showPicker(){if(live)live.stop();try{speechSynthesis.cancel()}catch(e){}$('#session').hidden=true;$('#picker').hidden=false;$('#subline').textContent='오늘 함께할 선생님을 고르세요.';renderTeacher()}
 
