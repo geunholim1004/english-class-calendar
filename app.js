@@ -1719,13 +1719,14 @@ function autoInfo(r, C, s){
   return {start, due, filed, late: !(filed < due)};
 }
 const lateReq = (r, C) => Math.round((parse(r.d) - parse(String(r.at || todayStr()).slice(0, 10))) / 86400000) < C.minNotice;
+// 화면 표시용: 사유를 "학생 요청"으로 고른 요청은 보낸 계정 역할과 상관없이 학생 요청으로 보여 줌
+const shownKind = r => r.byKind === "student" || reasonIdx(r.reason) === 4 ? "student" : "teacher";
 function reqBadges(r, C){
   const b = [];
   if (r.cause === "mutual") b.push(`<span class="rqb mut">${t("bMut")}</span>`);
-  b.push(r.byKind === "student" ? `<span class="rqb stu">${t("bStuReq")}</span>` : `<span class="rqb tch">${t("bTchReq")}</span>`);
+  b.push(shownKind(r) === "student" ? `<span class="rqb stu">${t("bStuReq")}</span>` : `<span class="rqb tch">${t("bTchReq")}</span>`);
   if (r.cause === "teacher") b.push(`<span class="rqb plain">${t("bTch")}</span>`);
   if (r.cause === "me") b.push(`<span class="rqb plain">${r.byKind === "student" ? t("bMe") : t("bTch")}</span>`);
-  if (reasonIdx(r.reason) === 4 && r.byKind !== "student") b.push(`<span class="rqb stu">${t("bStuReq")}</span>`);
   if (r.act === "move" && lateReq(r, C) && r.status === "pending") b.push(`<span class="rqb late">${t("bLate")}</span>`);
   return `<div class="rqbs">${b.join("")}</div>`;
 }
@@ -1863,7 +1864,7 @@ function renderPending(){
   box.innerHTML = list.map(r => {
     const {s, html} = reqLines(r, C);
     const stale = r.status === "pending" && (!s || fmt(s.d) !== r.d || s.act !== "plan");
-    return `<div class="pendrow"><div class="hint">${r.byKind === "student" ? "🎓 " : "👨‍🏫 "}${esc(t("pendBy")(r.name || r.by, r.by, r.at))}${isMaster() && r.byKind === "student" && r.status === "pending" ? ` · <b>${t("pendWaitT")}</b>` : ""}</div>${html}
+    return `<div class="pendrow"><div class="hint">${shownKind(r) === "student" ? "🎓 " : "👨‍🏫 "}${esc(t("pendBy")(r.name || r.by, r.by, r.at))}${isMaster() && r.byKind === "student" && r.status === "pending" ? ` · <b>${t("pendWaitT")}</b>` : ""}</div>${html}
       ${stale ? `<div class="hint bad">${s ? t("rqStale") : t("rqGone")}</div>` : ""}
       ${r.auto && !r.undone && isTeacher() ? `<div class="btns">${r.undoReq ? `<span class="hint">${t("undoSent")}</span>` : `<button class="ghost sm" data-undo="${esc(r.rid)}">${t("undoBtn")}</button>`}</div></div>` :
       r.auto && r.undoReq && !r.undoReq.closed && isMaster() ? `<div class="hint"><b>${esc(t("undoAsk")(r.undoReq.by, r.undoReq.at))}</b></div><div class="btns"><button class="sm danger" data-mundo="${esc(r.rid)}">${t("undoDo")}</button><button class="ghost sm" data-mkeep="${esc(r.rid)}">${t("undoKeep")}</button>${r.status === "teacherOk" ? `<button class="sm" data-apply="1">${t("tdApplyBtn")}</button>` : ""}</div></div>` :
