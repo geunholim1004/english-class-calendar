@@ -43,6 +43,13 @@
 - `app.js` – 계산·달력·권한·GitHub 동기화
 - `hub.html` · `hub.js` – 허브 (로그인·등록·매칭·결제)
 - `coach.html` · `coach.js` – 🎓 AI 영어 코치 모듈 (마스터·학생 버튼으로 진입)
+- `voice-coach/` – 🎙 AI 영어 **음성** 코치 모듈 (독립 폴더, 기존 파일은 건드리지 않음)
+  - 주소: `https://geunholim1004.github.io/english-class-calendar/voice-coach/`
+  - 달력 로그인(`eng-class-gh-auth`)을 그대로 사용 — 로그인 안 하면 로그인 안내만 보임
+  - AI 키는 `coach.html`과 공유(`edward-coach-secret-v1`, 학생은 마스터가 공유한 무료 키), 한도는 `coach-limits.json`, 사용 횟수는 코치와 함께 셈
+  - 실사 선생님 8명(`voice-coach/teachers/*.jpg`, 같은 이름으로 덮어쓰면 사진 교체) · 영어 억양별 목소리(Edge의 Natural 음성 권장)
+  - Claude·ChatGPT·Gemini 유료 구독은 API로 연결할 수 없어, 선생님·상황 지침을 복사하고 각 앱을 열어 앱의 음성 대화로 이어감
+  - 코치에 붙이려면 `coach.html`에 `<a href="voice-coach/">🎙 음성 코치</a>` 단추 하나만 추가
 - 데이터는 이 저장소에 두지 않습니다 (위 저장소 표 참고). 예전 `data/` 파일은 마스터 첫 접속 시 비공개 저장소로 옮겨진 뒤 삭제됩니다.
 
 ## 🤝 영어 수업 허브 (`hub.html`) — 로그인 · 등록 · 매칭 · 결제
