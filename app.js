@@ -355,7 +355,7 @@ ko: {
   payWas:(n,e) => `정정 전 ${n}회 · ~${e}`,
   zCardT:(live) => live ? "🎥 Zoom 수업 · 지금 입장할 수 있어요" : "🎥 Zoom 수업", zNextL:"다음 수업",
   zIn:(m) => m < 60 ? `${m}분 후 시작` : m < 1440 ? `${Math.floor(m/60)}시간 ${m%60}분 후` : `${Math.floor(m/1440)}일 후`, zLeftL:(m) => `수업 중 · ${m}분 남음`,
-  zBig:"🎥 Zoom 수업 입장하기", zSetLink:"⚙ Zoom 링크 넣기 (한 번만)", zNoLinkT:"Edward가 Zoom 링크를 넣으면 여기서 입장할 수 있어요", zOpensAt2:(d, hm) => `🔒 ${d} ${hm}부터 입장할 수 있어요`,
+  zBig:"🎥 Zoom 수업 입장하기", zPractice:"🎙 수업 전 AI 영어 코치로 연습하기", zUntil:"입장까지", zOpensHM:hm => `🔒 ${hm}에 열려요`, zTeachL:"선생님", zSetLink:"⚙ Zoom 링크 넣기 (한 번만)", zNoLinkT:"Edward가 Zoom 링크를 넣으면 여기서 입장할 수 있어요", zOpensAt2:(d, hm) => `🔒 ${d} ${hm}부터 입장할 수 있어요`,
   zTeacherL:"👨‍🏫 선생님", zStudentL:"🧑 학생 Edward", zOnS:"📷 ON", zOffS:"📷 OFF", zJoinedAt:(hm) => `${hm} 입장`, zNotYet:"아직 입장 안 함", zLateL:(m) => `${m}분 지났는데 아직 입장 안 함`,
   zLegend:"🔒 = 아직 입장 시간 전 · 파란 칸 = 지금 누르면 Zoom 입장 · 칸 안의 점 🟢 = 상대방 입장함(ON), 회색 = 아직(OFF)",
   zJoinChip:(l) => `🎥 ${l} 입장`, zLock:"16:55부터 Zoom 입장 버튼이 켜져요", zBarHead:(l, m) => m < 0 ? `${l} 수업 · ${-m}분 후 시작` : `${l} 수업 중 · ${m}분 남음`,
@@ -581,7 +581,7 @@ en: {
   payWas:(n,e) => `was ${n} · to ${e}`,
   zCardT:(live) => live ? "🎥 Zoom class · you can join now" : "🎥 Zoom class", zNextL:"Next class",
   zIn:(m) => m < 60 ? `starts in ${m} min` : m < 1440 ? `in ${Math.floor(m/60)} h ${m%60} min` : `in ${Math.floor(m/1440)} days`, zLeftL:(m) => `In class · ${m} min left`,
-  zBig:"🎥 Join the Zoom class", zSetLink:"⚙ Add the Zoom link (once)", zNoLinkT:"You can join here once Edward adds the Zoom link", zOpensAt2:(d, hm) => `🔒 You can join from ${d} ${hm}`,
+  zBig:"🎥 Join the Zoom class", zPractice:"🎙 Practise with the AI English coach before class", zUntil:"Until you can join", zOpensHM:hm => `🔒 opens at ${hm}`, zTeachL:"Teacher", zSetLink:"⚙ Add the Zoom link (once)", zNoLinkT:"You can join here once Edward adds the Zoom link", zOpensAt2:(d, hm) => `🔒 You can join from ${d} ${hm}`,
   zTeacherL:"👨‍🏫 Teacher", zStudentL:"🧑 Student Edward", zOnS:"📷 ON", zOffS:"📷 OFF", zJoinedAt:(hm) => `joined ${hm}`, zNotYet:"Not joined yet", zLateL:(m) => `${m} min past start, not joined yet`,
   zLegend:"🔒 = not open yet · blue = tap to join Zoom · dot 🟢 = the other person has joined (ON), grey = not yet (OFF)",
   zJoinChip:(l) => `🎥 Join ${l}`, zLock:"The Zoom join button turns on 5 min before class", zBarHead:(l, m) => m < 0 ? `Class ${l} · starts in ${-m} min` : `Class ${l} · ${m} min left`,
@@ -937,6 +937,11 @@ function joinZoom(s){
 }
 function zWho(role){ const cur = zCurrent(); if (!cur || !zLive || zLive.key !== zKey(cur)) return null; return Object.values(zLive.in || {}).find(v => v && v.role === role) || null; }
 function zDay(s){ return `${sdate(s.d)}(${t("dow")[s.d.getUTCDay()]})`; }
+// 수업 전 AI 연습: 마스터·학생·edward1004·uihee 에게만 (Daniel 선생님 화면은 그대로)
+const zPracticeOK = () => isMaster() || isStudent() || ["edward1004","uihee"].includes(String((auth && auth.login) || "").toLowerCase());
+const Z_TEACH = [["emma","Emma"],["sophie","Sophie"],["james","James"],["ryan","Ryan"]];
+function zCountdown(ms){ const s = Math.max(0, Math.floor(ms/1000)), h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(x).padStart(2,"0"); }
 function renderZCard(){
   const box = $("zCard"); if (!box) return;
   if (!isEditor() || !zC){ box.style.display = "none"; return; }
@@ -949,7 +954,11 @@ function renderZCard(){
     : el < 0 ? `${labelOf(s)} · ${range} · ${t("zIn")(Math.ceil(-el))}` : `${labelOf(s)} · ${range} · ${t("zLeftL")(dur - Math.floor(el))}`;
   const opens = new Date(st - 5*60e3), op = kstParts(opens);
   const btn = !hasUrl ? (isMaster() ? `<button class="zbig" id="zSetBtn">${t("zSetLink")}</button>` : `<button class="zbig" disabled>${t("zNoLinkT")}</button>`)
-    : cur ? `<button class="zbig" id="zBigBtn">${t("zBig")}</button>` : `<button class="zbig" disabled>${esc(t("zOpensAt2")(zDay(s), `${op.hour}:${op.minute}`))}</button>`;
+    : cur ? `<button class="zbig" id="zBigBtn">${t("zBig")}</button>`
+    : zPracticeOK() ? `<div class="zpr"><div class="zclock" aria-label="${esc(t("zUntil"))}"><small>${t("zUntil")}</small><b class="zcd" data-at="${+opens}">${zCountdown(+opens - Date.now())}</b><small>${esc(t("zOpensHM")(`${op.hour}:${op.minute}`))}</small></div>`+
+        `<a class="zgo" href="voice-coach/">${t("zPractice")}</a></div>`+
+        `<div class="zteach"><span>${t("zTeachL")}</span>${Z_TEACH.map(([k,n]) => `<a class="zt" href="voice-coach/?t=${k}"><img src="voice-coach/teachers/thumbs/${k}.jpg" alt="" width="28" height="28" loading="lazy">${n}</a>`).join("")}</div>`
+    : `<button class="zbig" disabled>${esc(t("zOpensAt2")(zDay(s), `${op.hour}:${op.minute}`))}</button>`;
   let pres = "";
   if (cur){
     const m = Math.floor(el);
@@ -962,6 +971,7 @@ function renderZCard(){
   if (cur) $("zBigBtn").onclick = () => joinZoom(cur);
   if (!hasUrl && isMaster()) $("zSetBtn").onclick = () => { $("openSettings").click(); setTimeout(() => { $("zoom").scrollIntoView({block:"center"}); $("zoom").focus(); }, 300); };
 }
+setInterval(() => { document.querySelectorAll(".zcd").forEach(e => { const left = +e.dataset.at - Date.now(); e.textContent = zCountdown(left); if (left <= 0) renderZCard(); }); }, 1000);
 // 상단 카드가 화면에 보이면 하단 바는 숨김 (둘 다 같은 내용이라)
 let zCardVisible = false;
 try { new IntersectionObserver(es => { zCardVisible = es[0].isIntersecting; renderZoom(); }).observe(document.getElementById("zCard")); } catch(e) {}
