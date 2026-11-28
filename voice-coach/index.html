@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai; media-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai; media-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
 <title>AI 음성 코치 · Edward English Coach</title>
@@ -48,13 +48,14 @@
       <div class="fixes" id="fixes"></div>
       <div>
         <div class="vlink" id="vlink">
+          <button class="vbtn live" id="liveBtn" type="button">▶ 실시간 음성 대화 시작</button>
           <button class="vbtn" id="linkBtn" type="button">ChatGPT·Claude 음성 소리 연결</button>
           <button class="vbtn" id="pipBtn" type="button">선생님 창 띄우기 (항상 위)</button>
           <span class="small vstate" id="linkState"></span>
         </div>
         <div class="note" id="voiceWarn"></div>
         <div class="note" id="note"></div>
-        <div class="tx" id="tx"></div>
+        <div class="tx" id="tx" aria-live="polite"></div>
         <form class="kb" id="kb"><input id="kbIn" placeholder="영어로 입력하세요" aria-label="영어 입력" autocomplete="off"><button>보내기</button></form>
         <div class="dock">
           <button class="round" id="kbBtn" aria-pressed="false" title="자판으로 입력">자판</button>
@@ -101,6 +102,7 @@
   </div>
 </div>
 <script src="face-anim.js"></script>
+<script src="live-coach.js"></script>
 <script src="voice-coach.js"></script>
 </body>
 </html>

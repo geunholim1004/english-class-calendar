@@ -128,14 +128,14 @@ let teacherK=(()=>{const q=new URLSearchParams(location.search).get('t');if(q&&/
 const RATES=[0.85,1,1.15];
 const scene=()=>SCENES.find(s=>s.k===sceneK);
 const nextQ=()=>{const q=scene().q;return q[qi++%q.length]};
-const STATES={idle:'대기 중 · 선생님을 누르면 듣기 시작',listen:'듣는 중 · 말을 마치면 잠시 멈추세요',think:'선생님이 생각하는 중',speak:'선생님이 말하는 중'};
+const STATES={idle:'대기 중 · 선생님 얼굴이나 ▶ 단추를 누르면 실시간 대화 시작',listen:'듣는 중 · 말을 마치면 잠시 멈추세요',think:'선생님이 생각하는 중',speak:'선생님이 말하는 중'};
 function setS(s){$('#call').dataset.s=s;$('#stateTx').textContent=STATES[s];if(talker)talker.setMode(s)}
 function cap(who,t){$('#cap').innerHTML=`<small>${esc(who)}</small>${esc(t)}`}
 function note(t){$('#note').textContent=t;$('#note').style.display=t?'block':'none'}
 function renderWho(){$('#who').textContent=whoLabel();renderQuota()}
 function renderQuota(){const l=myLimit(),n=usedToday();$('#quota').innerHTML=`<b>${esc(whoLabel())}</b><br>`+(l===Infinity?`오늘 AI 사용 ${n}회 · 무제한`:`오늘 AI 사용 ${n} / ${l}회<div class="bar"><i style="width:${Math.min(100,n/l*100)}%"></i></div>`)}
 function renderScenes(){$('#scenes').innerHTML=SCENES.map(s=>`<button class="sc" data-k="${s.k}" aria-pressed="${s.k===sceneK}"><b>${s.n}</b><span>${s.d}</span></button>`).join('')}
-function renderTx(){$('#tx').innerHTML=hist.map(m=>`<p><b>${m.role==='user'?esc(loginId()):esc(TT().n)}</b> ${esc(m.text)}</p>`).join('')}
+function renderTx(){const tx=$('#tx');tx.innerHTML=hist.map(m=>`<p class="${m.role==='user'?'me':'t'}${m.partial?' partial':''}"><b>${m.role==='user'?esc(loginId()):esc(TT().n)}</b>${esc(m.text)}</p>`).join('');tx.scrollTop=tx.scrollHeight}
 function showFix(m){const box=$('#fixes');if(!m.better&&!m.tip){box.innerHTML='';return}
  const last=[...hist].reverse().find(h=>h.role==='user');
  box.innerHTML=`<div class="fixc">${m.better?`<s>${esc(last?last.text:'')}</s><br>→ <b>${esc(m.better)}</b>`:''}${m.tip?`<div>${esc(m.tip)}</div>`:''}</div>`}
@@ -201,7 +201,7 @@ function listen(){const SR=window.SpeechRecognition||window.webkitSpeechRecognit
  rec.onend=()=>{listening=false;if($('#call').dataset.s==='listen')setS('idle');if(fin)send(fin)};
  try{rec.start()}catch(e){openKb('마이크를 시작하지 못했어요. 자판으로 입력하세요.')}}
 
-function greet(){hist=[];qi=0;$('#fixes').innerHTML='';const g=`Hi ${loginId()}, I'm ${TT().n}! Today: ${scene().n}. ${nextQ()}`;hist.push({role:'coach',text:g,by:'코치'});cap(TT().n,g);renderTx();setS('idle');$('#appTeacher').textContent=TT().n;$('#promptBox').value=appPrompt()}
+function greet(){if(live)live.stop();hist=[];qi=0;$('#fixes').innerHTML='';const g=`Hi ${loginId()}, I'm ${TT().n}! Today: ${scene().n}. ${nextQ()}`;hist.push({role:'coach',text:g,by:'코치'});cap(TT().n,g);renderTx();setS('idle');$('#appTeacher').textContent=TT().n;$('#promptBox').value=appPrompt()}
 function report(){const me=hist.filter(m=>m.role==='user'),fx=hist.filter(m=>m.role==='coach'&&(m.better||m.tip));
  const words=me.reduce((a,m)=>a+m.text.split(/\s+/).filter(Boolean).length,0),dur=$('#timer').textContent,r=$('#report');r.classList.add('on');
  r.innerHTML=`<h3>오늘 연습 리포트 · ${esc(TT().n)} · ${esc(scene().n)}</h3>
@@ -257,19 +257,50 @@ async function savePhoto(){if(!pending)return;const t=TT(),st=$('#photoSt'),big=
  catch(e){st.textContent='저장하지 못했어요 ('+(e.message||'오류')+'). 마스터 토큰에 english-class-calendar 쓰기 권한이 있는지 확인하세요.'}
  finally{$('#photoSave').disabled=false}}
 
+/* ---- 실시간 음성 대화 (Gemini Live): 이 화면 안에서 말하고 듣기 + 글자 기록 ---- */
+let live=null;
+function liveSystem(){const t=TT(),s=scene(),acc=t.lang==='en-GB'?'British':t.lang==='en-AU'?'Australian':t.lang==='en-CA'?'Canadian':'American';
+ return COACH+'\n'+t.p+`\nThis is a live VOICE call. Speak with a natural ${acc} accent. The learner's name is ${loginId()}. Today's scenario: ${s.n} (${s.d}).\nKeep every turn to 1-3 short sentences. When the learner makes a mistake, say "A more natural way is: ..." with the better sentence, then continue the conversation. Only use a few Korean words if the learner is clearly stuck.`}
+function liveMsg(role,text,final){const last=hist[hist.length-1];
+ if(last&&last.role===role&&last.partial){last.text=text;last.partial=!final}else hist.push({role,text,partial:!final,by:'Gemini Live'});
+ renderTx();if(role!=='user')cap(TT().n+' · Gemini Live',text);else cap(loginId(),text)}
+async function toggleLive(){const b=$('#liveBtn');
+ if(live){live.stop();return}
+ const key=secret.geminiKey;
+ if(!key){note('실시간 대화는 Gemini 키가 필요해요. 마스터는 Edward English Coach → 설정에서 Gemini 키를 넣고 학생과 공유해 주세요.');return}
+ const l=myLimit();if(usedToday()>=l){note(`오늘 AI 사용 한도(${l}회)를 다 썼어요.`);return}
+ try{speechSynthesis.cancel()}catch(e){}
+ b.disabled=true;b.textContent='연결 중…';note('');startTimer();
+ try{
+  live=await LiveCoach.start({key,system:liveSystem(),gender:TT().g,voiceIndex:TEACHERS.filter(x=>x.g===TT().g).findIndex(x=>x.k===TT().k),
+   onModel:m=>{$('#linkState').textContent='실시간 연결됨 · '+m},
+   onUser:(t,f)=>liveMsg('user',t,f),onTeacher:(t,f)=>liveMsg('coach',t,f),
+   onLevel:fn=>{if(talker){let hold=0;talker.setLevelSource(fn,lv=>{if(lv>0.05)hold=performance.now();const s=performance.now()-hold<350?'speak':'listen';if($('#call').dataset.s!==s){$('#call').dataset.s=s;$('#stateTx').textContent=s==='speak'?TT().n+' 선생님이 말하는 중':'듣는 중 · 편하게 말하세요 (말을 끊어도 돼요)'}})}},
+   onError:msg=>note(msg),
+   onEnd:()=>{live=null;if(talker)talker.setLevelSource(null);b.setAttribute('aria-pressed','false');b.textContent='▶ 실시간 음성 대화 시작';setS('idle');$('#linkState').textContent='실시간 대화를 끝냈어요.'}});
+  countUse();renderQuota();
+  b.setAttribute('aria-pressed','true');b.textContent='■ 대화 끝내기';$('#voiceWarn').style.display='none';
+  $('#tx').classList.add('on');$('#txBtn').setAttribute('aria-pressed','true');$('#hfBtn').setAttribute('aria-pressed','false');
+  if(hist.length===1&&hist[0].role==='coach')hist=[];renderTx();setS('listen');
+ }catch(e){live=null;const m=String(e&&e.message||'');
+  note(m==='mic'?'마이크를 쓸 수 없어요. 주소창 왼쪽 자물쇠에서 마이크를 허용한 뒤 다시 누르세요.':'Gemini 실시간 음성에 연결하지 못했어요 ('+m+'). Gemini 키가 맞는지, 무료 한도가 남았는지 확인하세요. 아래 "자판"으로는 계속 연습할 수 있어요.');
+  b.textContent='▶ 실시간 음성 대화 시작'}
+ finally{b.disabled=false}}
+
 /* ---- 시작 ---- */
 if(!loggedIn()){$('#locked').hidden=false;return}
 $('#app').hidden=false;
 $('#teachers').addEventListener('click',e=>{const b=e.target.closest('.tc');if(!b)return;teacherK=b.dataset.k;store.set('teacher',teacherK);renderTeacher();renderVoiceSel();greet();speak(hist[0].text)});
 $('#scenes').addEventListener('click',e=>{const b=e.target.closest('.sc');if(!b)return;sceneK=b.dataset.k;renderScenes();greet()});
-$('#orb').addEventListener('click',()=>{if($('#call').dataset.s==='speak'){try{speechSynthesis.cancel()}catch(x){}setS('idle');return}startTimer();listen()});
+$('#orb').addEventListener('click',()=>{if(live||secret.geminiKey){toggleLive();return}if($('#call').dataset.s==='speak'){try{speechSynthesis.cancel()}catch(x){}setS('idle');return}startTimer();listen()});
+$('#liveBtn').addEventListener('click',toggleLive);
 $('#kb').addEventListener('submit',e=>{e.preventDefault();const v=$('#kbIn').value;$('#kbIn').value='';send(v)});
 const tog=(b,f)=>{const on=b.getAttribute('aria-pressed')!=='true';b.setAttribute('aria-pressed',on);f&&f(on)};
 $('#kbBtn').addEventListener('click',e=>tog(e.currentTarget,on=>{$('#kb').classList.toggle('on',on);if(on)$('#kbIn').focus()}));
 $('#txBtn').addEventListener('click',e=>tog(e.currentTarget,on=>$('#tx').classList.toggle('on',on)));
 $('#hfBtn').addEventListener('click',e=>tog(e.currentTarget));
 $('#spdBtn').addEventListener('click',e=>{rate=RATES[(RATES.indexOf(rate)+1)%RATES.length];e.currentTarget.textContent=(rate===1?'1.0':String(rate))+'×'});
-$('#endBtn').addEventListener('click',()=>{try{rec&&rec.stop();speechSynthesis.cancel()}catch(x){}clearInterval(tick);tick=null;setS('idle');report()});
+$('#endBtn').addEventListener('click',()=>{if(live)live.stop();try{rec&&rec.stop();speechSynthesis.cancel()}catch(x){}clearInterval(tick);tick=null;setS('idle');report()});
 $('#linkBtn').addEventListener('click',toggleLink);
 $('#tname').addEventListener('click',e=>{if(e.target.id==='photoBtn'&&isMaster())$('#photoIn').click()});
 $('#photoIn').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f&&isMaster())openPhotoEditor(f)});

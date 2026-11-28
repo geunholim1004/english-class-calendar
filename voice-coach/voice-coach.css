@@ -121,3 +121,15 @@ textarea{width:100%;min-height:140px;border-radius:10px;border:1px solid var(--l
 .dlgbox{background:var(--card);color:var(--ink);border-radius:20px;padding:22px;max-width:380px;width:100%;display:grid;gap:10px;justify-items:center;text-align:center}
 #photoPrev{width:200px;height:200px;border-radius:50%;background:#000}
 .dlgbox input[type=range]{width:180px;vertical-align:middle}
+
+/* 실시간 대화 */
+.vbtn.live{background:var(--mint);color:#06221e;border-color:var(--mint);font-weight:700}
+.vbtn.live[aria-pressed=true]{background:#c23b22;border-color:#c23b22;color:#fff}
+.tx{display:none;margin:0 22px 14px;max-height:300px;overflow:auto;background:rgba(255,255,255,.03);border-radius:14px;padding:12px}
+.tx.on{display:flex;flex-direction:column;gap:8px}
+.tx p{margin:0;max-width:85%;padding:8px 12px;border-radius:14px;line-height:1.45;font-size:15px}
+.tx p b{display:block;font-size:12px;color:#9cc6bb;font-weight:500;margin-bottom:2px}
+.tx p.me{align-self:flex-end;background:#1d4a43;color:#fff;border-bottom-right-radius:4px}
+.tx p.t{align-self:flex-start;background:#0f2f2a;color:#e8f6f1;border-bottom-left-radius:4px}
+.tx p.partial{opacity:.75}
+.livehint{text-align:center;color:#9cc6bb;font-size:13px;padding:0 20px 8px}
