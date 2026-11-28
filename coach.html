@@ -61,6 +61,7 @@ header.top .sub{color:var(--muted);font-size:13px}
 .mode-pill.off{border-color:var(--warn);color:var(--warn)}
 .hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .backlink{text-decoration:none;color:var(--accent);font-size:13px;min-height:0;padding:4px 8px}
+a.btn.voicelink{text-decoration:none;font-size:14px;font-weight:700;border-radius:999px;padding:6px 16px;min-height:36px;box-shadow:0 2px 8px rgba(31,111,92,.25)}
 .sync-note{font-size:11.5px;color:var(--muted);min-height:15px}
 .sync-note.bad{color:var(--bad)}
 @media (max-width:560px){.hdr-right{align-items:flex-start}}
@@ -197,6 +198,7 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
     </div>
     <div class="hdr-right">
       <a class="btn ghost backlink" href="./">← 수업 달력</a>
+      <a class="btn primary voicelink" href="voice-coach/" title="실사 선생님과 음성으로 대화 (ChatGPT·Claude·Gemini 음성 연결)">🎙 음성 코치</a>
       <span id="modePill" class="mode-pill">연결 확인 중…</span>
       <span id="syncNote" class="sync-note"></span>
     </div>
